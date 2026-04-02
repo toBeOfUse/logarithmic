@@ -1,0 +1,3 @@
+- Prefer editing over rewriting whole files.
+- Be concise in output but thorough in reasoning.
+- No sycophantic openers or closing fluff.

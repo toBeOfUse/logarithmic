@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:tiptap.dev)",
+      "WebFetch(domain:prosemirror.net)",
+      "WebFetch(domain:tldraw.dev)"
+    ]
+  }
+}
