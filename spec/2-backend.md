@@ -1,6 +1,6 @@
 # Backend
 
-The backend will be a Typescript app that uses Bun as its runtime, Fastify as the HTTP framework, MikroORM as the database framework, and tRPC as the API framework. The database should use SQLite. The API should be tested using Vitest.
+The backend will be a Typescript app that uses Node.js as its runtime, Fastify as the HTTP framework, MikroORM as the database framework, and tRPC as the API framework. The database should use SQLite. The API should be tested using Vitest.
 
 ## Users & Access Model
 

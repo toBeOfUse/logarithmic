@@ -1,0 +1,28 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+catalog:
+  '@tanstack/react-query': ^5.99.0
+  '@trpc/client': ^11.16.0
+  '@trpc/server': ^11.16.0
+  '@trpc/tanstack-react-query': ^11.16.0
+  "@types/node": ^24
+  fastify: ^5.8.5
+  typescript: ^5
+  vite: npm:@voidzero-dev/vite-plus-core@latest
+  vite-plus: latest
+  vitest: npm:@voidzero-dev/vite-plus-test@latest
+
+catalogMode: prefer
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
