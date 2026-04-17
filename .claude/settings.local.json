@@ -10,7 +10,9 @@
       "Bash(bun *)",
       "Bash(vp *)",
       "Bash(bunx svelte-kit:*)",
-      "WebFetch(domain:vite.dev)"
+      "WebFetch(domain:vite.dev)",
+      "WebFetch(domain:mikro-orm.io)",
+      "WebFetch(domain:www.better-auth.com)"
     ]
   }
 }

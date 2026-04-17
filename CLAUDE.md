@@ -3,6 +3,8 @@
 - Prefer editing over rewriting whole files.
 - Where possible, use scaffolding and code generation tools instead of manually outputting code.
 - The "spec" directory is where plans live.
+- Don't use barrel files.
+- Habitually read examples from linked documentation.
 - Run type checks before tests.
 - Do not use `any` or `unknown` to fix type errors.
 - Tests should be organized according to the scenario that they are testing. The purpose of each test should be very clear. Whenever possible, they should be described behaviorally with invariant statements roughly along the lines of "users cannot read other user's records from the database" or "after the doThing function is called, x should be set to y."
@@ -96,4 +98,3 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 - [ ] Run `vp install` after pulling remote changes and before getting started.
 - [ ] Run `vp check` and `vp test` to validate changes.
 <!--VITE PLUS END-->
-

@@ -4,10 +4,14 @@ packages:
   - tools/*
 
 catalog:
-  '@tanstack/react-query': ^5.99.0
-  '@trpc/client': ^11.16.0
-  '@trpc/server': ^11.16.0
-  '@trpc/tanstack-react-query': ^11.16.0
+  "@mikro-orm/core": ^7.0.11
+  "@mikro-orm/decorators": ^7.0.11
+  "@mikro-orm/migrations": ^7.0.11
+  "@mikro-orm/sqlite": ^7.0.11
+  "@tanstack/react-query": ^5.99.0
+  "@trpc/client": ^11.16.0
+  "@trpc/server": ^11.16.0
+  "@trpc/tanstack-react-query": ^11.16.0
   "@types/node": ^24
   fastify: ^5.8.5
   typescript: ^5

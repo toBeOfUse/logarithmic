@@ -1,6 +1,6 @@
 # Frontend
 
-The frontend will use React Router. It will operate in SPA mode. It will fetch data using the React Query tRPC client.
+The frontend will use React Router. It will operate in SPA mode. It will fetch data using the React Query tRPC client. It will use Tailwind CSS for styling. It should use Remix icons. It should have a clean, minimal, spacious aesthetic.
 
 ## User Interface
 
@@ -21,6 +21,12 @@ there is something to show in them; in their absence, subtle "Add Children" and 
 
 #### Text Editor
 
-We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text.
+We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text. For now, let's try the TipTap editor. The formatting buttons should show up in a tooltip when you highlight some text.
 
 It should also have the ability to surface "comments." These comments will be stored in the underlying Markdown in the standard `<!-- -->` way, and thus won't show up when the Markdown is rendered normally, but they should be rendered (with low opacity or something similar that indicates that they aren't normal content) in the editor.
+
+The content should auto-save periodically.
+
+## Demo Workspace
+
+The frontend should have a "demo workspace" that is accessible from the splash screen. This will consist of a series of leaflets that are not persisted and are not loaded from the API that serve to demonstrate the app's functionality. To facilitate this, data-fetching should be encapsulated in hooks (like `useLeaflet` and `useWorkspaceOverview`) that receive a `demo` parameter that defaults to `false`; if this parameter is `true`, fetching from the API should be disabled and in-memory objects should be returned instead.
