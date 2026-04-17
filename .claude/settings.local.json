@@ -3,7 +3,14 @@
     "allow": [
       "WebFetch(domain:tiptap.dev)",
       "WebFetch(domain:prosemirror.net)",
-      "WebFetch(domain:tldraw.dev)"
+      "WebFetch(domain:tldraw.dev)",
+      "WebFetch(domain:remult.dev)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:svelte.dev)",
+      "Bash(bun *)",
+      "Bash(vp *)",
+      "Bash(bunx svelte-kit:*)",
+      "WebFetch(domain:vite.dev)"
     ]
   }
 }

@@ -1,3 +1,9 @@
-- Prefer editing over rewriting whole files.
 - Be concise in output but thorough in reasoning.
 - No sycophantic openers or closing fluff.
+- Prefer editing over rewriting whole files.
+- Where possible, use scaffolding and code generation tools instead of manually outputting code.
+- The "spec" directory is where plans live.
+- Run type checks before tests.
+- Do not use `any` or `unknown` to fix type errors.
+- Tests should be organized according to the scenario that they are testing. The purpose of each test should be very clear. Whenever possible, they should be described behaviorally with invariant statements roughly along the lines of "users cannot read other user's records from the database" or "after the doThing function is called, x should be set to y."
+- Use Vite+ to manage the development tools and workspace. Run `vp help` if you need to explore how it works.
