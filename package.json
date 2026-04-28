@@ -19,5 +19,8 @@
       "better-sqlite3",
       "esbuild"
     ]
+  },
+  "dependencies": {
+    "@playwright/cli": "catalog:"
   }
 }

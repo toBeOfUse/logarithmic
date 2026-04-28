@@ -1,8 +1,11 @@
+# General Instructions
+
 - Be concise in output but thorough in reasoning.
 - No sycophantic openers or closing fluff.
 - Prefer editing over rewriting whole files.
 - Where possible, use scaffolding and code generation tools instead of manually outputting code.
 - The "spec" directory is where plans live.
+  - Don't act on TODO comments in the spec files yet.
 - Don't use barrel files.
 - Habitually read examples from linked documentation.
 - Run type checks before tests.
@@ -98,3 +101,11 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 - [ ] Run `vp install` after pulling remote changes and before getting started.
 - [ ] Run `vp check` and `vp test` to validate changes.
 <!--VITE PLUS END-->
+
+# Browser Automation
+
+Use the Playwright CLI skill for browser automation. When doing frontend work, use it to double-check designs and flows. Run it with `pnpm dlx @playwright/cli`, like this:
+
+```bash
+pnpm dlx @playwright/cli --help
+```

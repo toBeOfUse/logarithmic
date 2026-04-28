@@ -12,7 +12,8 @@
       "Bash(bunx svelte-kit:*)",
       "WebFetch(domain:vite.dev)",
       "WebFetch(domain:mikro-orm.io)",
-      "WebFetch(domain:www.better-auth.com)"
+      "WebFetch(domain:www.better-auth.com)",
+      "Bash(pnpm dlx @playwright/cli *)"
     ]
   }
 }
