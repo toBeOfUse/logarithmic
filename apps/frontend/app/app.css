@@ -3,12 +3,12 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* Paper surface */
-  --color-paper: oklch(0.975 0.006 85);
-  --color-paper-edge: oklch(0.92 0.01 85);
-  --color-paper-rule: oklch(0.78 0.02 240 / 0.22);
-  --color-paper-col-even: oklch(1 0 0);
-  --color-paper-col-odd: oklch(0.93 0.025 222);
+  /* Paper surface — modern stone with a hint of warmth */
+  --color-paper: oklch(0.97 0.004 80);
+  --color-paper-edge: oklch(0.86 0.006 70);
+  --color-paper-rule: oklch(0.45 0.01 60 / 0.16);
+  --color-paper-col-even: oklch(0.985 0.003 80);
+  --color-paper-col-odd: oklch(0.93 0.04 235);
 
   /* Stark surface */
   --color-stark: #ffffff;
@@ -31,6 +31,10 @@
 
   --color-warn: oklch(0.65 0.14 60);
 
+  /* Interactive */
+  --color-ink-hover: oklch(0.32 0.01 250);
+  --color-paper-soft: oklch(0.93 0.018 85);
+
   /* Typography */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
@@ -40,6 +44,26 @@
   --radius: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+}
+
+:root {
+  /* Org view sizing & spacing */
+  --org-row-h: 42px;
+  --org-line-h: calc(var(--org-row-h) / 1);
+  --org-row-font: 13px;
+  --org-row-line-height: 1.3;
+  --org-row-pad-x: 12px;
+  --org-pill-font: 10px;
+  --org-add-font: 11px;
+  --org-edge-w: 1px;
+
+  /* Org view layout */
+  --org-group-w: 320px;
+  --org-col-stride: 100px;
+  --org-group-pad-x: 10px;
+  --org-canvas-end-pad: 60px;
+  --org-canvas-pad-x: 32px;
+  --org-empty-title-font: 15px;
 }
 
 html,
@@ -151,10 +175,11 @@ body {
 
 .exp-scroll-paper {
   background: var(--color-paper);
+  background-attachment: local;
   background-image: repeating-linear-gradient(
     to bottom,
-    transparent 0 27px,
-    oklch(0.85 0.015 80 / 0.35) 27px 28px
+    oklch(0.45 0.01 60 / 0.16) 0 var(--org-edge-w),
+    transparent var(--org-edge-w) var(--org-line-h)
   );
 }
 
@@ -164,39 +189,41 @@ body {
 .nest-canvas-wrap {
   position: relative;
   margin: 0 auto;
-  padding: 56px 32px 40px;
+  padding: 0 var(--org-canvas-pad-x);
   box-sizing: content-box;
+  width: calc(
+    var(--org-group-w) + var(--org-col-span, 0) * var(--org-col-stride) + var(--org-canvas-end-pad)
+  );
 }
 
 .nest-col-strip {
-  position: absolute;
-  /* top-3.5 left-8 h-7 */
-  top: 14px;
-  left: 32px;
-  height: 28px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: var(--org-row-h);
+  width: 100%;
+  background: var(--color-paper);
   pointer-events: none;
 }
 
 .nest-col-pill {
   position: absolute;
-  top: 0;
-  transform: translateX(-50%);
+  top: 50%;
+  left: calc(var(--org-group-w) / 2 + var(--org-col-idx, 0) * var(--org-col-stride));
+  transform: translate(-50%, -50%);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--org-pill-font);
   font-weight: 600;
-  /* py-1 px-3 */
-  padding: 4px 12px;
-  border-radius: 999px;
-  color: var(--color-ink-3);
-  background: var(--color-paper);
-  border: 1px solid var(--color-paper-edge);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 0;
+  color: var(--color-ink-2);
+  /* background: var(--color-paper); */
+  border: 0;
+  border-top: var(--org-edge-w) solid var(--color-ink);
+  border-bottom: var(--org-edge-w) solid var(--color-ink);
   white-space: nowrap;
-}
-
-.nest-col-pill.is-zero {
-  background: var(--color-ink);
-  color: var(--color-paper);
-  border-color: var(--color-ink);
 }
 
 .nest-forest {
@@ -206,17 +233,22 @@ body {
 
 .nest-tree {
   position: relative;
+  margin-left: calc(var(--org-col-idx, 0) * var(--org-col-stride));
+  margin-bottom: var(--org-line-h);
 }
 
 .nest-box {
   /* Per-box custom props so cells inherit the right hover/divider colors */
-  --row-hover: oklch(0.96 0.018 222);
-  --row-divider: oklch(0.88 0.01 222);
+  --row-hover: oklch(0.93 0.005 70);
+  --row-divider: oklch(0.86 0.005 70);
+  --row-edge: oklch(0.32 0.008 70);
 
   position: relative;
-  border: 1px solid var(--row-divider);
-  border-radius: 12px;
-  box-sizing: border-box;
+  isolation: isolate;
+  z-index: 2;
+  width: var(--org-group-w);
+  border: 0;
+  border-radius: 0;
   padding: 0;
   overflow: visible;
   display: flex;
@@ -224,14 +256,27 @@ body {
   background: var(--color-paper-col-even);
 }
 
-.nest-box.is-odd {
-  --row-hover: oklch(0.89 0.04 222);
-  --row-divider: oklch(0.84 0.03 222);
-  background: var(--color-paper-col-odd);
+.nest-box-rows > .nest-box {
+  margin-left: calc(var(--org-col-stride) - var(--org-group-pad-x));
 }
 
-.nest-box.is-top {
-  box-shadow: 0 2px 8px -2px oklch(0.6 0.04 220 / 0.14);
+.nest-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 var(--org-edge-w) 0 0 var(--row-edge),
+    inset var(--org-edge-w) 0 0 0 var(--row-edge),
+    inset calc(-1 * var(--org-edge-w)) 0 0 0 var(--row-edge),
+    0 var(--org-edge-w) 0 0 var(--row-edge);
+  z-index: 1;
+}
+
+.nest-box.is-odd {
+  --row-hover: oklch(0.87 0.05 235);
+  --row-divider: oklch(0.8 0.05 235);
+  background: var(--color-paper-col-odd);
 }
 
 .nest-box-rows {
@@ -241,18 +286,18 @@ body {
 
 .nest-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   width: 100%;
-  /* py-2.5 px-3 */
-  padding: 10px 12px;
+  height: var(--org-row-h);
+  padding: 0 var(--org-row-pad-x);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--org-row-font);
   font-weight: 500;
-  line-height: 1.3;
+  line-height: var(--org-row-line-height);
   color: var(--color-ink);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--row-divider);
+  border-bottom: var(--org-edge-w) solid var(--row-divider);
   border-radius: 0;
   text-align: left;
   cursor: pointer;
@@ -280,7 +325,7 @@ body {
   word-break: break-word;
   text-decoration: underline;
   text-decoration-color: oklch(0 0 0 / 0);
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: var(--org-edge-w);
   text-underline-offset: 2px;
   transition: text-decoration-color 120ms ease;
 }
@@ -290,9 +335,9 @@ body {
 }
 
 .nest-row.is-active {
-  background: oklch(0.9 0.07 252);
-  color: oklch(0.25 0.1 252);
-  border-bottom-color: oklch(0.8 0.08 252);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border-bottom-color: var(--color-ink);
 }
 
 .nest-row.is-active .nest-row-name {
@@ -300,32 +345,29 @@ body {
   font-weight: 600;
 }
 
-/* mt-1 mb-1 */
-.nest-box > .nest-box-rows > .nest-box {
-  margin-top: 4px;
-  margin-bottom: 4px;
+.nest-row.has-children {
+  border-bottom: 0;
 }
 
 .nest-add {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  /* gap-1 */
   gap: 4px;
-  align-self: flex-start;
-  /* mt-1 ml-2 mb-1 */
-  margin: 4px 0 4px 8px;
-  /* py-1 px-2 */
-  padding: 4px 8px;
+  width: 100%;
+  height: var(--org-row-h);
+  margin: 0;
+  padding: 0 var(--org-row-pad-x);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--org-add-font);
   font-weight: 500;
   font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   border: 0;
   background: transparent;
   color: inherit;
-  opacity: 0.45;
-  /* rounded-sm */
-  border-radius: 4px;
+  opacity: 0.5;
+  border-radius: 0;
   cursor: pointer;
   transition:
     opacity 120ms ease,
@@ -362,9 +404,9 @@ body {
   background: repeating-linear-gradient(
     to bottom,
     transparent 0,
-    transparent 31px,
-    var(--color-paper-rule) 31px,
-    var(--color-paper-rule) 32px
+    transparent calc(var(--org-line-h) - var(--org-edge-w)),
+    var(--color-paper-rule) calc(var(--org-line-h) - var(--org-edge-w)),
+    var(--color-paper-rule) var(--org-line-h)
   );
   opacity: 0.5;
   pointer-events: none;
@@ -374,6 +416,6 @@ body {
 
 @media (max-width: 640px) {
   .nest-canvas-wrap {
-    padding: 32px 20px 96px;
+    padding-inline: 20px;
   }
 }

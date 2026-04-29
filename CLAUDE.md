@@ -111,3 +111,5 @@ Use the Playwright CLI skill for browser automation. When doing frontend work, u
 ```bash
 pnpm dlx @playwright/cli --help
 ```
+
+When saving screenshots, place them in a folder called '.playwright-cli', which will be gitignored.

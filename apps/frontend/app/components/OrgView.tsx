@@ -1,13 +1,11 @@
 /**
- * Organizational view — nested-containers design ported from
- * design/project/org-view.jsx.
+ * Organizational view — nested-containers design.
  *
- * Each sibling group is a rounded fill (no border). Group boxes have a fixed
- * width centered on each column's center line; the column stride is smaller
- * than the group width, so child groups visibly overlap their parents (the
- * "stagger" from the sketch). Children are always at parent.col − 1.
+ * Layout, sizing, and positioning live in CSS via custom properties on
+ * :root and on individual elements (--org-col-idx, --org-col-span). This
+ * component just builds the tree structure and labels columns.
  */
-import { Fragment, useMemo } from "react";
+import { type CSSProperties, Fragment, useMemo } from "react";
 import { Link } from "react-router";
 
 import type { EntryNode } from "logarithmic-backend/api-types";
@@ -18,19 +16,6 @@ type TreeNode = EntryNode & { children: TreeNode[] };
 
 function isOddCol(col: number): boolean {
   return (col & 1) !== 0;
-}
-
-const NEST = {
-  GROUP_W: 220,
-  COL_STRIDE: 88,
-  GROUP_PAD_X: 10,
-  TREE_GAP: 22,
-};
-
-function childMarginLeft(parentCol: number, childCol: number): number {
-  const parentCenterInContent = NEST.GROUP_W / 2 - NEST.GROUP_PAD_X;
-  const colDelta = parentCol - childCol;
-  return parentCenterInContent + colDelta * NEST.COL_STRIDE - NEST.GROUP_W / 2;
 }
 
 function buildForest(entries: EntryNode[]): TreeNode[] {
@@ -75,20 +60,29 @@ function runsByCol<T extends { col: number }>(items: T[]): { col: number; kids: 
   return runs;
 }
 
+function colVar(idx: number): CSSProperties {
+  return { "--org-col-idx": idx } as CSSProperties;
+}
+
 // ── Components ─────────────────────────────────────────────────────────
 
 function NestedRow({
   entry,
   activeId,
   logbookId,
+  hasChildren,
 }: {
   entry: TreeNode;
   activeId: string | null;
   logbookId: string;
+  hasChildren: boolean;
 }) {
   const isActive = entry.id === activeId;
   return (
-    <Link to={`/${logbookId}/${entry.id}`} className={cn("nest-row", isActive && "is-active")}>
+    <Link
+      to={`/${logbookId}/${entry.id}`}
+      className={cn("nest-row", isActive && "is-active", hasChildren && "has-children")}
+    >
       <span className="nest-row-name">{entry.name}</span>
     </Link>
   );
@@ -107,31 +101,28 @@ function NestedGroup({
   siblings,
   activeId,
   logbookId,
-  isTop = false,
-  parentCol = null,
   onAdd,
 }: {
   siblings: TreeNode[];
   activeId: string | null;
   logbookId: string;
-  isTop?: boolean;
-  parentCol?: number | null;
   onAdd?: (col: number, parentId: string | null) => void;
 }) {
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
-  const ml = parentCol == null ? 0 : childMarginLeft(parentCol, col);
 
   return (
-    <div
-      className={cn("nest-box", isTop && "is-top", isOddCol(col) && "is-odd")}
-      style={{ marginLeft: ml, width: NEST.GROUP_W }}
-    >
+    <div className={cn("nest-box", isOddCol(col) && "is-odd")}>
       <div className="nest-box-rows">
         {siblings.map((sib) => (
           <Fragment key={sib.id}>
-            <NestedRow entry={sib} activeId={activeId} logbookId={logbookId} />
+            <NestedRow
+              entry={sib}
+              activeId={activeId}
+              logbookId={logbookId}
+              hasChildren={sib.children.length > 0}
+            />
             {sib.children.length > 0 &&
               runsByCol(sib.children).map((run, j) => (
                 <NestedGroup
@@ -139,7 +130,6 @@ function NestedGroup({
                   siblings={run.kids}
                   activeId={activeId}
                   logbookId={logbookId}
-                  parentCol={col}
                   onAdd={onAdd}
                 />
               ))}
@@ -148,10 +138,7 @@ function NestedGroup({
       </div>
       <NestedAddBtn
         onAdd={() => {
-          // Adds a child to the LAST sibling in this group (matches the
-          // "+ Add" affordance position visually under the group).
-          const lastSib = siblings[siblings.length - 1];
-          if (lastSib) onAdd?.(col - 1, lastSib.id);
+          onAdd?.(col, first.parentId);
         }}
       />
     </div>
@@ -179,19 +166,19 @@ export function OrgView({
       <div className="flex-1 flex flex-col overflow-hidden bg-paper">
         <div className="flex flex-col items-center justify-center h-full text-ink-3 gap-3.5 py-16 px-10 text-center">
           <div className="org-ill" />
-          <h3 className="text-[15px] font-semibold text-ink m-0">
+          <h3 className="text-[length:var(--org-empty-title-font)] font-semibold text-ink m-0">
             An empty logbook is a fine place to start.
           </h3>
-          <p className="text-[13px] text-ink-3 m-0 max-w-xs">
+          <p className="text-[length:var(--org-row-font)] text-ink-3 m-0 max-w-xs">
             Press{" "}
-            <span className="font-mono text-[10.5px] bg-[oklch(0.96_0.003_250)] border border-stark-border text-ink-3 px-1.5 py-px rounded-sm inline-block">
+            <span className="font-mono text-[length:var(--org-add-font)] bg-stark-soft border border-stark-border text-ink-3 px-1.5 py-px rounded-sm inline-block">
               N
             </span>{" "}
             to create your first entry. It'll land in column 0.
           </p>
           <button
             type="button"
-            className="mt-1 [font:inherit] text-sm font-medium bg-ink border border-ink text-paper px-3 py-1.5 rounded cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-[oklch(0.32_0.01_250)]"
+            className="mt-1 [font:inherit] text-sm font-medium bg-ink border border-ink text-paper px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-ink-hover"
             onClick={() => onAdd?.({ col: 0, parentId: null })}
           >
             <i className="ri-add-line" /> Create first entry
@@ -203,14 +190,6 @@ export function OrgView({
 
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
-
-  const LEFT_PAD = NEST.GROUP_W / 2;
-  const colCenter = (c: number) => LEFT_PAD + (maxCol - c) * NEST.COL_STRIDE;
-  const totalW = colCenter(minCol) + NEST.GROUP_W / 2 + 60;
-  const rootOffset = (col: number) => {
-    const idx = maxCol - col;
-    return LEFT_PAD + idx * NEST.COL_STRIDE - NEST.GROUP_W / 2;
-  };
 
   const topRuns: { col: number; roots: TreeNode[] }[] = [];
   for (const t of forest) {
@@ -226,7 +205,7 @@ export function OrgView({
       <div className="h-9 px-3.5 flex items-center gap-2.5 border-b border-paper-edge bg-paper text-xs text-ink-3 flex-shrink-0">
         <button
           type="button"
-          className="[font:inherit] text-sm font-medium bg-transparent border-0 text-ink-2 px-3 py-1.5 rounded cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-[oklch(0.93_0.01_85)]"
+          className="[font:inherit] text-sm font-medium bg-transparent border-0 text-ink-2 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-paper-soft"
           onClick={() => onAdd?.({ col: 0, parentId: null })}
         >
           <i className="ri-add-line" /> New entry
@@ -239,14 +218,13 @@ export function OrgView({
       </div>
 
       <div className="exp-scroll exp-scroll-paper">
-        <div className="nest-canvas-wrap" style={{ width: totalW }}>
-          <div className="nest-col-strip" style={{ width: totalW }}>
+        <div
+          className="nest-canvas-wrap"
+          style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
+        >
+          <div className="nest-col-strip">
             {cols.map((c) => (
-              <span
-                key={c}
-                className={cn("nest-col-pill", c === 0 && "is-zero")}
-                style={{ left: colCenter(c) }}
-              >
+              <span key={c} className="nest-col-pill" style={colVar(maxCol - c)}>
                 {c > 0 ? `+${c}` : `${c}`}
               </span>
             ))}
@@ -254,19 +232,11 @@ export function OrgView({
 
           <div className="nest-forest">
             {topRuns.map((run, i) => (
-              <div
-                key={i}
-                className="nest-tree"
-                style={{
-                  marginLeft: rootOffset(run.col),
-                  marginBottom: NEST.TREE_GAP,
-                }}
-              >
+              <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
                 <NestedGroup
                   siblings={run.roots}
                   activeId={activeId}
                   logbookId={logbookId}
-                  isTop
                   onAdd={(col, parentId) => onAdd?.({ col, parentId })}
                 />
               </div>
