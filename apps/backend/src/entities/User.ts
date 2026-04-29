@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { defineEntity, p } from "@mikro-orm/core";
-import { Workspace } from "./Workspace.js";
+import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
+import { v4 as uuidv4 } from "uuid";
+import { Logbook } from "./Logbook.ts";
 
 const UserSchema = defineEntity({
   name: "User",
@@ -8,19 +8,19 @@ const UserSchema = defineEntity({
     id: p
       .uuid()
       .primary()
-      .onCreate(() => randomUUID()),
-    email: p.string().unique().nullable(),
-    passwordHash: p.string().nullable(),
-    emailVerified: p.boolean().default(false),
+      .onCreate(() => uuidv4()),
+    email: p.string().nullable().unique(),
     isAnonymous: p.boolean().default(false),
-    workspaces: () => p.oneToMany(Workspace).mappedBy("owner"),
     createdAt: p.datetime().onCreate(() => new Date()),
     updatedAt: p
       .datetime()
       .onCreate(() => new Date())
       .onUpdate(() => new Date()),
+    ownedLogbooks: () => p.oneToMany(Logbook).mappedBy("owner"),
   },
 });
 
 export class User extends UserSchema.class {}
 UserSchema.setClass(User);
+
+export type IUser = InferEntity<typeof User>;

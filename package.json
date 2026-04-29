@@ -1,11 +1,14 @@
 {
-  "name": "wordy",
+  "name": "logarithmic",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run -F wordy-backend -F wordy-frontend --parallel dev"
+    "dev": "vp run -F logarithmic-backend -F logarithmic-frontend --parallel dev"
+  },
+  "dependencies": {
+    "@playwright/cli": "catalog:"
   },
   "devDependencies": {
     "vite-plus": "catalog:"
@@ -19,8 +22,5 @@
       "better-sqlite3",
       "esbuild"
     ]
-  },
-  "dependencies": {
-    "@playwright/cli": "catalog:"
   }
 }

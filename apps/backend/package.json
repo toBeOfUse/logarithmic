@@ -1,22 +1,32 @@
 {
-  "name": "wordy-backend",
+  "name": "logarithmic-backend",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
+  "exports": {
+    "./api-types": "./src/api-types.ts",
+    "./entities/User": "./src/entities/User.ts",
+    "./entities/Logbook": "./src/entities/Logbook.ts",
+    "./entities/Entry": "./src/entities/Entry.ts",
+    "./entities/MetadataTemplate": "./src/entities/MetadataTemplate.ts"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "dev": "node --import=tsx --watch src/index.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.14",
     "@mikro-orm/core": "catalog:",
-    "@mikro-orm/decorators": "catalog:",
     "@mikro-orm/migrations": "catalog:",
     "@mikro-orm/sqlite": "catalog:",
-    "hono": "^4.12.14"
+    "@trpc/server": "catalog:",
+    "fastify": "catalog:",
+    "uuid": "^11.0.3",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^20.11.17",
-    "tsx": "^4.7.1",
-    "typescript": "^5.8.3"
+    "@types/node": "catalog:",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

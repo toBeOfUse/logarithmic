@@ -2,7 +2,9 @@
 
 The backend will be a fairly basic CRUD Typescript server. It will use Node.js as its runtime, Fastify as the HTTP framework, MikroORM as the database framework (https://mikro-orm.io/llms.txt), and tRPC as the API framework. The database should use SQLite. The API should be tested using Vitest. Things related to security and privacy should be thoroughly tested with `fetch` calls to simulate an attacker.
 
-Types for API models should be built on MikroORM DTOs using TypeScript utility types like `Pick<>`. The API models should be based on what will be useful for operations, and the operations should be based on the common read/write operations for users: for example, listing all of the users' logbooks for the splash screen or all of the leaflets in a logbook for the organizational view (which should not involve downloading all of the data for those entities), or updating the rich text content for a specific entry (which is common enough that it probably should have its own API endpoint.)
+Use the latest (v7) recommended MikroORM entity declaration style (`defineEntity` with a class: https://mikro-orm.io/docs/defining-entities.md). Use the recommended serialization functionality (https://mikro-orm.io/docs/serializing.md). Do **not** create separate types for entities that are independent of the database types.
+
+Types for API models should be built on MikroORM DTOs using TypeScript utility types like `Pick<>`. The API models should be based on what will be useful for operations, and the operations should be based on the common read/write operations for users: for example, listing all of the users' logbooks for the splash screen or all of the leaflets in a logbook for the organizational view (which should not involve downloading all of the data for those entities), or updating the rich text content for a specific entry (which is common enough that it probably should have its own API endpoint.) The API types should be in the backend package, and the frontend should import them from the backend package.
 
 ## Users & Access Model
 

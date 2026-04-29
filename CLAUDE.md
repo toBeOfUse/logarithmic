@@ -8,6 +8,8 @@
   - Don't act on TODO comments in the spec files yet.
 - Don't use barrel files.
 - Habitually read examples from linked documentation.
+- Only read files from a node_modules directory as an absolute last resort. Prefer getting documentation for the package online.
+- On the frontend, always prefer links over callbacks that programmatically navigate. (This lets the user open stuff in new tabs.)
 - Run type checks before tests.
 - Do not use `any` or `unknown` to fix type errors.
 - Tests should be organized according to the scenario that they are testing. The purpose of each test should be very clear. Whenever possible, they should be described behaviorally with invariant statements roughly along the lines of "users cannot read other user's records from the database" or "after the doThing function is called, x should be set to y."

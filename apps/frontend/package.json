@@ -1,33 +1,44 @@
 {
-  "name": "wordy-frontend",
+  "name": "logarithmic-frontend",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "react-router build",
-    "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview"
   },
   "dependencies": {
-    "@react-router/node": "7.14.0",
-    "@react-router/serve": "7.14.0",
+    "@react-router/dev": "^7.10.0",
     "@tanstack/react-query": "catalog:",
+    "@tiptap/core": "catalog:",
+    "@tiptap/extension-placeholder": "catalog:",
+    "@tiptap/react": "catalog:",
+    "@tiptap/starter-kit": "catalog:",
     "@trpc/client": "catalog:",
     "@trpc/tanstack-react-query": "catalog:",
-    "isbot": "^5.1.36",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-router": "7.14.0"
+    "clsx": "catalog:",
+    "isbot": "^5",
+    "logarithmic-backend": "workspace:*",
+    "marked": "^15.0.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.10.0",
+    "remixicon": "catalog:",
+    "tailwind-merge": "catalog:",
+    "turndown": "^7.2.0"
   },
   "devDependencies": {
-    "@react-router/dev": "7.14.0",
-    "@tailwindcss/vite": "^4.2.2",
-    "@types/node": "^22",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^5.9.3",
-    "vite": "catalog:",
+    "@react-router/node": "^7.10.0",
+    "@react-router/serve": "^7.10.0",
+    "@tailwindcss/typography": "catalog:",
+    "@tailwindcss/vite": "^4.1.6",
+    "@types/node": "catalog:",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/turndown": "^5.0.5",
+    "tailwindcss": "^4.1.6",
+    "typescript": "catalog:",
     "vite-plus": "catalog:"
   }
 }
