@@ -18,6 +18,12 @@ const EntrySchema = defineEntity({
       .onCreate(() => uuidv4()),
     name: p.string(),
     col: p.integer().default(0),
+    /**
+     * Integer rank among siblings (or among root entries when parent is null).
+     * Lower values come first; not exposed via the API since responses already
+     * arrive as ordered JSON arrays.
+     */
+    order: p.integer().default(0),
     content: p.string().nullable(),
     metadata: p.json<Metadata>().nullable(),
     logbook: () => p.manyToOne(Logbook),
