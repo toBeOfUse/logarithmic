@@ -48,7 +48,7 @@
 
 :root {
   /* Org view sizing & spacing */
-  --org-row-h: 42px;
+  --org-row-h: 36px;
   --org-line-h: calc(var(--org-row-h) / 1);
   --org-row-font: 13px;
   --org-row-line-height: 1.3;
@@ -61,7 +61,6 @@
   --org-group-w: 320px;
   --org-col-stride: 100px;
   --org-group-pad-x: 10px;
-  --org-canvas-end-pad: 60px;
   --org-canvas-pad-x: 32px;
   --org-empty-title-font: 15px;
 }
@@ -191,9 +190,7 @@ body {
   margin: 0 auto;
   padding: 0 var(--org-canvas-pad-x);
   box-sizing: content-box;
-  width: calc(
-    var(--org-group-w) + var(--org-col-span, 0) * var(--org-col-stride) + var(--org-canvas-end-pad)
-  );
+  width: calc(var(--org-group-w) + var(--org-col-span, 0) * var(--org-col-stride));
 }
 
 .nest-col-strip {
@@ -258,6 +255,12 @@ body {
 
 .nest-box-rows > .nest-box {
   margin-left: calc(var(--org-col-stride) - var(--org-group-pad-x));
+}
+
+/* Space stacked sibling boxes so adjacent borders don't merge into a double line. */
+.nest-tree > .nest-box + .nest-box,
+.nest-box-rows > .nest-box + .nest-box {
+  margin-top: calc(var(--org-line-h) / 2);
 }
 
 .nest-box::after {
@@ -415,7 +418,8 @@ body {
 /* ── Responsive ───────────────────────────────────────────── */
 
 @media (max-width: 640px) {
-  .nest-canvas-wrap {
-    padding-inline: 20px;
+  :root {
+    --org-col-stride: 36px;
+    --org-canvas-pad-x: 20px;
   }
 }

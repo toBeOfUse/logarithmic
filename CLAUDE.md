@@ -106,7 +106,7 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 
 # Browser Automation
 
-Use the Playwright CLI skill for browser automation. When doing frontend work, use it to double-check designs and flows. Run it with `pnpm dlx @playwright/cli`, like this:
+Use the Playwright CLI skill for browser automation when prompted. Run it with `pnpm dlx @playwright/cli`, like this:
 
 ```bash
 pnpm dlx @playwright/cli --help

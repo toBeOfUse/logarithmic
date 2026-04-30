@@ -111,37 +111,53 @@ function NestedGroup({
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
+  const parentId = first.parentId;
+
+  // Each entry with children renders as its own box. Consecutive siblings
+  // that have no children share a single box.
+  const boxes: TreeNode[][] = [];
+  for (const sib of siblings) {
+    const last = boxes[boxes.length - 1];
+    const lastFirst = last?.[0];
+    const canAppend = sib.children.length === 0 && !!lastFirst && lastFirst.children.length === 0;
+    if (canAppend && last) last.push(sib);
+    else boxes.push([sib]);
+  }
 
   return (
-    <div className={cn("nest-box", isOddCol(col) && "is-odd")}>
-      <div className="nest-box-rows">
-        {siblings.map((sib) => (
-          <Fragment key={sib.id}>
-            <NestedRow
-              entry={sib}
-              activeId={activeId}
-              logbookId={logbookId}
-              hasChildren={sib.children.length > 0}
-            />
-            {sib.children.length > 0 &&
-              runsByCol(sib.children).map((run, j) => (
-                <NestedGroup
-                  key={`${sib.id}-${j}`}
-                  siblings={run.kids}
+    <>
+      {boxes.map((box, i) => (
+        <div key={i} className={cn("nest-box", isOddCol(col) && "is-odd")}>
+          <div className="nest-box-rows">
+            {box.map((sib) => (
+              <Fragment key={sib.id}>
+                <NestedRow
+                  entry={sib}
                   activeId={activeId}
                   logbookId={logbookId}
-                  onAdd={onAdd}
+                  hasChildren={sib.children.length > 0}
                 />
-              ))}
-          </Fragment>
-        ))}
-      </div>
-      <NestedAddBtn
-        onAdd={() => {
-          onAdd?.(col, first.parentId);
-        }}
-      />
-    </div>
+                {sib.children.length > 0 &&
+                  runsByCol(sib.children).map((run, j) => (
+                    <NestedGroup
+                      key={`${sib.id}-${j}`}
+                      siblings={run.kids}
+                      activeId={activeId}
+                      logbookId={logbookId}
+                      onAdd={onAdd}
+                    />
+                  ))}
+              </Fragment>
+            ))}
+          </div>
+          <NestedAddBtn
+            onAdd={() => {
+              onAdd?.(col, parentId);
+            }}
+          />
+        </div>
+      ))}
+    </>
   );
 }
 

@@ -75,7 +75,7 @@ export const DEMO_TREE: DemoSeedEntry[] = [
                 col: 1,
                 metadata: { Day: "Apr 29" },
               },
-              { id: "n-light", name: "What if the lighthouse is unmanned?", col: 1 },
+              { id: "n-light", name: "What if the lighthouse is unmanned?", col: 0 },
             ],
           },
           {
@@ -84,7 +84,7 @@ export const DEMO_TREE: DemoSeedEntry[] = [
             col: 2,
             children: [
               { id: "l-bk1", name: 'Notes from "A History of Lighthouses"', col: 1 },
-              { id: "n-tide", name: "Tide tables for Casco Bay (aside)", col: 1 },
+              { id: "n-tide", name: "Tide tables for Casco Bay (aside)", col: 0 },
             ],
           },
         ],
@@ -138,7 +138,7 @@ export const DEMO_TREE: DemoSeedEntry[] = [
               { id: "l-r-mon", name: "Mon · 5km easy", col: 0 },
               { id: "l-r-wed", name: "Wed · intervals 6×400", col: 0 },
               { id: "l-r-sat", name: "Sat · 12km long", col: 0 },
-              { id: "n-shoes", name: "Try the new shoes on grass first", col: 0 },
+              { id: "n-shoes", name: "Try the new shoes on grass first", col: -1 },
             ],
           },
         ],
