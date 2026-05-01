@@ -19,7 +19,7 @@ import type {
   Metadata,
 } from "logarithmic-backend/api-types";
 
-import { DEMO_LOGBOOK_ID, DEMO_TREE, type DemoSeedEntry } from "./demo-tree.ts";
+import { DEMO_LOGBOOKS, type DemoSeedEntry } from "./demo-tree.ts";
 
 type EntryRecord = {
   id: string;
@@ -62,31 +62,33 @@ const stores: Record<Bucket, Store> = {
 
 function seedDemo() {
   const now = new Date("2026-04-28T12:00:00Z");
-  const demoLogbook: LogbookRecord = {
-    id: DEMO_LOGBOOK_ID,
-    name: "Demo · life-OS",
-    ownerId: DEMO_OWNER_ID,
-    createdAt: now,
-    updatedAt: now,
-  };
-  stores.demo.logbooks.set(demoLogbook.id, demoLogbook);
-
-  const walk = (seed: DemoSeedEntry, parentId: string | null) => {
-    const rec: EntryRecord = {
-      id: seed.id,
-      logbookId: demoLogbook.id,
-      parentId,
-      name: seed.name,
-      col: seed.col,
-      content: seed.content ?? null,
-      metadata: seed.metadata ?? null,
+  for (const demo of DEMO_LOGBOOKS) {
+    const lb: LogbookRecord = {
+      id: demo.id,
+      name: demo.name,
+      ownerId: DEMO_OWNER_ID,
       createdAt: now,
       updatedAt: now,
     };
-    stores.demo.entries.set(rec.id, rec);
-    seed.children?.forEach((c) => walk(c, rec.id));
-  };
-  for (const root of DEMO_TREE) walk(root, null);
+    stores.demo.logbooks.set(lb.id, lb);
+
+    const walk = (seed: DemoSeedEntry, parentId: string | null) => {
+      const rec: EntryRecord = {
+        id: seed.id,
+        logbookId: lb.id,
+        parentId,
+        name: seed.name,
+        col: seed.col,
+        content: seed.content ?? null,
+        metadata: seed.metadata ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      stores.demo.entries.set(rec.id, rec);
+      seed.children?.forEach((c) => walk(c, rec.id));
+    };
+    for (const root of demo.tree) walk(root, null);
+  }
 }
 
 seedDemo();

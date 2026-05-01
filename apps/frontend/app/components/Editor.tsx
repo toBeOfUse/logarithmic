@@ -130,7 +130,7 @@ export function MarkdownEditor({
 }
 
 const bubbleBtnBase =
-  "font-[inherit] bg-transparent border-0 text-[oklch(0.85_0.01_250)] w-[26px] h-[26px] rounded-[4px] cursor-pointer inline-flex items-center justify-center font-semibold text-[14px] hover:bg-[oklch(0.28_0.01_250)] hover:text-white";
+  "font-[inherit] bg-transparent border-0 text-ink-5 w-[26px] h-[26px] rounded-[4px] cursor-pointer inline-flex items-center justify-center font-semibold text-[14px] hover:bg-[oklch(0.28_0.01_250)] hover:text-white";
 
 function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top: number } }) {
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
@@ -162,7 +162,7 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         H2
       </button>
-      <span className="w-px h-4 bg-[oklch(0.32_0.01_250)] mx-[3px] flex-shrink-0" />
+      <span className="w-px h-4 bg-ink-hover mx-[3px] flex-shrink-0" />
       <button
         type="button"
         title="Bold"
@@ -187,7 +187,7 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         <i className="ri-strikethrough" />
       </button>
-      <span className="w-px h-4 bg-[oklch(0.32_0.01_250)] mx-[3px] flex-shrink-0" />
+      <span className="w-px h-4 bg-ink-hover mx-[3px] flex-shrink-0" />
       <button
         type="button"
         title="Bullet list"

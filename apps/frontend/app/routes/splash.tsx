@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { AppMark } from "~/components/AppMark.tsx";
-import { DEMO_LOGBOOK_ID } from "~/data/demo-tree.ts";
 import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
 
 function formatRelative(d: Date): string {
@@ -18,15 +17,17 @@ function formatRelative(d: Date): string {
 }
 
 const btnPrimary =
-  "[font:inherit] text-[12.5px] font-medium bg-ink border border-ink text-paper px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-[oklch(0.32_0.01_250)] disabled:opacity-[0.55] disabled:cursor-not-allowed";
+  "[font:inherit] text-[12.5px] font-medium bg-ink border border-ink text-paper px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-ink-hover disabled:opacity-[0.55] disabled:cursor-not-allowed";
 
 export default function Splash() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const { data: logbooks = [], isLoading } = useLogbooks({ demo: false });
+  const { data: demoLogbooks = [] } = useLogbooks({ demo: true });
   const createLogbook = useCreateLogbook({ demo: false });
 
   const hasLogbooks = logbooks.length > 0;
+  const hasDemos = demoLogbooks.length > 0;
 
   function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +102,7 @@ export default function Splash() {
                     to={`/${lb.id}`}
                     className="flex items-center gap-3.5 px-3.5 py-3 cursor-pointer bg-stark no-underline text-[inherit] hover:bg-stark-soft"
                   >
-                    <span className="size-[28px] rounded-[5px] bg-[oklch(0.95_0.01_85)] border border-paper-edge inline-flex items-center justify-center text-ink-3 flex-shrink-0 text-[14px]">
+                    <span className="size-[28px] rounded-[5px] bg-paper-soft border border-paper-edge inline-flex items-center justify-center text-ink-3 flex-shrink-0 text-[14px]">
                       <i className="ri-book-2-line" aria-hidden="true" />
                     </span>
                     <span className="text-[13.5px] font-medium text-ink flex-1 min-w-0">
@@ -118,22 +119,33 @@ export default function Splash() {
             </>
           )}
 
-          {!hasLogbooks && !isLoading && (
-            <div className="text-[11px] uppercase tracking-[0.08em] text-ink-4 flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-paper-edge">
-              Or try it without an account
-            </div>
+          {hasDemos && (
+            <>
+              <div className="text-[11px] uppercase tracking-[0.08em] text-ink-4 flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-paper-edge">
+                {hasLogbooks || isLoading
+                  ? `Demo logbooks · ${demoLogbooks.length}`
+                  : "Or try it without an account"}
+              </div>
+              <div className="flex flex-col gap-2">
+                {demoLogbooks.map((lb) => (
+                  <Link
+                    key={lb.id}
+                    to={`/${lb.id}`}
+                    className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-paper-edge rounded-lg bg-paper-col-even no-underline text-[inherit] hover:bg-paper-soft"
+                  >
+                    <span className="font-mono text-[10px] bg-ink text-paper px-[6px] py-[2px] rounded-[3px] tracking-[0.05em] uppercase flex-none leading-[1.4]">
+                      Demo
+                    </span>
+                    <span className="flex-1 text-[13px] text-ink-2">{lb.name}</span>
+                    <span className="text-[12px] text-ink-3 tabular-nums">
+                      {lb.entryCount} {lb.entryCount === 1 ? "entry" : "entries"}
+                    </span>
+                    <i className="ri-arrow-right-s-line text-ink-4" />
+                  </Link>
+                ))}
+              </div>
+            </>
           )}
-
-          <Link
-            to={`/${DEMO_LOGBOOK_ID}`}
-            className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-paper-edge rounded-lg bg-paper-col-even no-underline text-[inherit] hover:bg-[oklch(0.945_0.014_80)]"
-          >
-            <span className="font-mono text-[10px] bg-ink text-paper px-[6px] py-[2px] rounded-[3px] tracking-[0.05em] uppercase flex-none leading-[1.4]">
-              Demo
-            </span>
-            <span className="flex-1 text-[13px] text-ink-2">Open the demo logbook</span>
-            <i className="ri-arrow-right-s-line text-ink-4" />
-          </Link>
 
           <div className="mt-auto pt-6 text-[11.5px] text-ink-4 flex justify-between items-center">
             <span>v0.1 · local-first · single user</span>

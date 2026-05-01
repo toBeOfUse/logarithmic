@@ -1,6 +1,7 @@
 /**
- * Seed forest for the demo logbook (life-OS). Mirrors the design's demo data.
- * Each entry's column number is one less than its parent's, per the spec.
+ * Seed forests for the demo logbooks. The frontend supports zero or more
+ * demos; each one is a self-contained in-memory logbook. The IDs here are
+ * checked by `isDemoLogbook` to route reads to the demo store.
  */
 export type DemoSeedEntry = {
   id: string;
@@ -11,9 +12,13 @@ export type DemoSeedEntry = {
   children?: DemoSeedEntry[];
 };
 
-export const DEMO_LOGBOOK_ID = "demo";
+export type DemoLogbook = {
+  id: string;
+  name: string;
+  tree: DemoSeedEntry[];
+};
 
-export const DEMO_TREE: DemoSeedEntry[] = [
+const lifeOsTree: DemoSeedEntry[] = [
   {
     id: "g-creative",
     name: "Make my creative practice non-negotiable",
@@ -189,3 +194,136 @@ export const DEMO_TREE: DemoSeedEntry[] = [
     ],
   },
 ];
+
+const cookbookTree: DemoSeedEntry[] = [
+  {
+    id: "ck-mains",
+    name: "Mains",
+    col: 2,
+    metadata: { Tags: ["dinner"] },
+    children: [
+      {
+        id: "ck-pasta",
+        name: "Pasta",
+        col: 1,
+        children: [
+          { id: "rc-carbonara", name: "Carbonara", col: 0, metadata: { Time: "25 min" } },
+          { id: "rc-cacio", name: "Cacio e pepe", col: 0, metadata: { Time: "15 min" } },
+          { id: "rc-pesto", name: "Pesto alla Genovese", col: 0, metadata: { Time: "20 min" } },
+        ],
+      },
+      {
+        id: "ck-roasts",
+        name: "Roasts",
+        col: 1,
+        children: [
+          { id: "rc-chicken", name: "Chicken with lemon & thyme", col: 0 },
+          { id: "rc-pork", name: "Slow-roast pork shoulder", col: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "ck-sauces",
+    name: "Sauces & condiments",
+    col: 2,
+    children: [
+      { id: "rc-bechamel", name: "Béchamel", col: 1 },
+      { id: "rc-salsa-verde", name: "Salsa verde", col: 1 },
+      { id: "rc-pickled-onions", name: "Quick pickled onions", col: 1 },
+    ],
+  },
+  {
+    id: "ck-week",
+    name: "This week's meals",
+    col: 1,
+    metadata: { Kind: "Plan" },
+    children: [
+      { id: "ck-mon", name: "Mon · pasta night", col: 0 },
+      { id: "ck-tue", name: "Tue · leftover chicken sandwiches", col: 0 },
+      { id: "ck-wed", name: "Wed · sheet-pan veg + pickles", col: 0 },
+    ],
+  },
+];
+
+/**
+ * The research notebook intentionally exercises layout edge cases:
+ *   • children whose `col` skips levels (parent at 2, child at 0)
+ *   • a deep singleton chain
+ *   • a root at col 0 with no descendants (a flat note)
+ */
+const researchTree: DemoSeedEntry[] = [
+  {
+    id: "rs-wadden",
+    name: "Wadden Sea — bird migrations",
+    col: 3,
+    metadata: { Status: "Active", Tags: ["fieldwork", "2026"] },
+    content:
+      "Multi-season survey of stopover sites along the Dutch and German Wadden coast. " +
+      "Looking for shifts in arrival timing relative to the 2009 baseline.",
+    children: [
+      {
+        id: "rs-method",
+        name: "Methodology",
+        col: 2,
+        children: [
+          { id: "rs-protocol", name: "Survey protocol — daily counts", col: 1 },
+          { id: "rs-photoid", name: "Photo IDs of resident species", col: 1 },
+        ],
+      },
+      {
+        id: "rs-logs",
+        name: "Daily logs",
+        col: 2,
+        children: [
+          // col gap: parent col 2 → leaves col 0 (no col 1 in between).
+          { id: "rs-log1", name: "Apr 12 · first arrivals (godwits, knots)", col: 0 },
+          { id: "rs-log2", name: "Apr 13 · NE wind, low counts", col: 0 },
+          { id: "rs-log3", name: "Apr 14 · overcast, full sweep done", col: 0 },
+          { id: "rs-log4", name: "Apr 15 · banded a single dunlin", col: 0 },
+        ],
+      },
+      {
+        id: "rs-deep",
+        name: "Working hypothesis",
+        col: 2,
+        children: [
+          {
+            id: "rs-deep-1",
+            name: "Climate driver",
+            col: 1,
+            children: [
+              {
+                id: "rs-deep-2",
+                name: "Stopover length correlation",
+                col: 0,
+                content: "Singleton chain — used to verify deep nesting renders cleanly.",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "rs-inbox",
+    name: "Reading & follow-ups",
+    col: 1,
+    children: [
+      { id: "rs-todo1", name: "Read: Hahn et al. 2009 (baseline)", col: 0 },
+      { id: "rs-todo2", name: "Email Lars about boat schedule", col: 0 },
+      { id: "rs-todo3", name: "Citizen-science apps — survey", col: 0 },
+    ],
+  },
+  // A bare root at col 0 (no children) — exercises single-leaflet rendering.
+  { id: "rs-musing", name: "Musing — what counts as a 'site'?", col: 0 },
+];
+
+export const DEMO_LOGBOOKS: DemoLogbook[] = [
+  { id: "demo", name: "Demo · life-OS", tree: lifeOsTree },
+  { id: "demo-cookbook", name: "Demo · cookbook", tree: cookbookTree },
+  { id: "demo-research", name: "Demo · research notebook", tree: researchTree },
+  { id: "demo-blank", name: "Demo · blank logbook", tree: [] },
+];
+
+export const DEMO_LOGBOOK_IDS: ReadonlySet<string> = new Set(DEMO_LOGBOOKS.map((d) => d.id));

@@ -8,7 +8,7 @@ The first version of Logarithmic will be accessible via a simple web app. This a
 
 ### Organizational Interface
 
-The organizational view shows a spreadsheet/chart of all of the entries. They are arranged in a view similar to a file tree. You can see the column that each entry falls into.
+The organizational view shows a spreadsheet/chart of all of the entries. They are arranged in a nested view similar to a file tree. You can see the column that each entry falls into. At the top, the column numbers are listed; each has a button below it that creates a new entry in that column.
 
 ### Content Interface
 
@@ -22,4 +22,4 @@ The content should auto-save periodically.
 
 ## Demo Logbook
 
-The frontend should have a "demo logbook" that is accessible from the splash screen. This will consist of a series of leaflets that are not persisted and are not loaded from the API that serve to demonstrate the app's functionality. To facilitate this, data-fetching should be encapsulated in hooks (like `useLeaflet` and `useLogbookOverview`) that receive a `demo` parameter that defaults to `false`; if this parameter is `true`, fetching from the API should be disabled and in-memory objects should be returned instead.
+The frontend should have zero or more "demo logbooks" that are accessible from the splash screen. This will consist of a series of entries that are not persisted and are not loaded from the API that serve to demonstrate the app's functionality. To facilitate this, data-fetching should be encapsulated in hooks (like `useEntry` and `useLogbookOverview`) that receive the ID of the current logbook, and if that ID matches a demo logbook, the demo data should be returned instead of an API call being made. Mutations should similarly update the demo data that is currently being used.

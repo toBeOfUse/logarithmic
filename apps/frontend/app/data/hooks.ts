@@ -16,7 +16,7 @@ import type {
   Metadata,
 } from "logarithmic-backend/api-types";
 
-import { DEMO_LOGBOOK_ID } from "./demo-tree.ts";
+import { DEMO_LOGBOOK_IDS } from "./demo-tree.ts";
 import * as store from "./store.ts";
 
 const READ_LATENCY_MS = 200;
@@ -27,7 +27,7 @@ function delay<T>(ms: number, getValue: () => T): Promise<T> {
 }
 
 export function isDemoLogbook(logbookId: string | undefined): boolean {
-  return logbookId === DEMO_LOGBOOK_ID;
+  return logbookId !== undefined && DEMO_LOGBOOK_IDS.has(logbookId);
 }
 
 // ── Query keys ─────────────────────────────────────────────────────────

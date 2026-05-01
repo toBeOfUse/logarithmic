@@ -64,14 +64,14 @@ export function TopBar({
 
       <button
         type="button"
-        className="size-[26px] border-0 bg-transparent text-ink-3 rounded-[5px] cursor-pointer inline-flex items-center justify-center text-[14px] hover:bg-[oklch(0.95_0.003_250)] hover:text-ink"
+        className="size-[26px] border-0 bg-transparent text-ink-3 rounded-[5px] cursor-pointer inline-flex items-center justify-center text-[14px] hover:bg-stark-border-soft hover:text-ink"
         aria-label="Search"
       >
         <i className="ri-search-line" />
       </button>
       <Link
         to="/"
-        className="size-[26px] border-0 bg-transparent text-ink-3 rounded-[5px] cursor-pointer inline-flex items-center justify-center no-underline text-[14px] hover:bg-[oklch(0.92_0.02_30)] hover:text-[oklch(0.4_0.12_30)]"
+        className="size-[26px] border-0 bg-transparent text-ink-3 rounded-[5px] cursor-pointer inline-flex items-center justify-center no-underline text-[14px] hover:bg-warn-soft hover:text-warn"
         aria-label="Close logbook"
       >
         <i className="ri-close-line" />

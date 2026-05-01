@@ -175,34 +175,12 @@ export function OrgView({
   onAdd?: (input: { col: number; parentId: string | null }) => void;
 }) {
   const forest = useMemo(() => buildForest(entries), [entries]);
-  const { min: minCol, max: maxCol } = useMemo(() => colRange(forest), [forest]);
-
-  if (forest.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden bg-paper">
-        <div className="flex flex-col items-center justify-center h-full text-ink-3 gap-3.5 py-16 px-10 text-center">
-          <div className="org-ill" />
-          <h3 className="text-[length:var(--org-empty-title-font)] font-semibold text-ink m-0">
-            An empty logbook is a fine place to start.
-          </h3>
-          <p className="text-[length:var(--org-row-font)] text-ink-3 m-0 max-w-xs">
-            Press{" "}
-            <span className="font-mono text-[length:var(--org-add-font)] bg-stark-soft border border-stark-border text-ink-3 px-1.5 py-px rounded-sm inline-block">
-              N
-            </span>{" "}
-            to create your first entry. It'll land in column 0.
-          </p>
-          <button
-            type="button"
-            className="mt-1 [font:inherit] text-sm font-medium bg-ink border border-ink text-paper px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-ink-hover"
-            onClick={() => onAdd?.({ col: 0, parentId: null })}
-          >
-            <i className="ri-add-line" /> Create first entry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const isEmpty = forest.length === 0;
+  const { min: dataMinCol, max: dataMaxCol } = useMemo(() => colRange(forest), [forest]);
+  // For an empty logbook, show a default range so the user can pick which
+  // column to start in via the column-strip add buttons.
+  const minCol = isEmpty ? 0 : dataMinCol;
+  const maxCol = isEmpty ? 4 : dataMaxCol;
 
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
@@ -214,51 +192,64 @@ export function OrgView({
     else topRuns.push({ col: t.col, roots: [t] });
   }
 
-  const totalEntries = entries.length;
-
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-paper">
-      <div className="h-9 px-3.5 flex items-center gap-2.5 border-b border-paper-edge bg-paper text-xs text-ink-3 flex-shrink-0">
-        <button
-          type="button"
-          className="[font:inherit] text-sm font-medium bg-transparent border-0 text-ink-2 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 transition-colors hover:bg-paper-soft"
-          onClick={() => onAdd?.({ col: 0, parentId: null })}
-        >
-          <i className="ri-add-line" /> New entry
-        </button>
-        <span className="text-ink-5">·</span>
-        <span className="text-xs text-ink-3">
-          {totalEntries} {totalEntries === 1 ? "entry" : "entries"}
-        </span>
-        <span className="flex-1" />
+    <div
+      className="flex-1 flex flex-col overflow-hidden bg-paper"
+      style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
+    >
+      <div className="nest-col-strip">
+        <div className="nest-col-strip-inner">
+          {cols.map((c) => (
+            <Fragment key={c}>
+              <span className="nest-col-pill" style={colVar(maxCol - c)}>
+                {c > 0 ? `+${c}` : `${c}`}
+              </span>
+              <button
+                type="button"
+                className="nest-col-add"
+                style={colVar(maxCol - c)}
+                aria-label={`Add entry in column ${c}`}
+                onClick={() => onAdd?.({ col: c, parentId: null })}
+              >
+                <i className="ri-add-line" aria-hidden="true" />
+              </button>
+            </Fragment>
+          ))}
+        </div>
       </div>
 
       <div className="exp-scroll exp-scroll-paper">
-        <div
-          className="nest-canvas-wrap"
-          style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
-        >
-          <div className="nest-col-strip">
-            {cols.map((c) => (
-              <span key={c} className="nest-col-pill" style={colVar(maxCol - c)}>
-                {c > 0 ? `+${c}` : `${c}`}
-              </span>
-            ))}
+        {isEmpty ? (
+          <div className="flex flex-col items-center justify-center h-full text-ink-3 gap-3.5 py-16 px-10 text-center">
+            <div className="org-ill" />
+            <h3 className="text-[length:var(--org-empty-title-font)] font-semibold text-ink m-0">
+              An empty logbook is a fine place to start.
+            </h3>
+            <p className="text-[length:var(--org-row-font)] text-ink-3 m-0 max-w-xs">
+              Click the{" "}
+              <i
+                className="ri-add-line align-middle text-[length:var(--org-row-font)]"
+                aria-hidden="true"
+              />{" "}
+              under any column above to create your first entry there.
+            </p>
           </div>
-
-          <div className="nest-forest">
-            {topRuns.map((run, i) => (
-              <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
-                <NestedGroup
-                  siblings={run.roots}
-                  activeId={activeId}
-                  logbookId={logbookId}
-                  onAdd={(col, parentId) => onAdd?.({ col, parentId })}
-                />
-              </div>
-            ))}
+        ) : (
+          <div className="nest-canvas-wrap">
+            <div className="nest-forest">
+              {topRuns.map((run, i) => (
+                <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
+                  <NestedGroup
+                    siblings={run.roots}
+                    activeId={activeId}
+                    logbookId={logbookId}
+                    onAdd={(col, parentId) => onAdd?.({ col, parentId })}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
