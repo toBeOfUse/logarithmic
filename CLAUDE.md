@@ -112,4 +112,6 @@ Use the Playwright CLI skill for browser automation when prompted. Run it with `
 pnpm dlx @playwright/cli --help
 ```
 
-When saving screenshots, place them in a folder called '.playwright-cli', which will be gitignored.
+**When saving screenshots, place them in a folder called '.playwright-cli', which will be gitignored.**
+
+Always check if a dev server is already running before starting a new one.

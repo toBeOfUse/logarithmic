@@ -14,6 +14,7 @@
       "WebFetch(domain:mikro-orm.io)",
       "WebFetch(domain:www.better-auth.com)",
       "Bash(pnpm dlx @playwright/cli *)",
+      "Bash(git diff *)",
       "WebFetch(domain:embed.tiptap.dev)",
       "Skill(playwright-cli)"
     ]

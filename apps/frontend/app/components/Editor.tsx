@@ -60,7 +60,7 @@ export function MarkdownEditor({
     content: markdownToHtml(initialMarkdown),
     autofocus: false,
     editorProps: {
-      attributes: { class: "prose prose-sm max-w-none ProseMirror" },
+      attributes: { class: "prose max-w-none ProseMirror" },
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to, empty } = editor.state.selection;
@@ -130,13 +130,13 @@ export function MarkdownEditor({
 }
 
 const bubbleBtnBase =
-  "font-[inherit] bg-transparent border-0 text-ink-5 w-[26px] h-[26px] rounded-[4px] cursor-pointer inline-flex items-center justify-center font-semibold text-[14px] hover:bg-[oklch(0.28_0.01_250)] hover:text-white";
+  "font-[inherit] bg-transparent border-0 text-paper-edge w-[26px] h-[26px] rounded-[4px] cursor-pointer inline-flex items-center justify-center font-semibold text-base hover:bg-[oklch(0.28_0.01_250)] hover:text-white";
 
 function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top: number } }) {
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
   return (
     <div
-      className="inline-flex items-center bg-[oklch(0.18_0.01_250)] text-white rounded-[7px] p-[3px] gap-px text-[12.5px] shadow-[0_8px_24px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.06)]"
+      className="inline-flex items-center bg-[oklch(0.18_0.01_250)] text-white rounded-[7px] p-[3px] gap-px text-sm shadow-[0_8px_24px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.06)]"
       style={{ position: "absolute", left: pos.left, top: pos.top, transform: "translateX(-50%)" }}
       onMouseDown={(e) => e.preventDefault()}
     >
@@ -162,7 +162,7 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         H2
       </button>
-      <span className="w-px h-4 bg-ink-hover mx-[3px] flex-shrink-0" />
+      <span className="w-px h-4 bg-primary-hover mx-[3px] flex-shrink-0" />
       <button
         type="button"
         title="Bold"
@@ -187,7 +187,7 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         <i className="ri-strikethrough" />
       </button>
-      <span className="w-px h-4 bg-ink-hover mx-[3px] flex-shrink-0" />
+      <span className="w-px h-4 bg-primary-hover mx-[3px] flex-shrink-0" />
       <button
         type="button"
         title="Bullet list"

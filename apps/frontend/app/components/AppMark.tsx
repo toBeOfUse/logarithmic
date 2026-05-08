@@ -9,8 +9,8 @@ export function AppMark({ size = "sm" }: { size?: "sm" | "lg" }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center font-semibold tracking-tight text-ink",
-        lg ? "gap-2 text-[14px] mb-7" : "gap-[7px]",
+        "inline-flex items-center font-semibold tracking-tight text-primary",
+        lg ? "gap-2 text-base mb-7" : "gap-[7px]",
       )}
     >
       <AppMarkDot lg={lg} />

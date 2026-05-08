@@ -39,10 +39,10 @@ function wordCount(markdown: string | null): number {
 }
 
 const appShell =
-  "font-sans text-ink text-[13px] leading-[1.5] [font-feature-settings:'ss01','cv11'] h-full w-full flex flex-col bg-stark overflow-hidden";
+  "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden";
 
 const btn =
-  "[font:inherit] text-[12.5px] font-medium border border-stark-border bg-stark text-ink px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors no-underline hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
+  "[font:inherit] text-sm font-medium border border-stark-border bg-stark text-primary px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors no-underline hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
 
 export default function EntryRoute() {
   const params = useParams();
@@ -73,7 +73,7 @@ export default function EntryRoute() {
         />
         <div className="flex-1 overflow-y-auto bg-stark">
           <div className="max-w-[720px] mx-auto px-14 pt-14 pb-[120px]">
-            <p className="text-ink-3">{isLoading ? "Loading entry…" : "Entry not found."}</p>
+            <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
           </div>
         </div>
       </div>
@@ -126,8 +126,8 @@ export default function EntryRoute() {
             <div className="flex items-start gap-3 mb-[18px]">
               <input
                 className={cn(
-                  "font-sans text-[30px] leading-[1.2] tracking-[-0.02em] font-semibold text-ink flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full",
-                  isUntitled && "text-ink-4",
+                  "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full",
+                  isUntitled && "text-muted",
                 )}
                 value={titleValue}
                 placeholder="Untitled entry"
@@ -173,7 +173,7 @@ export default function EntryRoute() {
           {parent && (
             <Link
               to={`/${logbook.id}/${parent.id}`}
-              className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3 no-underline mb-[18px] hover:text-ink"
+              className="inline-flex items-center gap-1.5 text-sm text-muted no-underline mb-[18px] hover:text-primary"
             >
               <i className="ri-arrow-left-line" />
               {parent.name}
@@ -183,8 +183,8 @@ export default function EntryRoute() {
           <div className="flex items-start gap-3 mb-[18px]">
             <input
               className={cn(
-                "font-sans text-[30px] leading-[1.2] tracking-[-0.02em] font-semibold text-ink flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full",
-                isUntitled && "text-ink-4",
+                "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full",
+                isUntitled && "text-muted",
               )}
               value={titleValue}
               placeholder="Untitled entry"
@@ -240,8 +240,8 @@ function Footer({
 }) {
   const status = saving ? "Saving…" : savedAt ? `Saved · ${formatRelative(savedAt)}` : "Saved";
   return (
-    <div className="mt-7 flex justify-between items-center text-[11.5px] text-ink-4">
-      <span className="inline-flex items-center gap-[5px] text-[11.5px] text-ink-4">
+    <div className="mt-7 flex justify-between items-center text-xs text-muted">
+      <span className="inline-flex items-center gap-[5px] text-xs text-muted">
         <i className={saving ? "ri-loader-line" : "ri-check-line"} />
         {status}
       </span>

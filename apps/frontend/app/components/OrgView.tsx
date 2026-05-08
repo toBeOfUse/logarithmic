@@ -1,34 +1,74 @@
 /**
- * Organizational view — nested-containers design.
+ * Organizational view (v2 spec).
  *
- * Layout, sizing, and positioning live in CSS via custom properties on
- * :root and on individual elements (--org-col-idx, --org-col-span). This
- * component just builds the tree structure and labels columns.
+ * Each sequence of siblings is a group rendered as a single container. If a
+ * sibling has children, those children form their own group nested inside,
+ * offset to the right. Every group ends with an "Add" button that creates a
+ * new last sibling. Column numbers are shown in a sticky strip at the top;
+ * each one has its own "Add" button that creates a new root in that column.
+ *
+ * Hovering an entry reveals two buttons on the right: "add child" and
+ * "rearrange". Entries can also be dragged onto each other (top-half →
+ * sibling-before, bottom-half → sibling-after), onto an "add child" button
+ * (becomes the last child of that entry), or onto a column-strip add button
+ * (becomes a new root in that column).
+ *
+ * Layout/sizing live in app.css under custom properties.
  */
-import { type CSSProperties, Fragment, useMemo } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  rectIntersection,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  type CSSProperties,
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router";
 
 import type { EntryNode } from "logarithmic-backend/api-types";
 
-import { cn } from "~/lib/cn";
+import type { MoveTarget } from "~/data/store.ts";
+import { cn } from "~/lib/cn.ts";
+
+import { RearrangeModal } from "./RearrangeModal.tsx";
 
 type TreeNode = EntryNode & { children: TreeNode[] };
 
-function isOddCol(col: number): boolean {
-  return (col & 1) !== 0;
-}
+type AddInput = { col: number; parentId: string | null };
+
+type DropData =
+  | { kind: "before" | "after"; refId: string }
+  | { kind: "child"; parentId: string }
+  | { kind: "rootInCol"; col: number };
+
+// ── Tree helpers ───────────────────────────────────────────────────────
 
 function buildForest(entries: EntryNode[]): TreeNode[] {
+  // Entries arrive with each parent's children in sibling-order, per the
+  // store contract. Group by parentId without re-sorting.
   const byParent = new Map<string | null, EntryNode[]>();
   for (const e of entries) {
     const list = byParent.get(e.parentId) ?? [];
     list.push(e);
     byParent.set(e.parentId, list);
   }
-  const sorter = (a: EntryNode, b: EntryNode) =>
-    b.col - a.col || a.createdAt.getTime() - b.createdAt.getTime();
   const build = (parentId: string | null): TreeNode[] =>
-    [...(byParent.get(parentId) ?? [])].sort(sorter).map((e) => ({
+    (byParent.get(parentId) ?? []).map((e) => ({
       ...e,
       children: build(e.id),
     }));
@@ -64,100 +104,271 @@ function colVar(idx: number): CSSProperties {
   return { "--org-col-idx": idx } as CSSProperties;
 }
 
-// ── Components ─────────────────────────────────────────────────────────
+function isOddCol(col: number): boolean {
+  return (col & 1) !== 0;
+}
 
-function NestedRow({
+// ── Cell ───────────────────────────────────────────────────────────────
+
+function EntryCell({
   entry,
-  activeId,
   logbookId,
+  isEditing,
+  isDragging,
   hasChildren,
+  onSaveName,
+  onAddChild,
+  onRearrange,
 }: {
   entry: TreeNode;
-  activeId: string | null;
   logbookId: string;
+  isEditing: boolean;
+  isDragging: boolean;
   hasChildren: boolean;
+  onSaveName: (name: string) => void;
+  onAddChild: () => void;
+  onRearrange: () => void;
 }) {
-  const isActive = entry.id === activeId;
+  const inputRef = useRef<HTMLInputElement>(null);
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  const wasEditingRef = useRef(isEditing);
+  // After a drag, the synthesized click on pointerup would otherwise navigate
+  // through the inner <Link>. Track when this cell was the drag source so we
+  // can swallow that one click.
+  const justDraggedRef = useRef(false);
+
+  // Focus the input when entering edit mode; focus the link when leaving it
+  // (so a second Enter follows the link).
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else if (wasEditingRef.current) {
+      linkRef.current?.focus();
+    }
+    wasEditingRef.current = isEditing;
+  }, [isEditing]);
+
+  const draggable = useDraggable({
+    id: `entry:${entry.id}`,
+    disabled: isEditing,
+    data: { entryId: entry.id },
+  });
+  if (draggable.isDragging) justDraggedRef.current = true;
+  const topDrop = useDroppable({
+    id: `before:${entry.id}`,
+    data: { kind: "before", refId: entry.id } satisfies DropData,
+    disabled: isEditing,
+  });
+  const bottomDrop = useDroppable({
+    id: `after:${entry.id}`,
+    data: { kind: "after", refId: entry.id } satisfies DropData,
+    disabled: isEditing,
+  });
+  const childDrop = useDroppable({
+    id: `child:${entry.id}`,
+    data: { kind: "child", parentId: entry.id } satisfies DropData,
+  });
+
+  const isOver = topDrop.isOver || bottomDrop.isOver ? (topDrop.isOver ? "top" : "bottom") : null;
+
+  if (isEditing) {
+    return (
+      <div className="nest-row is-editing">
+        <input
+          ref={inputRef}
+          className="nest-row-input"
+          defaultValue={entry.name}
+          placeholder="Unnamed entry"
+          onBlur={(e) => onSaveName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSaveName(e.currentTarget.value);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onSaveName(entry.name);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <Link
-      to={`/${logbookId}/${entry.id}`}
-      className={cn("nest-row", isActive && "is-active", hasChildren && "has-children")}
+    <div
+      ref={draggable.setNodeRef}
+      data-entry-anchor={entry.id}
+      className={cn(
+        "nest-row",
+        hasChildren && "has-children",
+        draggable.isDragging && "is-source",
+        isDragging && "is-drag-context",
+      )}
+      onClickCapture={(e) => {
+        if (justDraggedRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          justDraggedRef.current = false;
+        }
+      }}
+      {...draggable.attributes}
+      {...draggable.listeners}
     >
-      <span className="nest-row-name">{entry.name}</span>
-    </Link>
+      <Link
+        ref={linkRef}
+        to={`/${logbookId}/${entry.id}`}
+        className={cn("nest-row-link", !entry.name && "is-untitled")}
+        draggable={false}
+      >
+        <span className="nest-row-name">{entry.name || "Unnamed entry"}</span>
+      </Link>
+
+      <div className="nest-row-actions" onPointerDown={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          ref={childDrop.setNodeRef}
+          className={cn(
+            "nest-row-action add-child",
+            isDragging && "is-drag-context",
+            childDrop.isOver && "is-over",
+          )}
+          aria-label="Add child"
+          title="Add child"
+          onClick={onAddChild}
+        >
+          <i className="ri-corner-down-right-line" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="nest-row-action"
+          aria-label="Rearrange siblings"
+          title="Rearrange siblings"
+          onClick={onRearrange}
+        >
+          <i className="ri-arrow-up-down-line" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Drop halves cover the row, but sit below the action buttons. */}
+      <div
+        ref={topDrop.setNodeRef}
+        className={cn("nest-row-drop top", isOver === "top" && "is-over")}
+        aria-hidden="true"
+      />
+      <div
+        ref={bottomDrop.setNodeRef}
+        className={cn("nest-row-drop bottom", isOver === "bottom" && "is-over")}
+        aria-hidden="true"
+      />
+    </div>
   );
 }
 
-function NestedAddBtn({ onAdd }: { onAdd?: () => void }) {
-  return (
-    <button type="button" className="nest-add" onClick={onAdd}>
-      <i className="ri-add-line" aria-hidden="true" />
-      <span>Add</span>
-    </button>
-  );
-}
+// ── Group ──────────────────────────────────────────────────────────────
 
 function NestedGroup({
   siblings,
-  activeId,
+  parentId,
   logbookId,
+  editingId,
+  isDragging,
   onAdd,
+  onSaveName,
+  onRearrange,
 }: {
   siblings: TreeNode[];
-  activeId: string | null;
+  parentId: string | null;
   logbookId: string;
-  onAdd?: (col: number, parentId: string | null) => void;
+  editingId: string | null;
+  isDragging: boolean;
+  onAdd: (input: AddInput) => void;
+  onSaveName: (id: string, name: string) => void;
+  onRearrange: (id: string) => void;
 }) {
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
-  const parentId = first.parentId;
-
-  // Each entry with children renders as its own box. Consecutive siblings
-  // that have no children share a single box.
-  const boxes: TreeNode[][] = [];
-  for (const sib of siblings) {
-    const last = boxes[boxes.length - 1];
-    const lastFirst = last?.[0];
-    const canAppend = sib.children.length === 0 && !!lastFirst && lastFirst.children.length === 0;
-    if (canAppend && last) last.push(sib);
-    else boxes.push([sib]);
-  }
+  // Column → typographic role. col 0 is body; col ≥1 are headings (capped at
+  // level 3); col ≤-1 are asides (a single style; no levels). See
+  // spec/3-frontend.md.
+  const headingLevel = col > 0 ? Math.min(col, 3) : 0;
 
   return (
-    <>
-      {boxes.map((box, i) => (
-        <div key={i} className={cn("nest-box", isOddCol(col) && "is-odd")}>
-          <div className="nest-box-rows">
-            {box.map((sib) => (
-              <Fragment key={sib.id}>
-                <NestedRow
-                  entry={sib}
-                  activeId={activeId}
+    <div
+      className={cn(
+        "nest-box",
+        isOddCol(col) && "is-odd",
+        headingLevel > 0 && `is-heading-${headingLevel}`,
+        col < 0 && "is-aside",
+      )}
+    >
+      <div className="nest-box-rows">
+        {siblings.map((sib) => (
+          <Fragment key={sib.id}>
+            <EntryCell
+              entry={sib}
+              logbookId={logbookId}
+              isEditing={editingId === sib.id}
+              isDragging={isDragging}
+              hasChildren={sib.children.length > 0}
+              onSaveName={(name) => onSaveName(sib.id, name)}
+              onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
+              onRearrange={() => onRearrange(sib.id)}
+            />
+            {sib.children.length > 0 &&
+              runsByCol(sib.children).map((run, j) => (
+                <NestedGroup
+                  key={`${sib.id}-${j}`}
+                  siblings={run.kids}
+                  parentId={sib.id}
                   logbookId={logbookId}
-                  hasChildren={sib.children.length > 0}
+                  editingId={editingId}
+                  isDragging={isDragging}
+                  onAdd={onAdd}
+                  onSaveName={onSaveName}
+                  onRearrange={onRearrange}
                 />
-                {sib.children.length > 0 &&
-                  runsByCol(sib.children).map((run, j) => (
-                    <NestedGroup
-                      key={`${sib.id}-${j}`}
-                      siblings={run.kids}
-                      activeId={activeId}
-                      logbookId={logbookId}
-                      onAdd={onAdd}
-                    />
-                  ))}
-              </Fragment>
-            ))}
-          </div>
-          <NestedAddBtn
-            onAdd={() => {
-              onAdd?.(col, parentId);
-            }}
-          />
-        </div>
-      ))}
-    </>
+              ))}
+          </Fragment>
+        ))}
+      </div>
+      <button type="button" className="nest-add" onClick={() => onAdd({ col, parentId })}>
+        <i className="ri-add-line" aria-hidden="true" />
+        <span>Add</span>
+      </button>
+    </div>
+  );
+}
+
+// ── Column strip ───────────────────────────────────────────────────────
+
+function ColAddButton({
+  col,
+  maxCol,
+  isDragging,
+  onAdd,
+}: {
+  col: number;
+  maxCol: number;
+  isDragging: boolean;
+  onAdd: (col: number) => void;
+}) {
+  const drop = useDroppable({
+    id: `rootInCol:${col}`,
+    data: { kind: "rootInCol", col } satisfies DropData,
+  });
+  return (
+    <button
+      type="button"
+      ref={drop.setNodeRef}
+      className={cn("nest-col-add", isDragging && "is-drag-context", drop.isOver && "is-over")}
+      style={colVar(maxCol - col)}
+      aria-label={`Add entry in column ${col}`}
+      onClick={() => onAdd(col)}
+    >
+      <i className="ri-add-line" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -166,91 +377,203 @@ function NestedGroup({
 export function OrgView({
   entries,
   logbookId,
-  activeId = null,
+  editingId,
+  scrollTargetId,
   onAdd,
+  onRename,
+  onMove,
+  onReorderSiblings,
+  onScrolled,
 }: {
   entries: EntryNode[];
   logbookId: string;
-  activeId?: string | null;
-  onAdd?: (input: { col: number; parentId: string | null }) => void;
+  /** When set, that entry renders an inline name input instead of a link. */
+  editingId: string | null;
+  /** When set, that entry is scrolled into view once after it appears. */
+  scrollTargetId: string | null;
+  onAdd: (input: AddInput) => void;
+  onRename: (id: string, name: string) => void;
+  onMove: (id: string, target: MoveTarget) => void;
+  onReorderSiblings: (parentId: string | null, ids: string[]) => void;
+  onScrolled: () => void;
 }) {
   const forest = useMemo(() => buildForest(entries), [entries]);
   const isEmpty = forest.length === 0;
-  const { min: dataMinCol, max: dataMaxCol } = useMemo(() => colRange(forest), [forest]);
-  // For an empty logbook, show a default range so the user can pick which
-  // column to start in via the column-strip add buttons.
-  const minCol = isEmpty ? 0 : dataMinCol;
-  const maxCol = isEmpty ? 4 : dataMaxCol;
+  const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
+  // Strip always shows cols -1 through 3 by default. When data is present,
+  // also pad one extra column past either extreme so it's always possible
+  // to add an entry one column lower or higher than what currently exists.
+  const minCol = isEmpty ? -1 : Math.min(dataMin - 1, -1);
+  const maxCol = isEmpty ? 3 : Math.max(dataMax + 1, 3);
 
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
 
-  const topRuns: { col: number; roots: TreeNode[] }[] = [];
-  for (const t of forest) {
-    const last = topRuns[topRuns.length - 1];
-    if (last && last.col === t.col) last.roots.push(t);
-    else topRuns.push({ col: t.col, roots: [t] });
-  }
+  const topRuns = useMemo(() => runsByCol(forest), [forest]);
+
+  // Drag state.
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // The default rectIntersection picks whichever droppable has the largest
+  // overlap with the dragged element's rect. Our small "add child" buttons
+  // and column-strip add buttons sit fully inside the row's larger top/bottom
+  // half drop zones, so they would never win. Use pointerWithin and prefer
+  // the small explicit targets when the cursor is inside them.
+  const collisionDetection: CollisionDetection = (args) => {
+    const within = pointerWithin(args);
+    if (within.length > 0) {
+      const byKind = (kind: DropData["kind"]) =>
+        within.find((c) => {
+          const container = args.droppableContainers.find((d) => d.id === c.id);
+          const data = container?.data.current as DropData | undefined;
+          return data?.kind === kind;
+        });
+      const child = byKind("child");
+      if (child) return [child];
+      const root = byKind("rootInCol");
+      if (root) return [root];
+      return within;
+    }
+    return rectIntersection(args);
+  };
+  const onDragStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (id.startsWith("entry:")) setActiveDragId(id.slice("entry:".length));
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = e;
+    if (!over) return;
+    const data = over.data.current as DropData | undefined;
+    if (!data) return;
+    const id = String(active.id).replace(/^entry:/, "");
+    if (data.kind === "before" || data.kind === "after") {
+      if (data.refId === id) return;
+      onMove(id, { kind: data.kind, refId: data.refId });
+    } else if (data.kind === "child") {
+      if (data.parentId === id) return;
+      onMove(id, { kind: "child", parentId: data.parentId });
+    } else if (data.kind === "rootInCol") {
+      onMove(id, { kind: "rootInCol", col: data.col });
+    }
+  };
+  const onDragCancel = () => setActiveDragId(null);
+
+  const draggedEntry = useMemo(
+    () => (activeDragId ? (entries.find((e) => e.id === activeDragId) ?? null) : null),
+    [activeDragId, entries],
+  );
+
+  // Scroll the scroll-target entry into view once it exists. Use a ref so
+  // we don't repeat the scroll on later renders.
+  const scrolledRef = useRef<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!scrollTargetId || scrolledRef.current === scrollTargetId) return;
+    const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${scrollTargetId}"]`);
+    if (node) {
+      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      scrolledRef.current = scrollTargetId;
+      onScrolled();
+    }
+  }, [scrollTargetId, onScrolled, entries]);
+
+  // Rearrange-modal state.
+  const [rearrangeFor, setRearrangeFor] = useState<string | null>(null);
+  const rearrangeContext = useMemo(() => {
+    if (!rearrangeFor) return null;
+    const target = entries.find((e) => e.id === rearrangeFor);
+    if (!target) return null;
+    const sibs = entries.filter((e) => e.parentId === target.parentId);
+    return { parentId: target.parentId, siblings: sibs };
+  }, [rearrangeFor, entries]);
 
   return (
     <div
       className="flex-1 flex flex-col overflow-hidden bg-paper"
       style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
     >
-      <div className="nest-col-strip">
-        <div className="nest-col-strip-inner">
-          {cols.map((c) => (
-            <Fragment key={c}>
-              <span className="nest-col-pill" style={colVar(maxCol - c)}>
-                {c > 0 ? `+${c}` : `${c}`}
-              </span>
-              <button
-                type="button"
-                className="nest-col-add"
-                style={colVar(maxCol - c)}
-                aria-label={`Add entry in column ${c}`}
-                onClick={() => onAdd?.({ col: c, parentId: null })}
-              >
-                <i className="ri-add-line" aria-hidden="true" />
-              </button>
-            </Fragment>
-          ))}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
+        <div className="nest-col-strip">
+          <div className="nest-col-strip-inner">
+            {cols.map((c) => (
+              <Fragment key={c}>
+                <span className="nest-col-pill" style={colVar(maxCol - c)}>
+                  {c > 0 ? `+${c}` : `${c}`}
+                </span>
+                <ColAddButton
+                  col={c}
+                  maxCol={maxCol}
+                  isDragging={activeDragId !== null}
+                  onAdd={(col) => onAdd({ col, parentId: null })}
+                />
+              </Fragment>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="exp-scroll exp-scroll-paper">
-        {isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full text-ink-3 gap-3.5 py-16 px-10 text-center">
-            <div className="org-ill" />
-            <h3 className="text-[length:var(--org-empty-title-font)] font-semibold text-ink m-0">
-              An empty logbook is a fine place to start.
-            </h3>
-            <p className="text-[length:var(--org-row-font)] text-ink-3 m-0 max-w-xs">
-              Click the{" "}
-              <i
-                className="ri-add-line align-middle text-[length:var(--org-row-font)]"
-                aria-hidden="true"
-              />{" "}
-              under any column above to create your first entry there.
-            </p>
-          </div>
-        ) : (
-          <div className="nest-canvas-wrap">
-            <div className="nest-forest">
-              {topRuns.map((run, i) => (
-                <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
-                  <NestedGroup
-                    siblings={run.roots}
-                    activeId={activeId}
-                    logbookId={logbookId}
-                    onAdd={(col, parentId) => onAdd?.({ col, parentId })}
-                  />
-                </div>
-              ))}
+        <div className="exp-scroll exp-scroll-paper" ref={scrollContainerRef}>
+          {isEmpty ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted gap-3.5 py-16 px-10 text-center">
+              <div className="org-ill" />
+              <h3 className="text-lg font-semibold text-primary m-0">
+                An empty logbook is a fine place to start.
+              </h3>
+              <p className="text-base text-muted m-0 max-w-xs">
+                Click the <i className="ri-add-line align-middle text-base" aria-hidden="true" />{" "}
+                under any column above to create your first entry there.
+              </p>
             </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="nest-canvas-wrap">
+              <div className="nest-forest">
+                {topRuns.map((run, i) => (
+                  <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
+                    <NestedGroup
+                      siblings={run.kids}
+                      parentId={null}
+                      logbookId={logbookId}
+                      editingId={editingId}
+                      isDragging={activeDragId !== null}
+                      onAdd={onAdd}
+                      onSaveName={onRename}
+                      onRearrange={(id) => setRearrangeFor(id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {draggedEntry ? (
+            <div className="nest-row is-overlay">
+              <span className={cn("nest-row-name", !draggedEntry.name && "is-untitled")}>
+                {draggedEntry.name || "Unnamed entry"}
+              </span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {rearrangeContext && (
+        <RearrangeModal
+          siblings={rearrangeContext.siblings}
+          onCancel={() => setRearrangeFor(null)}
+          onConfirm={(ids) => {
+            onReorderSiblings(rearrangeContext.parentId, ids);
+            setRearrangeFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }

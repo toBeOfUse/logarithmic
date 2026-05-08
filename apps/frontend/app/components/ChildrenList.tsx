@@ -22,12 +22,12 @@ export function ChildrenList({
     <div className="border-t border-stark-border-soft py-3.5 first:border-t-0">
       <button
         type="button"
-        className="flex items-center gap-2 text-[11.5px] font-medium text-ink-3 tracking-[0.04em] uppercase cursor-pointer select-none bg-transparent border-0 p-0 w-full text-left"
+        className="flex items-center gap-2 text-xs font-medium text-muted tracking-[0.04em] uppercase cursor-pointer select-none bg-transparent border-0 p-0 w-full text-left"
         onClick={() => setCollapsed((c) => !c)}
       >
         <span
           className={cn(
-            "inline-flex w-3.5 h-3.5 items-center justify-center text-ink-4 transition-transform",
+            "inline-flex w-3.5 h-3.5 items-center justify-center text-muted transition-transform",
             collapsed && "-rotate-90",
           )}
         >
@@ -35,7 +35,7 @@ export function ChildrenList({
         </span>
         <span>Children</span>
         {count > 0 && (
-          <span className="font-mono text-[11px] text-ink-4 normal-case tracking-normal">
+          <span className="text-xs text-muted normal-case tracking-normal tabular-nums">
             {count}
           </span>
         )}
@@ -52,22 +52,20 @@ export function ChildrenList({
               <Link
                 key={c.id}
                 to={`/${logbookId}/${c.id}`}
-                className="flex items-center gap-2.5 px-2 py-1.5 rounded-[5px] text-[13px] text-ink no-underline hover:bg-stark-soft"
+                className="flex items-center gap-2.5 px-2 py-1.5 rounded-[5px] text-base text-primary no-underline hover:bg-stark-soft"
               >
                 <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                   {c.name || "Untitled entry"}
                 </span>
-                {dayMeta && (
-                  <span className="text-[11.5px] text-ink-4 flex-shrink-0">{dayMeta}</span>
-                )}
-                <i className="ri-arrow-right-s-line text-ink-4" aria-hidden="true" />
+                {dayMeta && <span className="text-xs text-muted flex-shrink-0">{dayMeta}</span>}
+                <i className="ri-arrow-right-s-line text-muted" aria-hidden="true" />
               </Link>
             );
           })}
           {onAdd && (
             <button
               type="button"
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-[5px] text-[13px] text-ink-3 w-full bg-transparent border-0 cursor-pointer hover:bg-stark-soft"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-[5px] text-base text-muted w-full bg-transparent border-0 cursor-pointer hover:bg-stark-soft"
               onClick={onAdd}
             >
               <span className="inline-flex items-center gap-1">

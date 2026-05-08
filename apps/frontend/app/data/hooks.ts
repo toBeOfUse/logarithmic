@@ -4,8 +4,9 @@
  * it would (eventually) hit the tRPC backend. For now, the non-demo path
  * also uses the in-memory store, since the API isn't wired up yet.
  *
- * Reads are wrapped in setTimeout to simulate latency; mutations mutate the
- * store and invalidate the relevant query keys.
+ * Reads are wrapped in setTimeout to simulate latency; mutations resolve
+ * synchronously so UI updates feel immediate while the demo store is the
+ * authoritative source.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -20,7 +21,6 @@ import { DEMO_LOGBOOK_IDS } from "./demo-tree.ts";
 import * as store from "./store.ts";
 
 const READ_LATENCY_MS = 200;
-const WRITE_LATENCY_MS = 300;
 
 function delay<T>(ms: number, getValue: () => T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(getValue()), ms));
@@ -73,7 +73,7 @@ export function useEntry(entryId: string | undefined, { demo = false }: { demo?:
 export function useCreateLogbook({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<LogbookDetail, Error, { name: string }>({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.createLogbook(demo, input)),
+    mutationFn: (input) => Promise.resolve(store.createLogbook(demo, input)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
     },
@@ -87,7 +87,7 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
     Error,
     { logbookId: string; name?: string; col?: number; parentId?: string | null }
   >({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.createEntry(demo, input)),
+    mutationFn: (input) => Promise.resolve(store.createEntry(demo, input)),
     onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
       void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
@@ -101,7 +101,7 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
 export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<EntryDetail | null, Error, { id: string; name: string }>({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.renameEntry(demo, input)),
+    mutationFn: (input) => Promise.resolve(store.renameEntry(demo, input)),
     onSuccess: (data, vars) => {
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
       if (data?.logbookId) {
@@ -114,7 +114,7 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
 export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<EntryDetail | null, Error, { id: string; content: string }>({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.updateEntryContent(demo, input)),
+    mutationFn: (input) => Promise.resolve(store.updateEntryContent(demo, input)),
     onSuccess: (data, vars) => {
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
       if (data?.logbookId) {
@@ -127,7 +127,7 @@ export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {})
 export function useUpdateEntryMetadata({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<EntryDetail | null, Error, { id: string; metadata: Metadata }>({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.updateEntryMetadata(demo, input)),
+    mutationFn: (input) => Promise.resolve(store.updateEntryMetadata(demo, input)),
     onSuccess: (data, vars) => {
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
       if (data?.logbookId) {
@@ -137,10 +137,38 @@ export function useUpdateEntryMetadata({ demo = false }: { demo?: boolean } = {}
   });
 }
 
+export function useMoveEntry({ demo = false }: { demo?: boolean } = {}) {
+  const qc = useQueryClient();
+  return useMutation<
+    EntryDetail | null,
+    Error,
+    { id: string; logbookId: string; target: store.MoveTarget }
+  >({
+    mutationFn: (input) =>
+      Promise.resolve(store.moveEntry(demo, { id: input.id, target: input.target })),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
+      void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
+    },
+  });
+}
+
+export function useReorderSiblings({ demo = false }: { demo?: boolean } = {}) {
+  const qc = useQueryClient();
+  return useMutation<boolean, Error, { logbookId: string; parentId: string | null; ids: string[] }>(
+    {
+      mutationFn: (input) => Promise.resolve(store.reorderSiblings(demo, input)),
+      onSuccess: (_ok, vars) => {
+        void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
+      },
+    },
+  );
+}
+
 export function useDeleteEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<boolean, Error, { id: string; logbookId: string }>({
-    mutationFn: (input) => delay(WRITE_LATENCY_MS, () => store.deleteEntry(demo, { id: input.id })),
+    mutationFn: (input) => Promise.resolve(store.deleteEntry(demo, { id: input.id })),
     onSuccess: (_ok, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
