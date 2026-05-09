@@ -501,27 +501,30 @@ export function OrgView({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="nest-col-strip">
-          <div className="nest-col-strip-inner">
-            {cols.map((c) => (
-              <Fragment key={c}>
-                <span className="nest-col-pill" style={colVar(maxCol - c)}>
-                  {c > 0 ? `+${c}` : `${c}`}
-                </span>
-                <ColAddButton
-                  col={c}
-                  maxCol={maxCol}
-                  isDragging={activeDragId !== null}
-                  onAdd={(col) => onAdd({ col, parentId: null })}
-                />
-              </Fragment>
-            ))}
+        <div
+          className="flex-1 flex flex-col overflow-auto min-h-0 bg-paper"
+          ref={scrollContainerRef}
+        >
+          <div className="nest-col-strip">
+            <div className="nest-col-strip-inner">
+              {cols.map((c) => (
+                <Fragment key={c}>
+                  <span className="nest-col-pill" style={colVar(maxCol - c)}>
+                    {c > 0 ? `+${c}` : `${c}`}
+                  </span>
+                  <ColAddButton
+                    col={c}
+                    maxCol={maxCol}
+                    isDragging={activeDragId !== null}
+                    onAdd={(col) => onAdd({ col, parentId: null })}
+                  />
+                </Fragment>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="exp-scroll exp-scroll-paper" ref={scrollContainerRef}>
           {isEmpty ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted gap-3.5 py-16 px-10 text-center">
+            <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
               <div className="org-ill" />
               <h3 className="text-lg font-semibold text-primary m-0">
                 An empty logbook is a fine place to start.
