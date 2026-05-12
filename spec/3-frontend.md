@@ -1,6 +1,6 @@
 # Frontend
 
-The frontend will use React Router. It will operate in SPA mode. It will fetch data using the React Query tRPC client. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should define CSS variables that provide the theme values (using the @theme directive) for the app (colors, borders, spacing) and use them wherever logical. It should have a clean, minimal, spacious aesthetic.
+The frontend will use React Router. It will operate in SPA mode. It will fetch and mutate data using the React Query tRPC client and optimistic updates. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should define CSS variables that provide the theme values (using the @theme directive) for the app (colors, borders, spacing) and use them wherever logical. It should have a clean, minimal, spacious aesthetic.
 
 ## Design System
 
@@ -25,7 +25,7 @@ Each sequence of one or more siblings becomes a group that is placed in a contai
 The column an entry is in indicates the role it plays in the organizational schema; specific roles for specific columns aren't enforced at a data model level, but their typographic style hints at potential uses.
 
 - Column 0 is like body text; it's the column that most content is concentrated in. Entry names in this column have a font size of 1rem.
-- Columns greater than 0 are like headings, and are emphasized correspondingly. Column 1 entries should be displayed using 1rem bold text (font weight 700); column 2 should use 1.2rem bold text; and column 3 and above, 1.4rem bold text.
+- Columns greater than 0 are like headings, and are emphasized correspondingly. Column 1 entries should be displayed using 1rem bold text (font weight 700); column 2 should use 1.1rem bold text with 4px extra padding in the row; and column 3 and above, 1.2rem bold text with 6px extra padding in the row.
 - Columns less than 0 contain asides, digressions, and half-formed ideas. They use the same font size as column 0 (1rem), but the secondary text color.
 
 Make sure that these values are stored as CSS variables so that they can be experimented with.
@@ -56,13 +56,23 @@ When an entry is moved (including by giving it a new parent), all of its childre
 
 ### Content Interface
 
-The content interface should show the entry's title, link back to its parent (if it has one), show its metadata, list its children, and have a text editor for its rich text content.
+The content interface should show the entry's title, show its metadata, list its children, and have a text editor for its rich text content. There should be a focus mode that can be activated to see just the title and rich text content editor.
+
+### Metadata & Children
+
+Entries' children should be displayed first, in a section titled "Next Column's Entries." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view. Then, there should be a section titled "This Entry's Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified.
+
+These two sections will collapse down if they don't have content to show. Like this:
+
+- If there are no attributes or children for an entry, all that will be displayed here is two buttons side-by-side (one that lets you add the first child, and one that lets you add the first attribute.)
+- If there are no children for an entry, all that is displayed is a button that lets you add a child entry, with no heading.
+- Same for the attributes section, which collapses down to just a button that lets you add a new attribute, with no heading, if there are no attributes there yet.
 
 #### Text Editor
 
 We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text. For now, let's try the TipTap editor (https://tiptap.dev/llms.txt). The formatting buttons should show up in a tooltip when you highlight some text.
 
-The content should auto-save periodically.
+The content should auto-save periodically. It should also save when you press Ctrl-S (or Cmd-S.)
 
 ## Demo Logbook
 

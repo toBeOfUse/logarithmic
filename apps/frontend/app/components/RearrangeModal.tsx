@@ -31,13 +31,21 @@ function SortableRow({ entry }: { entry: EntryNode }) {
   return (
     <li
       ref={setNodeRef}
-      className={cn("rearrange-item", isDragging && "is-dragging")}
+      className={cn(
+        "flex items-center gap-2.5 py-2 px-2.5 mb-1 bg-stark-soft border border-stark-border rounded-md cursor-grab text-sm text-primary select-none active:cursor-grabbing",
+        isDragging && "opacity-50 shadow-lg",
+      )}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
     >
-      <i className="ri-draggable rearrange-grip" aria-hidden="true" />
-      <span className={cn("rearrange-name", !entry.name && "is-untitled")}>
+      <i className="ri-draggable text-muted text-lg shrink-0" aria-hidden="true" />
+      <span
+        className={cn(
+          "flex-1 overflow-hidden text-ellipsis whitespace-nowrap",
+          !entry.name && "text-muted italic",
+        )}
+      >
         {entry.name || "Unnamed entry"}
       </span>
     </li>
@@ -85,32 +93,41 @@ export function RearrangeModal({
   const ordered = order.map((id) => byId.get(id)).filter((e): e is EntryNode => !!e);
 
   return (
-    <div className="rearrange-backdrop" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-[100] bg-primary/30 flex items-center justify-center p-6"
+      onClick={onCancel}
+    >
       <div
-        className="rearrange-modal"
+        className="w-full max-w-md max-h-[80vh] flex flex-col bg-stark border border-stark-border rounded-lg shadow-2xl p-5"
         role="dialog"
         aria-modal="true"
         aria-label="Rearrange siblings"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="rearrange-title">Rearrange</h3>
-        <p className="rearrange-hint">Drag to reorder. The first entry shows at the top.</p>
+        <h3 className="m-0 mb-1 text-lg font-semibold text-primary">Rearrange</h3>
+        <p className="m-0 mb-4 text-sm text-muted">
+          Drag to reorder. The first entry shows at the top.
+        </p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
-            <ul className="rearrange-list">
+            <ul className="list-none m-0 p-0 overflow-auto min-h-0 flex-1">
               {ordered.map((s) => (
                 <SortableRow key={s.id} entry={s} />
               ))}
             </ul>
           </SortableContext>
         </DndContext>
-        <div className="rearrange-actions">
-          <button type="button" className="rearrange-btn" onClick={onCancel}>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft"
+            onClick={onCancel}
+          >
             Cancel
           </button>
           <button
             type="button"
-            className="rearrange-btn is-primary"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-primary bg-primary text-stark cursor-pointer transition-colors duration-[120ms] hover:bg-primary-hover"
             onClick={() => onConfirm(order)}
           >
             Confirm

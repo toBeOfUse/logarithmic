@@ -114,4 +114,4 @@ pnpm dlx @playwright/cli --help
 
 **When saving screenshots, place them in a folder called '.playwright-cli', which will be gitignored.**
 
-Always check if a dev server is already running before starting a new one.
+_Always check if a dev server is already running before starting a new one. Run `curl -I http://localhost:5173` and look for a 200 response code._

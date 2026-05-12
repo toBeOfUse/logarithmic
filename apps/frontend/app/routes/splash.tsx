@@ -62,13 +62,8 @@ export default function Splash() {
           ) : (
             <>
               <h1 className="font-serif font-normal text-5xl leading-[1.1] tracking-[-0.02em] m-0 mb-3 text-primary">
-                A logbook for goals,
-                <br /> projects, and <em className="italic text-accent-text">fleeting thoughts</em>.
+                A logbook for things from your brain
               </h1>
-              <p className="text-lg leading-[1.55] text-secondary max-w-[460px] m-0 mb-9">
-                Trees of entries, organized into columns by their level of detail. Roots on the
-                left, leaves on the right.
-              </p>
             </>
           )}
 

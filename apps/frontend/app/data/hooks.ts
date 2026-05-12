@@ -104,6 +104,11 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
     mutationFn: (input) => Promise.resolve(store.renameEntry(demo, input)),
     onSuccess: (data, vars) => {
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
+      // The parent's EntryDetail.children carries this entry's name, so its
+      // cached copy goes stale on rename.
+      if (data?.parentId) {
+        void qc.invalidateQueries({ queryKey: keys.entry(demo, data.parentId) });
+      }
       if (data?.logbookId) {
         void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, data.logbookId) });
       }

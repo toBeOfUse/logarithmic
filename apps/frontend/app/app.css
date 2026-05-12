@@ -54,6 +54,18 @@ html {
   }
 }
 
+/* disable tailwind typography's backtick-containing pseudo-elements around code */
+.prose code::before,
+.prose code::after {
+  display: none;
+}
+
+/* disable tailwind typography's quotation mark-containing pseudo-elements around quotes */
+.prose blockquote p::before,
+.prose blockquote p::after {
+  display: none;
+}
+
 :root {
   /* Org view — row geometry */
   --org-row-h: 42px;
@@ -202,6 +214,7 @@ body {
 .ProseMirror {
   outline: none;
   min-height: 200px;
+  flex: 1 1 auto;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {

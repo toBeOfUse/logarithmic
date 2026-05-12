@@ -16,7 +16,11 @@
       "Bash(pnpm dlx @playwright/cli *)",
       "Bash(git diff *)",
       "WebFetch(domain:embed.tiptap.dev)",
-      "Skill(playwright-cli)"
+      "Skill(playwright-cli)",
+      "Bash(curl -I http://localhost:5173)",
+      "Bash(curl -I http://localhost:3001)",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(curl -s -I http://localhost:5173)"
     ]
   }
 }
