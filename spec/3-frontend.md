@@ -60,7 +60,7 @@ The content interface should show the entry's title, show its metadata, list its
 
 ### Metadata & Children
 
-Entries' children should be displayed first, in a section titled "Next Column's Entries." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view. Then, there should be a section titled "This Entry's Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified.
+There should be a section titled "This Entry's Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified. Then, entries' children should be displayed, in a section titled "Next Column's Entries." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view.
 
 These two sections will collapse down if they don't have content to show. Like this:
 
@@ -71,6 +71,8 @@ These two sections will collapse down if they don't have content to show. Like t
 #### Text Editor
 
 We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text. For now, let's try the TipTap editor (https://tiptap.dev/llms.txt). The formatting buttons should show up in a tooltip when you highlight some text.
+
+Formatting options should include H2, H3, bold, italic, strike-through, bulleted list, numbered list, blockquote, and code. (Note that H1 is not a possible option, since the entry title is the highest-level heading.)
 
 The content should auto-save periodically. It should also save when you press Ctrl-S (or Cmd-S.)
 

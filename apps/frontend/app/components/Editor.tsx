@@ -162,7 +162,7 @@ export function MarkdownEditor({
 
   return (
     <div ref={wrapperRef} className={cn("relative", className)}>
-      <EditorContent editor={editor} className="flex-1 flex flex-col" />
+      <EditorContent editor={editor} />
       {editor && bubble && <BubbleMenu editor={editor} pos={bubble} />}
     </div>
   );
@@ -181,17 +181,6 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
     >
       <button
         type="button"
-        title="Heading 1"
-        className={cn(
-          bubbleBtnBase,
-          isActive("heading", { level: 1 }) && "bg-primary-hover text-stark",
-        )}
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-      >
-        H1
-      </button>
-      <button
-        type="button"
         title="Heading 2"
         className={cn(
           bubbleBtnBase,
@@ -200,6 +189,17 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
       >
         H2
+      </button>
+      <button
+        type="button"
+        title="Heading 3"
+        className={cn(
+          bubbleBtnBase,
+          isActive("heading", { level: 3 }) && "bg-primary-hover text-stark",
+        )}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+      >
+        H3
       </button>
       <span className="w-px h-4 bg-primary-hover mx-1 flex-shrink-0" />
       <button

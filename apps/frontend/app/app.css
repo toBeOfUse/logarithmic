@@ -211,6 +211,14 @@ body {
   margin-bottom: 0.5em;
 }
 
+.prose h2 {
+  margin-top: 1.2em;
+}
+
+.prose h3 {
+  margin-top: 0.9em;
+}
+
 .ProseMirror {
   outline: none;
   min-height: 200px;
@@ -487,6 +495,7 @@ body {
 .nest-row-name {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -567,7 +576,13 @@ body {
 .nest-row:focus-within .nest-row-actions {
   opacity: 1;
   pointer-events: auto;
-  /* Match the row's hover bg so the gradient fades into the right surface. */
+}
+
+.nest-row:focus-within .nest-row-actions {
+  --row-actions-bg: var(--color-paper);
+}
+
+.nest-row:hover .nest-row-actions {
   --row-actions-bg: var(--row-hover);
 }
 

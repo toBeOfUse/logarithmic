@@ -283,6 +283,10 @@ export default function EntryRoute() {
             return (
               <div className="space-y-7 my-7">
                 <section>
+                  {hasAttrs && <SectionHeading>This Entry's Metadata</SectionHeading>}
+                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
+                </section>
+                <section>
                   {hasChildren && <SectionHeading>Next Column's Entries</SectionHeading>}
                   <div className="flex flex-wrap gap-2 items-center">
                     {entry.children.map((c) => (
@@ -302,15 +306,11 @@ export default function EntryRoute() {
                     />
                   </div>
                 </section>
-                <section>
-                  {hasAttrs && <SectionHeading>This Entry's Metadata</SectionHeading>}
-                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
-                </section>
               </div>
             );
           })()}
 
-          <div className="border border-stark-border rounded-md -my-1 py-2 -mx-2 px-4 flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col">
             <MarkdownEditor
               key={entry.id}
               ref={editorRef}
