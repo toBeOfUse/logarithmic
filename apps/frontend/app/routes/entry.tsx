@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useBlocker, useParams } from "react-router";
+import { Link, useBlocker, useNavigate, useParams } from "react-router";
 
 import type { Metadata } from "logarithmic-backend/api-types";
 
 import { Attributes } from "~/components/Attributes.tsx";
 import { MarkdownEditor, type MarkdownEditorHandle } from "~/components/Editor.tsx";
-import { TopBar } from "~/components/TopBar.tsx";
+import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import { cn } from "~/lib/cn.ts";
 import {
   isDemoLogbook,
   useCreateEntry,
+  useDeleteEntry,
   useEntry,
   useLogbookOverview,
   useRenameEntry,
@@ -71,6 +72,8 @@ export default function EntryRoute() {
   const updateMetadata = useUpdateEntryMetadata({ demo });
   const renameEntry = useRenameEntry({ demo });
   const createEntry = useCreateEntry({ demo });
+  const deleteEntry = useDeleteEntry({ demo });
+  const navigate = useNavigate();
 
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [maximized, setMaximized] = useState(false);
@@ -79,6 +82,7 @@ export default function EntryRoute() {
   const [savingFloor, setSavingFloor] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Real-saving = any mutation that affects this entry is in flight.
   const mutationPending =
@@ -190,6 +194,28 @@ export default function EntryRoute() {
     );
   };
 
+  const menuItems: KebabMenuItem[] = [
+    {
+      id: "delete",
+      label: "Delete entry",
+      icon: "ri-delete-bin-line",
+      destructive: true,
+      onSelect: () => setConfirmingDelete(true),
+    },
+  ];
+
+  const confirmDelete = () => {
+    deleteEntry.mutate(
+      { id: entry.id, logbookId: logbook.id },
+      {
+        onSuccess: () => {
+          setConfirmingDelete(false);
+          void navigate(`/${logbook.id}`, { replace: true });
+        },
+      },
+    );
+  };
+
   const onSaveChildName = (id: string, name: string) => {
     const trimmed = name.trim();
     const child = entry.children.find((c) => c.id === id);
@@ -246,7 +272,16 @@ export default function EntryRoute() {
           href: `/${logbook.id}/${a.id}`,
         }))}
         currentName={entry.name || "Untitled entry"}
+        menuItems={menuItems}
       />
+      {confirmingDelete && (
+        <DeleteConfirmModal
+          entryName={entry.name}
+          busy={deleteEntry.isPending}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={confirmDelete}
+        />
+      )}
       <div className="flex-1 overflow-y-auto bg-stark">
         <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
           <div className="flex items-start gap-3">
@@ -472,6 +507,78 @@ function TitleEditor({
         }
       }}
     />
+  );
+}
+
+function DeleteConfirmModal({
+  entryName,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  entryName: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel, busy]);
+
+  const label = entryName || "this untitled entry";
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-primary/30 flex items-center justify-center p-6"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        className="w-full max-w-md bg-stark border border-stark-border rounded-lg shadow-2xl p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-entry-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="delete-entry-title" className="m-0 mb-2 text-xl font-semibold text-primary">
+          Delete entry?
+        </h3>
+        <p className="m-0 mb-4 text-muted">
+          {entryName ? (
+            <>
+              <span className="text-primary font-medium">"{label}"</span> and all of its descendants
+              will be permanently deleted. This cannot be undone.
+            </>
+          ) : (
+            <>
+              This entry and all of its descendants will be permanently deleted. This cannot be
+              undone.
+            </>
+          )}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-warn bg-warn text-stark cursor-pointer transition-colors duration-[120ms] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={onConfirm}
+          >
+            {busy ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

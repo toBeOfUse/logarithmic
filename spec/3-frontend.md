@@ -12,6 +12,8 @@ Font sizes should use rem (and have a base size of 1rem.) 1rem should be defined
 
 The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook or go to a logbook that you've previously created. (All routes except the splash screen should start with a logbook ID.) There are two main tabs in the logbook view: the Organizational view and the Content view. The Organizational tab is open first, and you can click into it to open a entry in the Content tab.
 
+Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case), a "close" button that closes the current logbook and sends the user back to the initial splash screen, and a kebab menu. This menu currently just allows you to delete entries when you're on that entry's content page.
+
 ### Organizational Interface
 
 The organizational view shows a spreadsheet/chart of all of the entries. You can tell which column each entry falls into from its horizontal position; each entry is centered under the column number it corresponds to. (The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport.) They are arranged in nested groups of one or more entries, which creates a layout vaguely similar to a file tree. Here is a wireframe:
