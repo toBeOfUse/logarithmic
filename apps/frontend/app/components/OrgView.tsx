@@ -289,19 +289,13 @@ function NestedGroup({
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
-  // Column → typographic role. col 0 is body; col ≥1 are headings (capped at
-  // level 3); col ≤-1 are asides (a single style; no levels). See
-  // spec/3-frontend.md.
-  const headingLevel = col > 0 ? Math.min(col, 3) : 0;
+  // Per-column typography modifiers; styles for each tier live in app.css.
+  // See spec/3-frontend.md (Column-Level Emphasis).
+  const colClass = col < 0 ? "is-col-neg" : col >= 3 ? "is-col-3plus" : `is-col-${col}`;
 
   return (
     <div
-      className={cn(
-        "nest-box",
-        isOddCol(col) && "is-odd",
-        headingLevel > 0 && `is-heading-${headingLevel}`,
-        col < 0 && "is-aside",
-      )}
+      className={cn("nest-box", isOddCol(col) && "is-odd", !!parentId && "has-parent", colClass)}
     >
       <div className="nest-box-rows">
         {siblings.map((sib) => (

@@ -26,9 +26,9 @@ Each sequence of one or more siblings becomes a group that is placed in a contai
 
 The column an entry is in indicates the role it plays in the organizational schema; specific roles for specific columns aren't enforced at a data model level, but their typographic style hints at potential uses.
 
-- Column 0 is like body text; it's the column that most content is concentrated in. Entry names in this column have a font size of 1rem.
-- Columns greater than 0 are like headings, and are emphasized correspondingly. Column 1 entries should be displayed using 1rem bold text (font weight 700); column 2 should use 1.1rem bold text with 4px extra padding in the row; and column 3 and above, 1.2rem bold text with 6px extra padding in the row.
-- Columns less than 0 contain asides, digressions, and half-formed ideas. They use the same font size as column 0 (1rem), but the secondary text color.
+- Column 0 is like body text; it's the column that most content is concentrated in.
+- Columns greater than 0 are like headings, and are emphasized correspondingly; they should be displayed with increased font sizes, weight, and vertical padding.
+- Columns less than 0 contain asides, digressions, and half-formed ideas. They use the default font size (1rem), but the secondary text color.
 
 Make sure that these values are stored as CSS variables so that they can be experimented with.
 
@@ -60,7 +60,7 @@ When an entry is moved (including by giving it a new parent), all of its childre
 
 The content interface should show the entry's title, show its metadata, list its children, and have a text editor for its rich text content. There should be a focus mode that can be activated to see just the title and rich text content editor.
 
-### Metadata & Children
+#### Metadata & Children
 
 There should be a section titled "This Entry's Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified. Then, entries' children should be displayed, in a section titled "Next Column's Entries." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view.
 
