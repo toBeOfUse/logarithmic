@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router";
 import { AppMark } from "~/components/AppMark.tsx";
 import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
 
+import styles from "./splash.module.css";
+
 function formatRelative(d: Date): string {
   const ms = Date.now() - d.getTime();
   const min = Math.round(ms / 60_000);
@@ -46,7 +48,7 @@ export default function Splash() {
 
   return (
     <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
-      <div className="flex-1 flex flex-col bg-paper splash-bg relative overflow-auto">
+      <div className={`flex-1 flex flex-col bg-paper ${styles.bg} relative overflow-auto`}>
         <div className="max-w-[560px] w-full mx-auto px-12 pt-24 pb-16 relative z-[1] flex-1 flex flex-col box-border">
           <AppMark size="lg" />
 

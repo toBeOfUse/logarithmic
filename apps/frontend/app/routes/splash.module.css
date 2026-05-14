@@ -1,0 +1,18 @@
+/* Background rule lines on the splash screen. Uses a repeating gradient,
+   which can't be expressed as a Tailwind utility. */
+
+.bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-h) - 1px),
+    var(--color-paper-rule) calc(var(--line-h) - 1px),
+    var(--color-paper-rule) var(--line-h)
+  );
+  opacity: 0.5;
+  pointer-events: none;
+  --line-h: 42px;
+}

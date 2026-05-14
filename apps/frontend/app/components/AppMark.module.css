@@ -1,0 +1,46 @@
+/* Pseudo-element crosshair inside the brand mark; can't be expressed as
+   Tailwind utilities. */
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--color-primary);
+  position: relative;
+  display: inline-block;
+}
+
+.dot::before,
+.dot::after {
+  content: "";
+  position: absolute;
+  background: var(--color-paper);
+}
+
+.dot::before {
+  left: 2px;
+  right: 2px;
+  top: 6px;
+  height: 1.5px;
+}
+
+.dot::after {
+  top: 2px;
+  bottom: 2px;
+  left: 6px;
+  width: 1.5px;
+}
+
+.dotLg {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.dotLg::before {
+  top: 8px;
+}
+
+.dotLg::after {
+  left: 8px;
+}

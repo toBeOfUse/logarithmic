@@ -1,8 +1,6 @@
 import { cn } from "~/lib/cn";
 
-function AppMarkDot({ lg = false }: { lg?: boolean }) {
-  return <span className={cn("lg-mark-dot", lg && "lg-mark-dot--lg")} aria-hidden="true" />;
-}
+import styles from "./AppMark.module.css";
 
 export function AppMark({ size = "sm" }: { size?: "sm" | "lg" }) {
   const lg = size === "lg";
@@ -13,7 +11,7 @@ export function AppMark({ size = "sm" }: { size?: "sm" | "lg" }) {
         lg ? "gap-2 text-base mb-7" : "gap-[7px]",
       )}
     >
-      <AppMarkDot lg={lg} />
+      <span className={cn(styles.dot, lg && styles.dotLg)} aria-hidden="true" />
       Logarithmic
     </span>
   );

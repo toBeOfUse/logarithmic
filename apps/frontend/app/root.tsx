@@ -10,7 +10,7 @@ import {
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import "./app.css";
+import "./globals.css";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },

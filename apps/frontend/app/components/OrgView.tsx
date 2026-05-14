@@ -13,7 +13,7 @@
  * (becomes the last child of that entry), or onto a column-strip add button
  * (becomes a new root in that column).
  *
- * Layout/sizing live in app.css under custom properties.
+ * Layout/sizing live in OrgView.module.css under custom properties.
  */
 import {
   DndContext,
@@ -45,6 +45,7 @@ import type { EntryNode } from "logarithmic-backend/api-types";
 import type { MoveTarget } from "~/data/store.ts";
 import { cn } from "~/lib/cn.ts";
 
+import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
 
 type TreeNode = EntryNode & { children: TreeNode[] };
@@ -104,8 +105,12 @@ function colVar(idx: number): CSSProperties {
   return { "--org-col-idx": idx } as CSSProperties;
 }
 
-function isOddCol(col: number): boolean {
-  return (col & 1) !== 0;
+function boxColClass(col: number): string | undefined {
+  if (col < 0) return styles.isColNeg;
+  if (col >= 3) return styles.isCol3plus;
+  if (col === 0) return styles.isCol0;
+  if (col === 1) return styles.isCol1;
+  return styles.isCol2;
 }
 
 // ── Cell ───────────────────────────────────────────────────────────────
@@ -174,10 +179,10 @@ function EntryCell({
 
   if (isEditing) {
     return (
-      <div className="nest-row is-editing">
+      <div className={cn(styles.row, styles.isEditing)}>
         <input
           ref={inputRef}
-          className="nest-row-input"
+          className={styles.rowInput}
           defaultValue={entry.name}
           placeholder="Unnamed entry"
           onBlur={(e) => onSaveName(e.target.value)}
@@ -200,10 +205,10 @@ function EntryCell({
       ref={draggable.setNodeRef}
       data-entry-anchor={entry.id}
       className={cn(
-        "nest-row",
-        hasChildren && "has-children",
-        draggable.isDragging && "is-source",
-        isDragging && "is-drag-context",
+        styles.row,
+        hasChildren && styles.hasChildren,
+        draggable.isDragging && styles.isSource,
+        isDragging && styles.isDragContext,
       )}
       onClickCapture={(e) => {
         if (justDraggedRef.current) {
@@ -218,20 +223,20 @@ function EntryCell({
       <Link
         ref={linkRef}
         to={`/${logbookId}/${entry.id}`}
-        className={cn("nest-row-link", !entry.name && "is-untitled")}
+        className={cn(styles.rowLink, !entry.name && styles.isUntitled)}
         draggable={false}
       >
-        <span className="nest-row-name">{entry.name || "Unnamed entry"}</span>
+        <span className={styles.rowName}>{entry.name || "Unnamed entry"}</span>
       </Link>
 
-      <div className="nest-row-actions" onPointerDown={(e) => e.stopPropagation()}>
+      <div className={styles.rowActions} onPointerDown={(e) => e.stopPropagation()}>
         <button
           type="button"
           ref={childDrop.setNodeRef}
           className={cn(
-            "nest-row-action add-child",
-            isDragging && "is-drag-context",
-            childDrop.isOver && "is-over",
+            styles.rowAction,
+            isDragging && styles.isDragContext,
+            childDrop.isOver && styles.isOver,
           )}
           aria-label="Add child"
           title="Add child"
@@ -241,7 +246,7 @@ function EntryCell({
         </button>
         <button
           type="button"
-          className="nest-row-action"
+          className={styles.rowAction}
           aria-label="Rearrange siblings"
           title="Rearrange siblings"
           onClick={onRearrange}
@@ -253,12 +258,12 @@ function EntryCell({
       {/* Drop halves cover the row, but sit below the action buttons. */}
       <div
         ref={topDrop.setNodeRef}
-        className={cn("nest-row-drop top", isOver === "top" && "is-over")}
+        className={cn(styles.rowDrop, styles.top, isOver === "top" && styles.isOver)}
         aria-hidden="true"
       />
       <div
         ref={bottomDrop.setNodeRef}
-        className={cn("nest-row-drop bottom", isOver === "bottom" && "is-over")}
+        className={cn(styles.rowDrop, styles.bottom, isOver === "bottom" && styles.isOver)}
         aria-hidden="true"
       />
     </div>
@@ -289,15 +294,10 @@ function NestedGroup({
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
-  // Per-column typography modifiers; styles for each tier live in app.css.
-  // See spec/3-frontend.md (Column-Level Emphasis).
-  const colClass = col < 0 ? "is-col-neg" : col >= 3 ? "is-col-3plus" : `is-col-${col}`;
 
   return (
-    <div
-      className={cn("nest-box", isOddCol(col) && "is-odd", !!parentId && "has-parent", colClass)}
-    >
-      <div className="nest-box-rows">
+    <div className={cn(styles.box, boxColClass(col))}>
+      <div className="flex flex-col">
         {siblings.map((sib) => (
           <Fragment key={sib.id}>
             <EntryCell
@@ -327,7 +327,7 @@ function NestedGroup({
           </Fragment>
         ))}
       </div>
-      <button type="button" className="nest-add" onClick={() => onAdd({ col, parentId })}>
+      <button type="button" className={styles.add} onClick={() => onAdd({ col, parentId })}>
         <i className="ri-add-line" aria-hidden="true" />
         <span>Add</span>
       </button>
@@ -356,7 +356,11 @@ function ColAddButton({
     <button
       type="button"
       ref={drop.setNodeRef}
-      className={cn("nest-col-add", isDragging && "is-drag-context", drop.isOver && "is-over")}
+      className={cn(
+        styles.colAdd,
+        isDragging && styles.isDragContext,
+        drop.isOver && styles.isOver,
+      )}
       style={colVar(maxCol - col)}
       aria-label={`Add entry in column ${col}`}
       onClick={() => onAdd(col)}
@@ -462,7 +466,6 @@ export function OrgView({
   // Scroll the scroll-target entry into view once it exists. Use a ref so
   // we don't repeat the scroll on later renders.
   const scrolledRef = useRef<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!scrollTargetId || scrolledRef.current === scrollTargetId) return;
     const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${scrollTargetId}"]`);
@@ -495,15 +498,12 @@ export function OrgView({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div
-          className="flex-1 flex flex-col overflow-auto min-h-0 bg-paper"
-          ref={scrollContainerRef}
-        >
-          <div className="nest-col-strip">
-            <div className="nest-col-strip-inner">
+        <div className="flex-1 flex flex-col overflow-auto min-h-0 bg-paper">
+          <div className={styles.colStrip}>
+            <div className="relative w-full h-full">
               {cols.map((c) => (
                 <Fragment key={c}>
-                  <span className="nest-col-pill" style={colVar(maxCol - c)}>
+                  <span className={styles.colPill} style={colVar(maxCol - c)}>
                     {c > 0 ? `+${c}` : `${c}`}
                   </span>
                   <ColAddButton
@@ -519,7 +519,7 @@ export function OrgView({
 
           {isEmpty ? (
             <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
-              <div className="org-ill" />
+              <div className={styles.illustration} />
               <h3 className="text-lg font-semibold text-primary m-0">
                 An empty logbook is a fine place to start.
               </h3>
@@ -529,10 +529,10 @@ export function OrgView({
               </p>
             </div>
           ) : (
-            <div className="nest-canvas-wrap">
-              <div className="nest-forest">
+            <div className={styles.canvasWrap}>
+              <div className="relative z-[2]">
                 {topRuns.map((run, i) => (
-                  <div key={i} className="nest-tree" style={colVar(maxCol - run.col)}>
+                  <div key={i} className={styles.tree} style={colVar(maxCol - run.col)}>
                     <NestedGroup
                       siblings={run.kids}
                       parentId={null}
@@ -552,8 +552,8 @@ export function OrgView({
 
         <DragOverlay dropAnimation={null}>
           {draggedEntry ? (
-            <div className="nest-row is-overlay">
-              <span className={cn("nest-row-name", !draggedEntry.name && "is-untitled")}>
+            <div className={cn(styles.row, styles.isOverlay)}>
+              <span className={cn(styles.rowName, !draggedEntry.name && styles.isUntitled)}>
                 {draggedEntry.name || "Unnamed entry"}
               </span>
             </div>
