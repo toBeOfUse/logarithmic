@@ -34,15 +34,26 @@ export const logbookRouter = router({
       { owner: ctx.user.id },
       { orderBy: { updatedAt: "desc" } },
     );
-    return Promise.all(
-      logbooks.map(async (lb) => ({
+    if (logbooks.length === 0) return [];
+    // Single GROUP BY query so we get one row per logbook instead of issuing
+    // N COUNT queries. Raw SQL keeps the QueryBuilder's strict typing out of
+    // the way for this aggregation-with-string-alias shape.
+    const ids = logbooks.map((lb) => lb.id);
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = await ctx.em
+      .getConnection()
+      .execute<{ logbook_id: string; count: number | string }[]>(
+        `SELECT logbook_id, COUNT(*) AS count FROM entry WHERE logbook_id IN (${placeholders}) GROUP BY logbook_id`,
+        ids,
+      );
+    const counts = new Map<string, number>(rows.map((r) => [r.logbook_id, Number(r.count)]));
+    return logbooks.map((lb) => ({
         id: lb.id,
         slug: lb.slug,
         name: lb.name,
         updatedAt: lb.updatedAt,
-        entryCount: await ctx.em.count(Entry, { logbook: lb.id }),
-      })),
-    );
+      entryCount: counts.get(lb.id) ?? 0,
+    }));
   }),
 
   overview: logbookProcedure.query(async ({ ctx }): Promise<LogbookOverview> => {

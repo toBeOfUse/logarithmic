@@ -198,7 +198,7 @@ function AttributeModal({
     if (type === "text") {
       value = singleValue === "" ? null : singleValue;
     } else {
-      const cleaned = multiValue.map((v) => v).filter((v) => v.length > 0);
+      const cleaned = multiValue.filter((v) => v.length > 0);
       value = cleaned.length === 0 ? null : cleaned;
     }
     onSave(trimmed, value);
@@ -206,7 +206,7 @@ function AttributeModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-[oklch(0.22_0.01_250/0.32)] flex items-center justify-center p-6"
+      className="fixed inset-0 z-100 bg-primary/30 flex items-center justify-center p-6"
       onClick={onCancel}
     >
       <div

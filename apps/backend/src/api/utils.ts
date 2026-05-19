@@ -26,17 +26,23 @@ export function toLogbookDetail(lb: Logbook): LogbookDetail {
 
 /**
  * Build the EntryDetail projection. Caller has already established ownership;
- * this function only walks ancestors and collects children.
+ * this function loads the logbook's entries once and walks the chain in
+ * memory rather than issuing one `findOne` per ancestor level.
  */
 export async function buildEntryDetail(em: EntityManager, entry: Entry): Promise<EntryDetail> {
-  const ancestors: { id: string; slug: string; name: string }[] = [];
-  let cursor: Entry | null = entry.parent ? await em.findOne(Entry, { id: entry.parent.id }) : null;
+  // this is another query that gets every entry for a logbook that would be
+  // more efficient with a closure table
+  const all = await em.find(Entry, { logbook: entry.logbook.id });
+  const byId = new Map(all.map((e) => [e.id, e] as const));
+
+  const ancestors: { id: number; slug: string; name: string }[] = [];
+  let cursor: Entry | null = entry.parent ? (byId.get(entry.parent.id) ?? null) : null;
   while (cursor) {
     ancestors.unshift({ id: cursor.id, slug: cursor.slug, name: cursor.name });
-    cursor = cursor.parent ? await em.findOne(Entry, { id: cursor.parent.id }) : null;
+    cursor = cursor.parent ? (byId.get(cursor.parent.id) ?? null) : null;
   }
 
-  const children = await em.find(Entry, { parent: entry.id }, { orderBy: { order: "asc" } });
+  const children = all.filter((e) => e.parent?.id === entry.id).sort((a, b) => a.order - b.order);
 
   return {
     id: entry.id,

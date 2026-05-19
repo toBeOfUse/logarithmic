@@ -103,6 +103,14 @@ export default function EntryRoute() {
     return () => clearTimeout(t);
   }, [mutationPending]);
 
+  // Seed `savedAt` from the entry's persisted `updatedAt` so the footer reads
+  // "Saved · 2 days ago" on initial load instead of just "Saved". Re-seed when
+  // the route navigates to a different entry; user-driven saves overwrite this
+  // via the mutation `onSuccess` handlers.
+  useEffect(() => {
+    if (entry) setSavedAt(entry.updatedAt);
+  }, [entry?.id]);
+
   // Title draft counts as unsaved if it differs from the persisted name.
   const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;
   const dirty = titleDirty || editorDirty || mutationPending;
@@ -174,14 +182,14 @@ export default function EntryRoute() {
   const onSaveContent = (markdown: string) => {
     updateContent.mutate(
       { id: entry.id, content: markdown },
-      { onSettled: () => setSavedAt(new Date()) },
+      { onSuccess: () => setSavedAt(new Date()) },
     );
   };
 
   const onMetadataChange = (next: Metadata) => {
     updateMetadata.mutate(
       { id: entry.id, metadata: next },
-      { onSettled: () => setSavedAt(new Date()) },
+      { onSuccess: () => setSavedAt(new Date()) },
     );
   };
 

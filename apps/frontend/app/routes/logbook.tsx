@@ -29,7 +29,7 @@ export default function LogbookRoute() {
 
   if (isLoading || !data) {
     return (
-      <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
+      <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
         <TopBar
           variant="paper"
           logbookSegment={params.logbookId ?? ""}
@@ -49,7 +49,7 @@ export default function LogbookRoute() {
   const { logbook, entries } = data;
 
   return (
-    <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
+    <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
       <TopBar
         variant="paper"
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
