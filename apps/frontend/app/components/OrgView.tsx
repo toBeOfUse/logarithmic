@@ -173,6 +173,7 @@ function EntryCell({
   logbookSegment,
   isEditing,
   isDragging,
+  emphasizeAddChild,
   hasChildren,
   onSaveName,
   onAddChild,
@@ -182,6 +183,7 @@ function EntryCell({
   logbookSegment: string;
   isEditing: boolean;
   isDragging: boolean;
+  emphasizeAddChild: boolean;
   hasChildren: boolean;
   onSaveName: (name: string) => void;
   onAddChild: () => void;
@@ -290,8 +292,8 @@ function EntryCell({
           ref={childDrop.setNodeRef}
           className={cn(
             styles.rowAction,
-            isDragging && styles.isDragContext,
-            childDrop.isOver && styles.isOver,
+            emphasizeAddChild && styles.isDragContext,
+            emphasizeAddChild && childDrop.isOver && styles.isOver,
           )}
           aria-label="Add child"
           title="Add child"
@@ -332,7 +334,8 @@ function NestedGroup({
   parentId,
   logbookSegment,
   editingId,
-  isDragging,
+  draggedId,
+  draggedParentId,
   onAdd,
   onSaveName,
   onRearrange,
@@ -341,7 +344,8 @@ function NestedGroup({
   parentId: number | null;
   logbookSegment: string;
   editingId: number | null;
-  isDragging: boolean;
+  draggedId: number | null;
+  draggedParentId: number | null;
   onAdd: (input: AddInput) => void;
   onSaveName: (id: number, name: string) => void;
   onRearrange: (id: number) => void;
@@ -349,6 +353,7 @@ function NestedGroup({
   const first = siblings[0];
   if (!first) return null;
   const col = first.col;
+  const isDragging = draggedId !== null;
 
   return (
     <div className={cn(styles.box, boxColClass(col))}>
@@ -360,6 +365,7 @@ function NestedGroup({
               logbookSegment={logbookSegment}
               isEditing={editingId === sib.id}
               isDragging={isDragging}
+              emphasizeAddChild={isDragging && sib.id !== draggedId && sib.id !== draggedParentId}
               hasChildren={sib.children.length > 0}
               onSaveName={(name) => onSaveName(sib.id, name)}
               onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
@@ -373,7 +379,8 @@ function NestedGroup({
                   parentId={sib.id}
                   logbookSegment={logbookSegment}
                   editingId={editingId}
-                  isDragging={isDragging}
+                  draggedId={draggedId}
+                  draggedParentId={draggedParentId}
                   onAdd={onAdd}
                   onSaveName={onSaveName}
                   onRearrange={onRearrange}
@@ -517,6 +524,7 @@ export function OrgView({
     () => (activeDragId !== null ? (byId.get(activeDragId) ?? null) : null),
     [activeDragId, byId],
   );
+  const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
 
   // Scroll the scroll-target entry into view once it exists. Use a ref so
   // we don't repeat the scroll on later renders.
@@ -594,7 +602,8 @@ export function OrgView({
                       parentId={null}
                       logbookSegment={logbookSegment}
                       editingId={editingId}
-                      isDragging={activeDragId !== null}
+                      draggedId={activeDragId}
+                      draggedParentId={draggedParentId}
                       onAdd={onAdd}
                       onSaveName={onRename}
                       onRearrange={(id) => setRearrangeFor(id)}
