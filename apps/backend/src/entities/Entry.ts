@@ -1,5 +1,6 @@
 import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
-import { v4 as uuidv4 } from "uuid";
+import { newId } from "logarithmic-config/ids";
+import { slugify } from "logarithmic-config/slug";
 import { Logbook } from "./Logbook.ts";
 
 /**
@@ -13,10 +14,18 @@ const EntrySchema = defineEntity({
   name: "Entry",
   properties: {
     id: p
-      .uuid()
+      .string()
       .primary()
-      .onCreate(() => uuidv4()),
+      .onCreate(() => newId()),
     name: p.string(),
+    /**
+     * URL-safe decorative slug derived from `name`. Not unique; only used to
+     * prettify route parameters on the frontend. The ID is the source of truth.
+     */
+    slug: p
+      .string()
+      .onCreate((e) => slugify(e.name))
+      .onUpdate((e) => slugify(e.name)),
     col: p.integer().default(0),
     /**
      * Integer rank among siblings (or among root entries when parent is null).

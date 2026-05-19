@@ -1,6 +1,6 @@
 # Frontend
 
-The frontend will use React Router. It will operate in SPA mode. It will fetch and mutate data using the React Query tRPC client and optimistic updates. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should define CSS variables that provide the theme values (using the @theme directive) for the app (colors, borders, spacing) and use them wherever logical. It should have a clean, minimal, spacious aesthetic.
+The frontend will use React Router. It will operate in SPA mode. It will fetch and mutate data using React Query and a tRPC client, defaulting to optimistic updates. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should define CSS variables that provide the theme values (using the @theme directive) for the app (colors, borders, spacing) and use them wherever logical. It should have a clean, minimal, spacious aesthetic.
 
 ## Design System
 
@@ -10,7 +10,7 @@ Font sizes should use rem (and have a base size of 1rem.) 1rem should be defined
 
 ## User Interface
 
-The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook or go to a logbook that you've previously created. (All routes except the splash screen should start with a logbook ID.) There are two main tabs in the logbook view: the Organizational view and the Content view. The Organizational tab is open first, and you can click into it to open a entry in the Content tab.
+The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook or go to a logbook that you've previously created. (All routes except the splash screen should start with a parameter that is the logbook's slug hyphenated with its ID.) There are two main tabs in the logbook view: the Organizational view and the Content view. The Organizational tab is open first, and you can click into it to open a entry in the Content tab.
 
 Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case), a "close" button that closes the current logbook and sends the user back to the initial splash screen, and a kebab menu. This menu currently just allows you to delete entries when you're on that entry's content page.
 
@@ -46,7 +46,9 @@ Hovering over an entry reveals two secondary buttons, positioned on the right si
 
 #### Moving Entries
 
-At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped on the top half of another entry, it's moved to be the sibling directly preceding that entry; if it's dropped on the bottom half of another entry, it's moved to be the sibling directly after that entry; and if it's dropped on the "add child" button for an entry, it is moved to be the (last) child of that entry. (This is mainly useful if its new parent has no children currently, and thus the entry being moved can't be dropped among them.) While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. Similarly, an entry can be dropped onto the "add" button below a column number in the sticky column number display at the top to turn it into a new root present that column. (Dragging an entry that is already a root onto one of these buttons also allows it to be shifted from column to column.)
+At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped on the top half of another entry, it's moved to be the sibling directly preceding that entry; if it's dropped on the bottom half of another entry, it's moved to be the sibling directly after that entry; and if it's dropped on the "add child" button for an entry, it is moved to be the (last) child of that entry. (This is mainly useful if its new parent has no children currently, and thus the entry being moved can't be dropped among them.)
+
+While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. (Except: the "add child" button for the entry being dragged and the "add child" button for its current parent, if any, should _not_ be emphasized, because it doesn't really make sense to drag it onto either of them.) Similarly, an entry can be dropped onto the "add" button below a column number in the sticky column number display at the top to turn it into a new root present that column. (Dragging an entry that is already a root onto one of these buttons also allows it to be shifted from column to column.)
 
 Also, the second secondary button that shows up when an entry is hovered over is the "rearrange" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
 

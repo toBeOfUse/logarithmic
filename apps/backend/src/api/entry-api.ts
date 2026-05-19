@@ -1,0 +1,224 @@
+/**
+ * Entry tRPC procedures. Defines `entryProcedure`, a protectedProcedure
+ * variant that takes an entry `id`, asserts the caller owns the containing
+ * logbook, and attaches the resolved `entry` (with its logbook populated) to
+ * `ctx`. Procedures keyed off a logbook (create, reorderSiblings) reuse the
+ * `logbookProcedure` exported from logbook-api.
+ */
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+
+import { slugify } from "logarithmic-config/slug";
+
+import type { EntryDetail } from "./api-types.ts";
+import { Entry } from "../entities/Entry.ts";
+import { protectedProcedure, router } from "../trpc.ts";
+import { logbookProcedure } from "./logbook-api.ts";
+import { buildEntryDetail, cascadeCols, isAncestor, metadataSchema } from "./utils.ts";
+
+const entryProcedure = protectedProcedure
+  .input(z.object({ id: z.string() }))
+  .use(async ({ ctx, input, next }) => {
+    const entry = await ctx.em.findOne(
+      Entry,
+      { id: input.id, logbook: { owner: ctx.user.id } },
+      { populate: ["logbook"] },
+    );
+    if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });
+    return next({ ctx: { ...ctx, entry } });
+  });
+
+export const entryRouter = router({
+  get: entryProcedure.query(({ ctx }) => buildEntryDetail(ctx.em, ctx.entry)),
+
+  create: logbookProcedure
+    .input(
+      z.object({
+        name: z.string().optional(),
+        col: z.number().int().optional(),
+        parentId: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const lb = ctx.logbook;
+      const parent = input.parentId
+        ? await ctx.em.findOne(Entry, { id: input.parentId, logbook: lb.id })
+        : null;
+      if (input.parentId && !parent) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Parent entry not found" });
+      }
+      const col = input.col ?? (parent ? parent.col - 1 : 0);
+      const siblings = await ctx.em.find(Entry, {
+        logbook: lb.id,
+        parent: parent?.id ?? null,
+      });
+      const order = siblings.length === 0 ? 0 : Math.max(...siblings.map((s) => s.order)) + 1;
+
+      const name = input.name ?? "";
+      const entry = ctx.em.create(Entry, {
+        name,
+        slug: slugify(name),
+        col,
+        order,
+        content: null,
+        metadata: null,
+        logbook: lb.id,
+        parent: parent?.id ?? null,
+      });
+      lb.updatedAt = new Date();
+      ctx.em.persist(entry);
+      await ctx.em.flush();
+
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
+  rename: entryProcedure
+    .input(z.object({ name: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const entry = ctx.entry;
+      entry.name = input.name;
+      entry.slug = slugify(input.name);
+      entry.logbook.updatedAt = new Date();
+      await ctx.em.flush();
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
+  updateContent: entryProcedure
+    .input(z.object({ content: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const entry = ctx.entry;
+      entry.content = input.content;
+      entry.logbook.updatedAt = new Date();
+      await ctx.em.flush();
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
+  updateMetadata: entryProcedure
+    .input(z.object({ metadata: metadataSchema }))
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const entry = ctx.entry;
+      entry.metadata = { ...input.metadata };
+      entry.logbook.updatedAt = new Date();
+      await ctx.em.flush();
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
+  move: entryProcedure
+    .input(
+      z.object({
+        parentId: z.string().nullable(),
+        col: z.number().int(),
+        position: z.number().int().min(0),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const entry = ctx.entry;
+
+      // Self-as-parent and ancestor cycles aren't valid moves; mirror the legacy
+      // behavior of returning the entry unchanged rather than 4xx-ing the client,
+      // which keeps a stray drop from looking like a failed mutation.
+      if (input.parentId === entry.id) return buildEntryDetail(ctx.em, entry);
+
+      // Pull the whole logbook into memory so the sibling renumber + col cascade
+      // is a pure in-memory shuffle. SQLite + small logbooks make this cheap; if
+      // it stops being cheap, we'll switch to a windowed approach later.
+      const all = await ctx.em.find(Entry, { logbook: entry.logbook.id });
+      const byId = new Map(all.map((e) => [e.id, e] as const));
+
+      let parent: Entry | null = null;
+      if (input.parentId !== null) {
+        parent = byId.get(input.parentId) ?? null;
+        if (!parent) throw new TRPCError({ code: "NOT_FOUND", message: "Parent entry not found" });
+        if (isAncestor(byId, entry.id, parent.id)) return buildEntryDetail(ctx.em, entry);
+        if (input.col !== parent.col - 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "col must equal parent.col - 1 for non-root entries",
+          });
+        }
+      }
+
+      const sibs = all
+        .filter((e) => (e.parent?.id ?? null) === input.parentId && e.id !== entry.id)
+        .sort((a, b) => a.order - b.order);
+      const clamped = Math.max(0, Math.min(input.position, sibs.length));
+
+      entry.parent = parent ? (ctx.em.getReference(Entry, parent.id) as Entry) : null;
+      entry.col = input.col;
+      const ordered = [...sibs.slice(0, clamped), entry, ...sibs.slice(clamped)];
+      ordered.forEach((rec, i) => {
+        rec.order = i;
+      });
+
+      cascadeCols(byId, entry.id);
+      entry.logbook.updatedAt = new Date();
+      await ctx.em.flush();
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
+  reorderSiblings: logbookProcedure
+    .input(
+      z.object({
+        parentId: z.string().nullable(),
+        ids: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<boolean> => {
+      const lb = ctx.logbook;
+      const sibs = await ctx.em.find(Entry, {
+        logbook: lb.id,
+        parent: input.parentId ?? null,
+      });
+      const set = new Set(sibs.map((s) => s.id));
+      if (input.ids.length !== sibs.length) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "ids must be a permutation of siblings",
+        });
+      }
+      const seen = new Set<string>();
+      for (const id of input.ids) {
+        if (!set.has(id)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "id is not a sibling under that parent",
+          });
+        }
+        if (seen.has(id)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "duplicate id in reorder" });
+        }
+        seen.add(id);
+      }
+      const byId = new Map(sibs.map((s) => [s.id, s] as const));
+      input.ids.forEach((id, i) => {
+        const s = byId.get(id);
+        if (s) s.order = i;
+      });
+      lb.updatedAt = new Date();
+      await ctx.em.flush();
+      return true;
+    }),
+
+  delete: entryProcedure.mutation(async ({ ctx }): Promise<boolean> => {
+    const entry = ctx.entry;
+    const all = await ctx.em.find(Entry, { logbook: entry.logbook.id });
+    // Collect the entry plus all its transitive descendants.
+    const toDelete = new Set<string>([entry.id]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const cand of all) {
+        const pid = cand.parent?.id;
+        if (pid && toDelete.has(pid) && !toDelete.has(cand.id)) {
+          toDelete.add(cand.id);
+          grew = true;
+        }
+      }
+    }
+    const removed = all.filter((e) => toDelete.has(e.id));
+    entry.logbook.updatedAt = new Date();
+    for (const r of removed) ctx.em.remove(r);
+    await ctx.em.flush();
+    return true;
+  }),
+});

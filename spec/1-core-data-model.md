@@ -10,7 +10,7 @@ In more detail:
 
 ## Nodes
 
-The nodes in the tree are called "entries." Their names are simple strings. They have unique IDs. They also have timestamps for when they were created and last updated.
+The nodes in the tree are called "entries." Their names are simple strings. They have unique IDs. They have slugs based on their names (which are not guaranteed to be unique; they should only be used alongside IDs, and serve as decoration in things like route parameters.) They also have timestamps for when they were created and last updated.
 
 ## Rich Text Content
 

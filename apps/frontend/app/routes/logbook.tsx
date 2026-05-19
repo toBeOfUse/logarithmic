@@ -11,10 +11,11 @@ import {
   useRenameEntry,
   useReorderSiblings,
 } from "~/data/hooks.ts";
+import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 
 export default function LogbookRoute() {
   const params = useParams();
-  const logbookId = params.logbookId ?? "";
+  const logbookId = parseRouteSegment(params.logbookId ?? "");
   const demo = isDemoLogbook(logbookId);
 
   const { data, isLoading } = useLogbookOverview(logbookId, { demo });
@@ -31,7 +32,7 @@ export default function LogbookRoute() {
       <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
         <TopBar
           variant="paper"
-          logbookId={logbookId}
+          logbookSegment={params.logbookId ?? ""}
           logbookName={isLoading ? "Loading…" : "Not found"}
         />
         <div className="flex-1 flex flex-col overflow-hidden bg-paper">
@@ -49,10 +50,15 @@ export default function LogbookRoute() {
 
   return (
     <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
-      <TopBar variant="paper" logbookId={logbook.id} logbookName={logbook.name} />
+      <TopBar
+        variant="paper"
+        logbookSegment={routeSegment(logbook.slug, logbook.id)}
+        logbookName={logbook.name}
+      />
       <OrgView
-        entries={entries}
+        forest={entries}
         logbookId={logbook.id}
+        logbookSlug={logbook.slug}
         editingId={editingId}
         scrollTargetId={scrollTargetId}
         onAdd={({ col, parentId }) => {
@@ -70,14 +76,15 @@ export default function LogbookRoute() {
         }}
         onRename={(id, name) => {
           const trimmed = name.trim();
-          const current = entries.find((e) => e.id === id);
+          // Find the current entry inside the tree to compare names.
+          const current = findInForest(entries, id);
           if (current && trimmed !== current.name) {
             renameEntry.mutate({ id, name: trimmed });
           }
           setEditingId((prev) => (prev === id ? null : prev));
         }}
-        onMove={(id, target) => {
-          moveEntry.mutate({ id, logbookId: logbook.id, target });
+        onMove={(input) => {
+          moveEntry.mutate({ ...input, logbookId: logbook.id });
         }}
         onReorderSiblings={(parentId, ids) => {
           reorderSiblings.mutate({ logbookId: logbook.id, parentId, ids });
@@ -86,4 +93,16 @@ export default function LogbookRoute() {
       />
     </div>
   );
+}
+
+function findInForest(
+  forest: import("logarithmic-backend/api-types").EntryNode[],
+  id: string,
+): import("logarithmic-backend/api-types").EntryNode | null {
+  for (const node of forest) {
+    if (node.id === id) return node;
+    const inChild = findInForest(node.children, id);
+    if (inChild) return inChild;
+  }
+  return null;
 }

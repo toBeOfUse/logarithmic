@@ -1,43 +1,43 @@
 /**
  * Seed forests for the demo logbooks. The frontend supports zero or more
- * demos; each one is a self-contained in-memory logbook. The IDs here are
- * checked by `isDemoLogbook` to route reads to the demo store.
+ * demos; each one is a self-contained in-memory logbook.
+ *
+ * Seed shape: a recursive `Pick` of `EntryNode` plus optional `content` and
+ * `metadata`. The structure mirrors what the API now returns from
+ * `logbook.overview` (a forest with children nested inline), so no separate
+ * `DemoSeedEntry` interface is required — the demo store consumes these
+ * seeds and projects to the same API types the backend produces.
  *
  * Convention reflected in the column choices below (see spec/3-frontend.md):
  *   • Most entries live at col 0 — they are body text.
  *   • Entries at col ≥ 1 are headings. Higher columns are larger headings.
  *   • Entries at col ≤ -1 are asides / footnotes.
  */
-export type DemoSeedEntry = {
-  id: string;
-  name: string;
-  col: number;
+import type { EntryNode, Metadata } from "logarithmic-backend/api-types";
+
+type Seed = Pick<EntryNode, "name" | "col"> & {
   content?: string;
-  metadata?: Record<string, string | string[] | null>;
-  children?: DemoSeedEntry[];
+  metadata?: Metadata;
+  children?: Seed[];
 };
 
 export type DemoLogbook = {
-  id: string;
   name: string;
-  tree: DemoSeedEntry[];
+  tree: Seed[];
 };
 
-const lifeOsTree: DemoSeedEntry[] = [
+const lifeOsTree: Seed[] = [
   {
-    id: "g-creative",
     name: "Creative practice",
     col: 2,
     metadata: { Status: "On track", Tags: ["2026"] },
     children: [
       {
-        id: "p-novel",
         name: "Novel — first draft",
         col: 1,
         metadata: { Status: "Active", Due: "Jun 30" },
         children: [
           {
-            id: "p-novel-ch3",
             name: "Chapter 3 — the lighthouse",
             col: 0,
             metadata: {
@@ -67,136 +67,99 @@ const lifeOsTree: DemoSeedEntry[] = [
               "2. How long has it been keeping itself? Cut to the aside on Casco Bay tides.",
             ].join("\n"),
             children: [
-              {
-                id: "n-light",
-                name: "What if the lighthouse is unmanned the whole time?",
-                col: -1,
-              },
-              {
-                id: "n-tide",
-                name: "Cross-ref the Casco Bay tide tables before final pass",
-                col: -1,
-              },
+              { name: "What if the lighthouse is unmanned the whole time?", col: -1 },
+              { name: "Cross-ref the Casco Bay tide tables before final pass", col: -1 },
             ],
           },
+          { name: "Mon · 1,200 words before coffee", col: 0, metadata: { Day: "Apr 27" } },
           {
-            id: "l-mon",
-            name: "Mon · 1,200 words before coffee",
-            col: 0,
-            metadata: { Day: "Apr 27" },
-          },
-          {
-            id: "l-tue",
             name: "Tue · stuck on the dialogue, walked it off",
             col: 0,
             metadata: { Day: "Apr 28" },
           },
-          {
-            id: "l-wed",
-            name: "Wed · rewrote the ending of the scene",
-            col: 0,
-            metadata: { Day: "Apr 29" },
-          },
-          { id: "p-novel-research", name: "Research — Maine coast 1920s", col: 0 },
-          { id: "l-bk1", name: 'Notes from "A History of Lighthouses"', col: 0 },
+          { name: "Wed · rewrote the ending of the scene", col: 0, metadata: { Day: "Apr 29" } },
+          { name: "Research — Maine coast 1920s", col: 0 },
+          { name: 'Notes from "A History of Lighthouses"', col: 0 },
         ],
       },
       {
-        id: "p-newsletter",
         name: "Weekly newsletter",
         col: 1,
         metadata: { Status: "Active", Count: "9 / 24" },
         children: [
-          {
-            id: "iss-09",
-            name: "#09 — On finishing things",
-            col: 0,
-            metadata: { Day: "Apr 21" },
-          },
-          {
-            id: "iss-10",
-            name: "#10 — Drafts and dignity",
-            col: 0,
-            metadata: { Day: "Apr 28" },
-          },
-          { id: "iss-next", name: "Next week — quiet weeks vs. loud weeks", col: 0 },
+          { name: "#09 — On finishing things", col: 0, metadata: { Day: "Apr 21" } },
+          { name: "#10 — Drafts and dignity", col: 0, metadata: { Day: "Apr 28" } },
+          { name: "Next week — quiet weeks vs. loud weeks", col: 0 },
         ],
       },
     ],
   },
   {
-    id: "g-health",
     name: "Health",
     col: 1,
     metadata: { Status: "On track" },
     children: [
-      { id: "l-r-mon", name: "Mon · 5km easy", col: 0 },
-      { id: "l-r-wed", name: "Wed · intervals 6×400", col: 0 },
+      { name: "Mon · 5km easy", col: 0 },
+      { name: "Wed · intervals 6×400", col: 0 },
       {
-        id: "l-r-sat",
         name: "Sat · 12km long, felt good",
         col: 0,
-        children: [{ id: "n-shoes", name: "Try the new shoes on grass first", col: -1 }],
+        children: [{ name: "Try the new shoes on grass first", col: -1 }],
       },
-      { id: "p-sleep", name: "Slept before midnight 11 nights running", col: 0 },
+      { name: "Slept before midnight 11 nights running", col: 0 },
     ],
   },
   {
-    id: "g-learn",
     name: "Reading",
     col: 1,
     metadata: { Status: "On track", Count: "8 / 24" },
     children: [
-      { id: "rd-pattern", name: 'Started "A Pattern Language" — Alexander', col: 0 },
-      { id: "rd-deep", name: 'Finished "Deep Work" — Newport', col: 0 },
-      { id: "rd-shape", name: '"Shape Up" — on deck', col: 0 },
-      { id: "rd-annie", name: '"Pilgrim at Tinker Creek" — on deck', col: 0 },
+      { name: 'Started "A Pattern Language" — Alexander', col: 0 },
+      { name: 'Finished "Deep Work" — Newport', col: 0 },
+      { name: '"Shape Up" — on deck', col: 0 },
+      { name: '"Pilgrim at Tinker Creek" — on deck', col: 0 },
     ],
   },
-  { id: "f1", name: 'Article idea — "the geometry of attention"', col: 0 },
-  { id: "f2", name: "Buy the good olive oil again", col: 0 },
-  { id: "f3", name: "Re-read the Pattern Language preface sometime", col: 0 },
+  { name: 'Article idea — "the geometry of attention"', col: 0 },
+  { name: "Buy the good olive oil again", col: 0 },
+  { name: "Re-read the Pattern Language preface sometime", col: 0 },
 ];
 
-const cookbookTree: DemoSeedEntry[] = [
+const cookbookTree: Seed[] = [
   {
-    id: "ck-mains",
     name: "Mains",
     col: 1,
     metadata: { Tags: ["dinner"] },
     children: [
-      { id: "rc-carbonara", name: "Carbonara", col: 0, metadata: { Time: "25 min" } },
+      { name: "Carbonara", col: 0, metadata: { Time: "25 min" } },
       {
-        id: "rc-cacio",
         name: "Cacio e pepe",
         col: 0,
         metadata: { Time: "15 min" },
-        children: [{ id: "rc-cacio-note", name: "Ratio: ~1g pepper per 100g pasta", col: -1 }],
+        children: [{ name: "Ratio: ~1g pepper per 100g pasta", col: -1 }],
       },
-      { id: "rc-pesto", name: "Pesto alla Genovese", col: 0, metadata: { Time: "20 min" } },
-      { id: "rc-chicken", name: "Chicken with lemon & thyme", col: 0 },
-      { id: "rc-pork", name: "Slow-roast pork shoulder", col: 0 },
+      { name: "Pesto alla Genovese", col: 0, metadata: { Time: "20 min" } },
+      { name: "Chicken with lemon & thyme", col: 0 },
+      { name: "Slow-roast pork shoulder", col: 0 },
     ],
   },
   {
-    id: "ck-sauces",
     name: "Sauces & condiments",
     col: 1,
     children: [
-      { id: "rc-bechamel", name: "Béchamel", col: 0 },
-      { id: "rc-salsa-verde", name: "Salsa verde", col: 0 },
-      { id: "rc-pickled-onions", name: "Quick pickled onions", col: 0 },
+      { name: "Béchamel", col: 0 },
+      { name: "Salsa verde", col: 0 },
+      { name: "Quick pickled onions", col: 0 },
     ],
   },
   {
-    id: "ck-week",
     name: "This week's meals",
     col: 1,
     metadata: { Kind: "Plan" },
     children: [
-      { id: "ck-mon", name: "Mon · pasta night", col: 0 },
-      { id: "ck-tue", name: "Tue · leftover chicken sandwiches", col: 0 },
-      { id: "ck-wed", name: "Wed · sheet-pan veg + pickles", col: 0 },
+      { name: "Mon · pasta night", col: 0 },
+      { name: "Tue · leftover chicken sandwiches", col: 0 },
+      { name: "Wed · sheet-pan veg + pickles", col: 0 },
     ],
   },
 ];
@@ -208,9 +171,8 @@ const cookbookTree: DemoSeedEntry[] = [
  *   • a top-level heading at col 2 sitting above col-1 sub-headings
  *   • a chain of asides going from col -1 down to col -2
  */
-const researchTree: DemoSeedEntry[] = [
+const researchTree: Seed[] = [
   {
-    id: "rs-wadden",
     name: "Wadden Sea — bird migrations",
     col: 2,
     metadata: { Status: "Active", Tags: ["fieldwork", "2026"] },
@@ -219,50 +181,38 @@ const researchTree: DemoSeedEntry[] = [
       "Looking for shifts in arrival timing relative to the 2009 baseline.",
     children: [
       {
-        id: "rs-method",
         name: "Methodology",
         col: 1,
         children: [
           {
-            id: "rs-protocol",
             name: "Survey protocol — daily counts at fixed transects",
             col: 0,
             children: [
               {
-                id: "rs-protocol-fn1",
                 name: "Hahn et al. (2009) baseline counts",
                 col: -1,
-                children: [
-                  {
-                    id: "rs-protocol-fn2",
-                    name: "Cited via the 2014 erratum, not the original",
-                    col: -2,
-                  },
-                ],
+                children: [{ name: "Cited via the 2014 erratum, not the original", col: -2 }],
               },
             ],
           },
-          { id: "rs-photoid", name: "Photo IDs of resident species", col: 0 },
+          { name: "Photo IDs of resident species", col: 0 },
         ],
       },
       {
-        id: "rs-logs",
         name: "Daily logs",
         col: 1,
         children: [
-          { id: "rs-log1", name: "Apr 12 · first arrivals (godwits, knots)", col: 0 },
-          { id: "rs-log2", name: "Apr 13 · NE wind, low counts", col: 0 },
-          { id: "rs-log3", name: "Apr 14 · overcast, full sweep done", col: 0 },
-          { id: "rs-log4", name: "Apr 15 · banded a single dunlin", col: 0 },
+          { name: "Apr 12 · first arrivals (godwits, knots)", col: 0 },
+          { name: "Apr 13 · NE wind, low counts", col: 0 },
+          { name: "Apr 14 · overcast, full sweep done", col: 0 },
+          { name: "Apr 15 · banded a single dunlin", col: 0 },
         ],
       },
       {
-        id: "rs-deep",
         name: "Working hypothesis — climate driver",
         col: 1,
         children: [
           {
-            id: "rs-deep-1",
             name: "Stopover length correlates with sea-surface temp anomaly",
             col: 0,
             content: "Singleton — used to verify that lone-leaf rendering still looks right.",
@@ -272,24 +222,21 @@ const researchTree: DemoSeedEntry[] = [
     ],
   },
   {
-    id: "rs-inbox",
     name: "Reading & follow-ups",
     col: 1,
     children: [
-      { id: "rs-todo1", name: "Read: Hahn et al. 2009 (baseline)", col: 0 },
-      { id: "rs-todo2", name: "Email Lars about boat schedule", col: 0 },
-      { id: "rs-todo3", name: "Citizen-science apps — survey landscape", col: 0 },
+      { name: "Read: Hahn et al. 2009 (baseline)", col: 0 },
+      { name: "Email Lars about boat schedule", col: 0 },
+      { name: "Citizen-science apps — survey landscape", col: 0 },
     ],
   },
   // A bare body-level root with no children — exercises single-leaflet rendering.
-  { id: "rs-musing", name: "Musing — what counts as a 'site', exactly?", col: 0 },
+  { name: "Musing — what counts as a 'site', exactly?", col: 0 },
 ];
 
 export const DEMO_LOGBOOKS: DemoLogbook[] = [
-  { id: "demo", name: "Demo · life-OS", tree: lifeOsTree },
-  { id: "demo-cookbook", name: "Demo · cookbook", tree: cookbookTree },
-  { id: "demo-research", name: "Demo · research notebook", tree: researchTree },
-  { id: "demo-blank", name: "Demo · blank logbook", tree: [] },
+  { name: "Demo · life-OS", tree: lifeOsTree },
+  { name: "Demo · cookbook", tree: cookbookTree },
+  { name: "Demo · research notebook", tree: researchTree },
+  { name: "Demo · blank logbook", tree: [] },
 ];
-
-export const DEMO_LOGBOOK_IDS: ReadonlySet<string> = new Set(DEMO_LOGBOOKS.map((d) => d.id));

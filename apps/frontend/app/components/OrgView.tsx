@@ -40,15 +40,13 @@ import {
 } from "react";
 import { Link } from "react-router";
 
-import type { EntryNode } from "logarithmic-backend/api-types";
+import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
-import type { MoveTarget } from "~/data/store.ts";
 import { cn } from "~/lib/cn.ts";
+import { routeSegment } from "~/lib/route-segment.ts";
 
 import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
-
-type TreeNode = EntryNode & { children: TreeNode[] };
 
 type AddInput = { col: number; parentId: string | null };
 
@@ -59,27 +57,28 @@ type DropData =
 
 // ── Tree helpers ───────────────────────────────────────────────────────
 
-function buildForest(entries: EntryNode[]): TreeNode[] {
-  // Entries arrive with each parent's children in sibling-order, per the
-  // store contract. Group by parentId without re-sorting.
-  const byParent = new Map<string | null, EntryNode[]>();
-  for (const e of entries) {
-    const list = byParent.get(e.parentId) ?? [];
-    list.push(e);
-    byParent.set(e.parentId, list);
-  }
-  const build = (parentId: string | null): TreeNode[] =>
-    (byParent.get(parentId) ?? []).map((e) => ({
-      ...e,
-      children: build(e.id),
-    }));
-  return build(null);
+/** Index every node in the forest by id; also record each node's parent id. */
+function indexForest(forest: EntryNode[]): {
+  byId: Map<string, EntryNode>;
+  parentOf: Map<string, string | null>;
+} {
+  const byId = new Map<string, EntryNode>();
+  const parentOf = new Map<string, string | null>();
+  const walk = (nodes: EntryNode[], parent: string | null) => {
+    for (const n of nodes) {
+      byId.set(n.id, n);
+      parentOf.set(n.id, parent);
+      walk(n.children, n.id);
+    }
+  };
+  walk(forest, null);
+  return { byId, parentOf };
 }
 
-function colRange(forest: TreeNode[]): { min: number; max: number } {
+function colRange(forest: EntryNode[]): { min: number; max: number } {
   let min = Infinity,
     max = -Infinity;
-  const walk = (arr: TreeNode[]) => {
+  const walk = (arr: EntryNode[]) => {
     for (const e of arr) {
       if (e.col < min) min = e.col;
       if (e.col > max) max = e.col;
@@ -89,6 +88,60 @@ function colRange(forest: TreeNode[]): { min: number; max: number } {
   walk(forest);
   if (min === Infinity) return { min: 0, max: 0 };
   return { min, max };
+}
+
+/**
+ * Convert a drop target (the dnd-kit concept attached to each drop zone) into
+ * the API's `MoveEntryInput`. The drop zones describe intent in terms of
+ * relative neighbours; the server expects an absolute `{parentId, col,
+ * position}` triple, and we have the forest right here to bridge the two.
+ * Returns null for self-drops and other no-ops.
+ */
+function dropToMoveInput(
+  draggedId: string,
+  drop: DropData,
+  byId: Map<string, EntryNode>,
+  parentOf: Map<string, string | null>,
+  forest: EntryNode[],
+): MoveEntryInput | null {
+  const siblingsOf = (parentId: string | null): EntryNode[] => {
+    const list = parentId === null ? forest : (byId.get(parentId)?.children ?? []);
+    return list.filter((n) => n.id !== draggedId);
+  };
+
+  if (drop.kind === "before" || drop.kind === "after") {
+    if (drop.refId === draggedId) return null;
+    const ref = byId.get(drop.refId);
+    if (!ref) return null;
+    const refParentId = parentOf.get(ref.id) ?? null;
+    const parent = refParentId ? byId.get(refParentId) : null;
+    const col = parent ? parent.col - 1 : ref.col;
+    const sibs = siblingsOf(refParentId);
+    const refIdx = sibs.findIndex((s) => s.id === ref.id);
+    const position = drop.kind === "before" ? refIdx : refIdx + 1;
+    return { id: draggedId, parentId: refParentId, col, position };
+  }
+  if (drop.kind === "child") {
+    if (drop.parentId === draggedId) return null;
+    const parent = byId.get(drop.parentId);
+    if (!parent) return null;
+    return {
+      id: draggedId,
+      parentId: parent.id,
+      col: parent.col - 1,
+      position: siblingsOf(parent.id).length,
+    };
+  }
+  if (drop.kind === "rootInCol") {
+    // Append after all existing roots.
+    return {
+      id: draggedId,
+      parentId: null,
+      col: drop.col,
+      position: siblingsOf(null).length,
+    };
+  }
+  return null;
 }
 
 function runsByCol<T extends { col: number }>(items: T[]): { col: number; kids: T[] }[] {
@@ -117,7 +170,7 @@ function boxColClass(col: number): string | undefined {
 
 function EntryCell({
   entry,
-  logbookId,
+  logbookSegment,
   isEditing,
   isDragging,
   hasChildren,
@@ -125,8 +178,8 @@ function EntryCell({
   onAddChild,
   onRearrange,
 }: {
-  entry: TreeNode;
-  logbookId: string;
+  entry: EntryNode;
+  logbookSegment: string;
   isEditing: boolean;
   isDragging: boolean;
   hasChildren: boolean;
@@ -222,7 +275,7 @@ function EntryCell({
     >
       <Link
         ref={linkRef}
-        to={`/${logbookId}/${entry.id}`}
+        to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
         className={cn(styles.rowLink, !entry.name && styles.isUntitled)}
         draggable={false}
       >
@@ -275,16 +328,16 @@ function EntryCell({
 function NestedGroup({
   siblings,
   parentId,
-  logbookId,
+  logbookSegment,
   editingId,
   isDragging,
   onAdd,
   onSaveName,
   onRearrange,
 }: {
-  siblings: TreeNode[];
+  siblings: EntryNode[];
   parentId: string | null;
-  logbookId: string;
+  logbookSegment: string;
   editingId: string | null;
   isDragging: boolean;
   onAdd: (input: AddInput) => void;
@@ -302,7 +355,7 @@ function NestedGroup({
           <Fragment key={sib.id}>
             <EntryCell
               entry={sib}
-              logbookId={logbookId}
+              logbookSegment={logbookSegment}
               isEditing={editingId === sib.id}
               isDragging={isDragging}
               hasChildren={sib.children.length > 0}
@@ -316,7 +369,7 @@ function NestedGroup({
                   key={`${sib.id}-${j}`}
                   siblings={run.kids}
                   parentId={sib.id}
-                  logbookId={logbookId}
+                  logbookSegment={logbookSegment}
                   editingId={editingId}
                   isDragging={isDragging}
                   onAdd={onAdd}
@@ -373,8 +426,9 @@ function ColAddButton({
 // ── Main component ─────────────────────────────────────────────────────
 
 export function OrgView({
-  entries,
+  forest,
   logbookId,
+  logbookSlug,
   editingId,
   scrollTargetId,
   onAdd,
@@ -383,20 +437,22 @@ export function OrgView({
   onReorderSiblings,
   onScrolled,
 }: {
-  entries: EntryNode[];
+  forest: EntryNode[];
   logbookId: string;
+  logbookSlug: string;
   /** When set, that entry renders an inline name input instead of a link. */
   editingId: string | null;
   /** When set, that entry is scrolled into view once after it appears. */
   scrollTargetId: string | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: string, name: string) => void;
-  onMove: (id: string, target: MoveTarget) => void;
+  onMove: (input: MoveEntryInput) => void;
   onReorderSiblings: (parentId: string | null, ids: string[]) => void;
   onScrolled: () => void;
 }) {
-  const forest = useMemo(() => buildForest(entries), [entries]);
+  const logbookSegment = routeSegment(logbookSlug, logbookId);
   const isEmpty = forest.length === 0;
+  const { byId, parentOf } = useMemo(() => indexForest(forest), [forest]);
   const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
   // Strip always shows cols -1 through 3 by default. When data is present,
   // also pad one extra column past either extreme so it's always possible
@@ -446,21 +502,14 @@ export function OrgView({
     const data = over.data.current as DropData | undefined;
     if (!data) return;
     const id = String(active.id).replace(/^entry:/, "");
-    if (data.kind === "before" || data.kind === "after") {
-      if (data.refId === id) return;
-      onMove(id, { kind: data.kind, refId: data.refId });
-    } else if (data.kind === "child") {
-      if (data.parentId === id) return;
-      onMove(id, { kind: "child", parentId: data.parentId });
-    } else if (data.kind === "rootInCol") {
-      onMove(id, { kind: "rootInCol", col: data.col });
-    }
+    const move = dropToMoveInput(id, data, byId, parentOf, forest);
+    if (move) onMove(move);
   };
   const onDragCancel = () => setActiveDragId(null);
 
   const draggedEntry = useMemo(
-    () => (activeDragId ? (entries.find((e) => e.id === activeDragId) ?? null) : null),
-    [activeDragId, entries],
+    () => (activeDragId ? (byId.get(activeDragId) ?? null) : null),
+    [activeDragId, byId],
   );
 
   // Scroll the scroll-target entry into view once it exists. Use a ref so
@@ -474,17 +523,18 @@ export function OrgView({
       scrolledRef.current = scrollTargetId;
       onScrolled();
     }
-  }, [scrollTargetId, onScrolled, entries]);
+  }, [scrollTargetId, onScrolled, forest]);
 
   // Rearrange-modal state.
   const [rearrangeFor, setRearrangeFor] = useState<string | null>(null);
   const rearrangeContext = useMemo(() => {
     if (!rearrangeFor) return null;
-    const target = entries.find((e) => e.id === rearrangeFor);
+    const target = byId.get(rearrangeFor);
     if (!target) return null;
-    const sibs = entries.filter((e) => e.parentId === target.parentId);
-    return { parentId: target.parentId, siblings: sibs };
-  }, [rearrangeFor, entries]);
+    const targetParent = parentOf.get(target.id) ?? null;
+    const siblings = targetParent === null ? forest : (byId.get(targetParent)?.children ?? []);
+    return { parentId: targetParent, siblings };
+  }, [rearrangeFor, byId, parentOf, forest]);
 
   return (
     <div
@@ -536,7 +586,7 @@ export function OrgView({
                     <NestedGroup
                       siblings={run.kids}
                       parentId={null}
-                      logbookId={logbookId}
+                      logbookSegment={logbookSegment}
                       editingId={editingId}
                       isDragging={activeDragId !== null}
                       onAdd={onAdd}

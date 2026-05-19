@@ -5,7 +5,7 @@
 :root {
   --org-row-h: 42px;
   --org-line-h: var(--org-row-h);
-  --org-row-pad-x: 12px;
+  --org-row-pad-x: 14px;
   --org-row-pad-y: 10px;
   --org-edge-w: 1px;
   --org-transition: 120ms ease;
@@ -155,23 +155,10 @@
   box-shadow: -6px 5px 0px oklch(from var(--org-row-edge) l c h / 0.1);
 }
 
-.box.isCol1 {
-  box-shadow: -6px 4px 2px oklch(from var(--org-row-edge) l c h / 0.2);
-  --row-name-weight: var(--org-col-1-name-weight);
-}
-
 .box.isCol2 {
-  box-shadow: -6px 4px 3px oklch(from var(--org-row-edge) l c h / 0.25);
   --row-name-size: var(--org-col-2-name-size);
   --row-name-weight: var(--org-col-1-name-weight);
   --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-2-pad-y-extra));
-}
-
-.box.isCol3plus {
-  box-shadow: -6px 4px 3px oklch(from var(--org-row-edge) l c h / 0.3);
-  --row-name-size: var(--org-col-3plus-name-size);
-  --row-name-weight: var(--org-col-1-name-weight);
-  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-3plus-pad-y-extra));
 }
 
 .box.isColNeg {

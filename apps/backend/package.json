@@ -4,25 +4,27 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./api-types": "./src/api-types.ts",
-    "./entities/User": "./src/entities/User.ts",
-    "./entities/Logbook": "./src/entities/Logbook.ts",
-    "./entities/Entry": "./src/entities/Entry.ts",
-    "./entities/MetadataTemplate": "./src/entities/MetadataTemplate.ts"
+    "./api-types": "./src/api/api-types.ts",
+    "./api-router": "./src/api/api-router.ts"
   },
   "scripts": {
     "dev": "node --import=tsx --watch src/index.ts"
   },
   "dependencies": {
+    "@fastify/cors": "catalog:",
     "@mikro-orm/core": "catalog:",
     "@mikro-orm/migrations": "catalog:",
     "@mikro-orm/sqlite": "catalog:",
     "@trpc/server": "catalog:",
+    "cookie": "catalog:",
     "fastify": "catalog:",
+    "logarithmic-config": "workspace:*",
+    "superjson": "catalog:",
     "uuid": "^11.0.3",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/cookie": "^0.6.0",
     "@types/node": "catalog:",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.19.2",

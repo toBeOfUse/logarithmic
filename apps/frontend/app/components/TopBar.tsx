@@ -15,14 +15,15 @@ export type KebabMenuItem = {
 
 export function TopBar({
   variant = "stark",
-  logbookId,
+  logbookSegment,
   logbookName,
   parents = [],
   currentName,
   menuItems = [],
 }: {
   variant?: "stark" | "paper";
-  logbookId: string;
+  /** Route segment for the current logbook (slug-id). */
+  logbookSegment: string;
   logbookName: string;
   parents?: Crumb[];
   currentName?: string;
@@ -38,7 +39,7 @@ export function TopBar({
     >
       <span className="inline-flex items-center gap-[7px] font-semibold tracking-tight text-primary">
         <i className="ri-home-line text-muted" aria-hidden="true" />
-        <Link to={`/${logbookId}`} className="text-primary no-underline font-semibold">
+        <Link to={`/${logbookSegment}`} className="text-primary no-underline font-semibold">
           {logbookName}
         </Link>
       </span>

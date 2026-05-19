@@ -1,0 +1,16 @@
+{
+  "name": "logarithmic-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ids": "./src/ids.ts",
+    "./slug": "./src/slug.ts"
+  },
+  "dependencies": {
+    "nanoid": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

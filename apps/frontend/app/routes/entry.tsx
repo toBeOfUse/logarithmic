@@ -17,6 +17,7 @@ import {
   useUpdateEntryContent,
   useUpdateEntryMetadata,
 } from "~/data/hooks.ts";
+import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 
 /**
  * Minimum time the "Saving…" footer label stays visible after a save kicks
@@ -61,8 +62,9 @@ const pagePadding = "px-4 pt-8 pb-14 sm:px-14 sm:pt-10";
 
 export default function EntryRoute() {
   const params = useParams();
-  const logbookId = params.logbookId ?? "";
-  const entryId = params.entryId ?? "";
+  const logbookSegment = params.logbookId ?? "";
+  const logbookId = parseRouteSegment(logbookSegment);
+  const entryId = parseRouteSegment(params.entryId ?? "");
   const demo = isDemoLogbook(logbookId);
 
   const { data: entry, isLoading } = useEntry(entryId, { demo });
@@ -143,7 +145,7 @@ export default function EntryRoute() {
     return (
       <div className={appShell}>
         <TopBar
-          logbookId={logbookId}
+          logbookSegment={logbookSegment}
           logbookName={overview?.logbook.name ?? (isLoading ? "Loading…" : "Logbook")}
           currentName={isLoading ? "Loading…" : "Not found"}
         />
@@ -210,7 +212,7 @@ export default function EntryRoute() {
       {
         onSuccess: () => {
           setConfirmingDelete(false);
-          void navigate(`/${logbook.id}`, { replace: true });
+          void navigate(`/${routeSegment(logbook.slug, logbook.id)}`, { replace: true });
         },
       },
     );
@@ -264,12 +266,12 @@ export default function EntryRoute() {
   return (
     <div className={appShell}>
       <TopBar
-        logbookId={logbook.id}
+        logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
         parents={ancestors.map((a) => ({
           id: a.id,
           name: a.name,
-          href: `/${logbook.id}/${a.id}`,
+          href: `/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(a.slug, a.id)}`,
         }))}
         currentName={entry.name || "Untitled entry"}
         menuItems={menuItems}
@@ -309,7 +311,7 @@ export default function EntryRoute() {
               return (
                 <div className="flex flex-wrap gap-2 items-center my-5">
                   <WithTrailingSep>
-                    <AddChildPill onClick={addChild} label="Add nested entry..." />
+                    <AddChildPill onClick={addChild} label="Add subsection..." />
                   </WithTrailingSep>
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
                 </div>
@@ -327,8 +329,7 @@ export default function EntryRoute() {
                     {entry.children.map((c) => (
                       <WithTrailingSep key={c.id}>
                         <ChildItem
-                          logbookId={logbook.id}
-                          id={c.id}
+                          href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
                           name={c.name}
                           isEditing={editingChildId === c.id}
                           onSave={(name) => onSaveChildName(c.id, name)}
@@ -337,7 +338,7 @@ export default function EntryRoute() {
                     ))}
                     <AddChildPill
                       onClick={addChild}
-                      label={hasChildren ? "Add..." : "Add nested entry..."}
+                      label={hasChildren ? "Add..." : "Add subsection..."}
                     />
                   </div>
                 </section>
@@ -390,14 +391,12 @@ function WithTrailingSep({ children }: { children: ReactNode }) {
 }
 
 function ChildItem({
-  logbookId,
-  id,
+  href,
   name,
   isEditing,
   onSave,
 }: {
-  logbookId: string;
-  id: string;
+  href: string;
   name: string;
   isEditing: boolean;
   onSave: (name: string) => void;
@@ -444,11 +443,7 @@ function ChildItem({
 
   const isUntitled = !name;
   return (
-    <Link
-      ref={linkRef}
-      to={`/${logbookId}/${id}`}
-      className={cn(childLink, isUntitled && "text-muted italic")}
-    >
+    <Link ref={linkRef} to={href} className={cn(childLink, isUntitled && "text-muted italic")}>
       {name || "Untitled entry"}
     </Link>
   );

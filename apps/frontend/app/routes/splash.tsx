@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 
 import { AppMark } from "~/components/AppMark.tsx";
 import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
+import { routeSegment } from "~/lib/route-segment.ts";
 
 import styles from "./splash.module.css";
 
@@ -40,7 +41,7 @@ export default function Splash() {
       {
         onSuccess: (lb) => {
           setName("");
-          void navigate(`/${lb.id}`);
+          void navigate(`/${routeSegment(lb.slug, lb.id)}`);
         },
       },
     );
@@ -96,7 +97,7 @@ export default function Splash() {
                 {logbooks.map((lb) => (
                   <Link
                     key={lb.id}
-                    to={`/${lb.id}`}
+                    to={`/${routeSegment(lb.slug, lb.id)}`}
                     className="flex items-center gap-3.5 px-3.5 py-3 cursor-pointer bg-stark no-underline text-[inherit] hover:bg-stark-soft"
                   >
                     <span className="size-[28px] rounded-[5px] bg-paper-soft border border-paper-edge inline-flex items-center justify-center text-muted flex-shrink-0 text-base">
@@ -127,7 +128,7 @@ export default function Splash() {
                 {demoLogbooks.map((lb) => (
                   <Link
                     key={lb.id}
-                    to={`/${lb.id}`}
+                    to={`/${routeSegment(lb.slug, lb.id)}`}
                     className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-paper-edge rounded-lg bg-paper-col-even no-underline text-[inherit] hover:bg-paper-soft"
                   >
                     <span className="text-xs font-medium bg-primary text-paper px-[6px] py-[2px] rounded-[3px] tracking-[0.05em] uppercase flex-none leading-[1.4]">
