@@ -6,18 +6,28 @@
  * `logbookProcedure` exported from logbook-api.
  */
 import { TRPCError } from "@trpc/server";
+import slugify from "@sindresorhus/slugify";
 import { z } from "zod";
-
-import { slugify } from "logarithmic-config/slug";
 
 import type { EntryDetail } from "./api-types.ts";
 import { Entry } from "../entities/Entry.ts";
+import { Logbook } from "../entities/Logbook.ts";
 import { protectedProcedure, router } from "../trpc.ts";
 import { logbookProcedure } from "./logbook-api.ts";
-import { buildEntryDetail, cascadeCols, isAncestor, metadataSchema } from "./utils.ts";
+import {
+  buildEntryDetail,
+  cascadeCols,
+  CONTENT_MAX,
+  ENTRY_NAME_MAX,
+  indexChildren,
+  isAncestor,
+  metadataSchema,
+} from "./utils.ts";
+
+const entryIdSchema = z.number().int().positive();
 
 const entryProcedure = protectedProcedure
-  .input(z.object({ id: z.string() }))
+  .input(z.object({ id: entryIdSchema }))
   .use(async ({ ctx, input, next }) => {
     const entry = await ctx.em.findOne(
       Entry,
@@ -34,18 +44,25 @@ export const entryRouter = router({
   create: logbookProcedure
     .input(
       z.object({
-        name: z.string().optional(),
+        name: z.string().max(ENTRY_NAME_MAX).optional(),
         col: z.number().int().optional(),
-        parentId: z.string().nullable().optional(),
+        parentId: entryIdSchema.nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
       const lb = ctx.logbook;
-      const parent = input.parentId
-        ? await ctx.em.findOne(Entry, { id: input.parentId, logbook: lb.id })
-        : null;
-      if (input.parentId && !parent) {
+      const parent =
+        input.parentId != null
+          ? await ctx.em.findOne(Entry, { id: input.parentId, logbook: lb.id })
+          : null;
+      if (input.parentId != null && !parent) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Parent entry not found" });
+      }
+      if (parent && input.col !== undefined && input.col !== parent.col - 1) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "col must equal parent.col - 1 for non-root entries",
+        });
       }
       const col = input.col ?? (parent ? parent.col - 1 : 0);
       const siblings = await ctx.em.find(Entry, {
@@ -62,8 +79,8 @@ export const entryRouter = router({
         order,
         content: null,
         metadata: null,
-        logbook: lb.id,
-        parent: parent?.id ?? null,
+        logbook: ctx.em.getReference(Logbook, lb.id),
+        parent: parent ? ctx.em.getReference(Entry, parent.id) : null,
       });
       lb.updatedAt = new Date();
       ctx.em.persist(entry);
@@ -73,7 +90,7 @@ export const entryRouter = router({
     }),
 
   rename: entryProcedure
-    .input(z.object({ name: z.string() }))
+    .input(z.object({ name: z.string().max(ENTRY_NAME_MAX) }))
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
       const entry = ctx.entry;
       entry.name = input.name;
@@ -84,7 +101,7 @@ export const entryRouter = router({
     }),
 
   updateContent: entryProcedure
-    .input(z.object({ content: z.string() }))
+    .input(z.object({ content: z.string().max(CONTENT_MAX) }))
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
       const entry = ctx.entry;
       entry.content = input.content;
@@ -106,7 +123,7 @@ export const entryRouter = router({
   move: entryProcedure
     .input(
       z.object({
-        parentId: z.string().nullable(),
+        parentId: entryIdSchema.nullable(),
         col: z.number().int(),
         position: z.number().int().min(0),
       }),
@@ -159,8 +176,8 @@ export const entryRouter = router({
   reorderSiblings: logbookProcedure
     .input(
       z.object({
-        parentId: z.string().nullable(),
-        ids: z.array(z.string()),
+        parentId: entryIdSchema.nullable(),
+        ids: z.array(entryIdSchema),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<boolean> => {
@@ -176,7 +193,7 @@ export const entryRouter = router({
           message: "ids must be a permutation of siblings",
         });
       }
-      const seen = new Set<string>();
+      const seen = new Set<number>();
       for (const id of input.ids) {
         if (!set.has(id)) {
           throw new TRPCError({
@@ -201,21 +218,20 @@ export const entryRouter = router({
 
   delete: entryProcedure.mutation(async ({ ctx }): Promise<boolean> => {
     const entry = ctx.entry;
+    // this gets all entries in the logbook and goes through them to find any
+    // children of the entry being deleted (so they can be deleted too); a
+    // closure table could make this much more efficient (but for
+    // reasonably-sized logbooks, probably wouldn't be worth the overhead...)
     const all = await ctx.em.find(Entry, { logbook: entry.logbook.id });
-    // Collect the entry plus all its transitive descendants.
-    const toDelete = new Set<string>([entry.id]);
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (const cand of all) {
-        const pid = cand.parent?.id;
-        if (pid && toDelete.has(pid) && !toDelete.has(cand.id)) {
-          toDelete.add(cand.id);
-          grew = true;
-        }
-      }
+    const childIndex = indexChildren(all);
+    const removed: Entry[] = [];
+    const queue: Entry[] = [entry];
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      removed.push(node);
+      const kids = childIndex.get(node.id);
+      if (kids) queue.push(...kids);
     }
-    const removed = all.filter((e) => toDelete.has(e.id));
     entry.logbook.updatedAt = new Date();
     for (const r of removed) ctx.em.remove(r);
     await ctx.em.flush();

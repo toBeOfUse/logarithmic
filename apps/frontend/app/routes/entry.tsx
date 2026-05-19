@@ -17,7 +17,7 @@ import {
   useUpdateEntryContent,
   useUpdateEntryMetadata,
 } from "~/data/hooks.ts";
-import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
+import { parseEntryId, parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 
 /**
  * Minimum time the "Saving…" footer label stays visible after a save kicks
@@ -64,7 +64,7 @@ export default function EntryRoute() {
   const params = useParams();
   const logbookSegment = params.logbookId ?? "";
   const logbookId = parseRouteSegment(logbookSegment);
-  const entryId = parseRouteSegment(params.entryId ?? "");
+  const entryId = parseEntryId(params.entryId ?? "");
   const demo = isDemoLogbook(logbookId);
 
   const { data: entry, isLoading } = useEntry(entryId, { demo });
@@ -83,7 +83,7 @@ export default function EntryRoute() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [savingFloor, setSavingFloor] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editingChildId, setEditingChildId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Real-saving = any mutation that affects this entry is in flight.
@@ -226,7 +226,7 @@ export default function EntryRoute() {
     );
   };
 
-  const onSaveChildName = (id: string, name: string) => {
+  const onSaveChildName = (id: number, name: string) => {
     const trimmed = name.trim();
     const child = entry.children.find((c) => c.id === id);
     if (child && trimmed !== child.name) {

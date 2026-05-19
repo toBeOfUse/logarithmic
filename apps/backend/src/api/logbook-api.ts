@@ -6,15 +6,14 @@
  * can reuse the same ownership gate.
  */
 import { TRPCError } from "@trpc/server";
+import slugify from "@sindresorhus/slugify";
 import { z } from "zod";
-
-import { slugify } from "logarithmic-config/slug";
 
 import type { LogbookDetail, LogbookOverview, LogbookSummary, EntryNode } from "./api-types.ts";
 import { Entry } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
 import { anonymousProcedure, protectedProcedure, publicProcedure, router } from "../trpc.ts";
-import { findOwnedLogbook, toLogbookDetail } from "./utils.ts";
+import { ENTRY_NAME_MAX, findOwnedLogbook, toLogbookDetail } from "./utils.ts";
 
 export const logbookProcedure = protectedProcedure
   .input(z.object({ logbookId: z.string() }))
@@ -48,10 +47,10 @@ export const logbookRouter = router({
       );
     const counts = new Map<string, number>(rows.map((r) => [r.logbook_id, Number(r.count)]));
     return logbooks.map((lb) => ({
-        id: lb.id,
-        slug: lb.slug,
-        name: lb.name,
-        updatedAt: lb.updatedAt,
+      id: lb.id,
+      slug: lb.slug,
+      name: lb.name,
+      updatedAt: lb.updatedAt,
       entryCount: counts.get(lb.id) ?? 0,
     }));
   }),
@@ -60,14 +59,14 @@ export const logbookRouter = router({
     const lb = ctx.logbook;
     const entries = await ctx.em.find(Entry, { logbook: lb.id }, { orderBy: { order: "asc" } });
     // Bucket children by parent id (entries already arrived in sibling order).
-    const byParent = new Map<string | null, Entry[]>();
+    const byParent = new Map<number | null, Entry[]>();
     for (const e of entries) {
       const pid = e.parent?.id ?? null;
       const list = byParent.get(pid) ?? [];
       list.push(e);
       byParent.set(pid, list);
     }
-    const build = (parentId: string | null): EntryNode[] =>
+    const build = (parentId: number | null): EntryNode[] =>
       (byParent.get(parentId) ?? []).map((e) => ({
         id: e.id,
         slug: e.slug,
@@ -83,7 +82,7 @@ export const logbookRouter = router({
   }),
 
   create: anonymousProcedure
-    .input(z.object({ name: z.string() }))
+    .input(z.object({ name: z.string().max(ENTRY_NAME_MAX) }))
     .mutation(async ({ ctx, input }): Promise<LogbookDetail> => {
       const name = input.name.trim() || "Untitled logbook";
       const lb = ctx.em.create(Logbook, { name, slug: slugify(name), owner: ctx.user.id });

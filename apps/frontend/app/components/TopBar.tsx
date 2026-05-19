@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 import { cn } from "~/lib/cn";
 
-type Crumb = { id: string; name: string; href?: string };
+type Crumb = { id: string | number; name: string; href?: string };
 
 export type KebabMenuItem = {
   id: string;

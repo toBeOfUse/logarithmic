@@ -1,6 +1,6 @@
 import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
-import { newId } from "logarithmic-config/ids";
-import { slugify } from "logarithmic-config/slug";
+import slugify from "@sindresorhus/slugify";
+
 import { Logbook } from "./Logbook.ts";
 
 /**
@@ -10,13 +10,23 @@ import { Logbook } from "./Logbook.ts";
 export type MetadataValue = string | string[] | null;
 export type Metadata = Record<string, MetadataValue>;
 
+/**
+ * Maximum length of a decorative slug. Combined with the numeric id, this
+ * keeps every URL segment well under the typical 255-byte path limit.
+ */
+const SLUG_MAX = 32;
+
+const slug = (name: string) => slugify(name).slice(0, SLUG_MAX);
+
 const EntrySchema = defineEntity({
   name: "Entry",
   properties: {
-    id: p
-      .string()
-      .primary()
-      .onCreate(() => newId()),
+    /**
+     * Auto-increment integer primary key. The frontend embeds the id verbatim
+     * into route segments as `${id}-${slug}`, parsed on the first hyphen —
+     * sequential integers contain no dashes, so the boundary is unambiguous.
+     */
+    id: p.integer().primary(),
     name: p.string(),
     /**
      * URL-safe decorative slug derived from `name`. Not unique; only used to
@@ -24,8 +34,8 @@ const EntrySchema = defineEntity({
      */
     slug: p
       .string()
-      .onCreate((e) => slugify(e.name))
-      .onUpdate((e) => slugify(e.name)),
+      .onCreate((e) => slug(e.name))
+      .onUpdate((e) => slug(e.name)),
     col: p.integer().default(0),
     /**
      * Integer rank among siblings (or among root entries when parent is null).

@@ -7,9 +7,14 @@
  * The store mirrors the API response shapes so the same React Query cache
  * entries are valid whether they were produced here or by a real network
  * round trip.
+ *
+ * Entry ids are integers — hard-coded for seeded entries (see `demo-tree.ts`)
+ * and minted via a monotonic counter for entries created at runtime. Logbook
+ * ids stay alphanumeric strings (matching the backend, which still uses
+ * nanoid for `Logbook.id`).
  */
-import { newId } from "logarithmic-config/ids";
-import { slugify } from "logarithmic-config/slug";
+import slugify from "@sindresorhus/slugify";
+import { customAlphabet } from "nanoid";
 import type {
   EntryDetail,
   EntryNode,
@@ -22,11 +27,22 @@ import type {
 
 import { DEMO_LOGBOOKS } from "./demo-tree.ts";
 
+const SLUG_MAX = 32;
+
+function slug(name: string): string {
+  return slugify(name).slice(0, SLUG_MAX);
+}
+
+const newLogbookId = customAlphabet(
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+  10,
+);
+
 type EntryRecord = {
-  id: string;
+  id: number;
   slug: string;
   logbookId: string;
-  parentId: string | null;
+  parentId: number | null;
   name: string;
   col: number;
   /** Rank among siblings; lower comes first. */
@@ -48,7 +64,7 @@ type LogbookRecord = {
 
 type Store = {
   logbooks: Map<string, LogbookRecord>;
-  entries: Map<string, EntryRecord>;
+  entries: Map<number, EntryRecord>;
 };
 
 const DEMO_OWNER_ID = "00000000-0000-0000-0000-00000000demo";
@@ -56,12 +72,19 @@ const DEMO_OWNER_ID = "00000000-0000-0000-0000-00000000demo";
 const store: Store = { logbooks: new Map(), entries: new Map() };
 const demoLogbookIds = new Set<string>();
 
+/**
+ * Monotonic counter that hands out the next id for runtime-created entries.
+ * Initialized to one past the largest hard-coded seed id so newly-minted ids
+ * never collide with the seeded ones.
+ */
+let nextEntryId = 1;
+
 function seed() {
   const now = new Date("2026-04-28T12:00:00Z");
   for (const demo of DEMO_LOGBOOKS) {
     const lb: LogbookRecord = {
-      id: newId(),
-      slug: slugify(demo.name),
+      id: newLogbookId(),
+      slug: slug(demo.name),
       name: demo.name,
       ownerId: DEMO_OWNER_ID,
       createdAt: now,
@@ -73,7 +96,7 @@ function seed() {
     type Seed = (typeof demo.tree)[number];
     const walk = (
       entry: Seed,
-      parentId: string | null,
+      parentId: number | null,
       parentCol: number | null,
       order: number,
     ) => {
@@ -95,8 +118,8 @@ function seed() {
         }
       }
       const rec: EntryRecord = {
-        id: newId(),
-        slug: slugify(entry.name),
+        id: entry.id,
+        slug: slug(entry.name),
         logbookId: lb.id,
         parentId,
         name: entry.name,
@@ -108,6 +131,7 @@ function seed() {
         updatedAt: now,
       };
       store.entries.set(rec.id, rec);
+      if (rec.id >= nextEntryId) nextEntryId = rec.id + 1;
       entry.children?.forEach((c, i) => walk(c, rec.id, entry.col, i));
     };
     // Roots are intentionally allowed to span different columns — the
@@ -148,7 +172,7 @@ function recToDetail(lb: LogbookRecord): LogbookDetail {
 }
 
 function buildTree(logbookId: string): EntryNode[] {
-  const byParent = new Map<string | null, EntryRecord[]>();
+  const byParent = new Map<number | null, EntryRecord[]>();
   for (const e of store.entries.values()) {
     if (e.logbookId !== logbookId) continue;
     const list = byParent.get(e.parentId) ?? [];
@@ -156,7 +180,7 @@ function buildTree(logbookId: string): EntryNode[] {
     byParent.set(e.parentId, list);
   }
   for (const list of byParent.values()) list.sort((a, b) => a.order - b.order);
-  const build = (parentId: string | null): EntryNode[] =>
+  const build = (parentId: number | null): EntryNode[] =>
     (byParent.get(parentId) ?? []).map((e) => ({
       id: e.id,
       slug: e.slug,
@@ -185,15 +209,15 @@ export function getLogbookOverview(logbookId: string): LogbookOverview | null {
   return { logbook: recToDetail(lb), entries: buildTree(lb.id) };
 }
 
-export function getEntry(entryId: string): EntryDetail | null {
+export function getEntry(entryId: number): EntryDetail | null {
   const e = store.entries.get(entryId);
   if (!e) return null;
 
-  const ancestors: { id: string; slug: string; name: string }[] = [];
-  let cursor = e.parentId ? (store.entries.get(e.parentId) ?? null) : null;
+  const ancestors: { id: number; slug: string; name: string }[] = [];
+  let cursor = e.parentId !== null ? (store.entries.get(e.parentId) ?? null) : null;
   while (cursor) {
     ancestors.unshift({ id: cursor.id, slug: cursor.slug, name: cursor.name });
-    cursor = cursor.parentId ? (store.entries.get(cursor.parentId) ?? null) : null;
+    cursor = cursor.parentId !== null ? (store.entries.get(cursor.parentId) ?? null) : null;
   }
 
   const children = [...store.entries.values()]
@@ -223,8 +247,8 @@ export function createLogbook(input: { name: string }): LogbookDetail {
   const now = new Date();
   const name = input.name.trim() || "Untitled logbook";
   const lb: LogbookRecord = {
-    id: newId(),
-    slug: slugify(name),
+    id: newLogbookId(),
+    slug: slug(name),
     name,
     ownerId: DEMO_OWNER_ID,
     createdAt: now,
@@ -238,18 +262,18 @@ export function createEntry(input: {
   logbookId: string;
   name?: string;
   col?: number;
-  parentId?: string | null;
+  parentId?: number | null;
 }): EntryDetail | null {
   if (!store.logbooks.has(input.logbookId)) return null;
-  const parent = input.parentId ? (store.entries.get(input.parentId) ?? null) : null;
+  const parent = input.parentId != null ? (store.entries.get(input.parentId) ?? null) : null;
   const col = input.col ?? (parent ? parent.col - 1 : 0);
   const now = new Date();
   const siblings = siblingsOf(input.logbookId, parent?.id ?? null);
   const order = siblings.length === 0 ? 0 : Math.max(...siblings.map((s) => s.order)) + 1;
   const name = input.name ?? "";
   const rec: EntryRecord = {
-    id: newId(),
-    slug: slugify(name),
+    id: nextEntryId++,
+    slug: slug(name),
     logbookId: input.logbookId,
     parentId: parent?.id ?? null,
     name,
@@ -302,9 +326,9 @@ export function moveEntry(input: MoveEntryInput): EntryDetail | null {
 }
 
 export function reorderSiblings(input: {
-  parentId: string | null;
+  parentId: number | null;
   logbookId: string;
-  ids: string[];
+  ids: number[];
 }): boolean {
   if (!store.logbooks.has(input.logbookId)) return false;
   const sibs = siblingsOf(input.logbookId, input.parentId);
@@ -319,7 +343,7 @@ export function reorderSiblings(input: {
   return true;
 }
 
-function siblingsOf(logbookId: string, parentId: string | null): EntryRecord[] {
+function siblingsOf(logbookId: string, parentId: number | null): EntryRecord[] {
   const out: EntryRecord[] = [];
   for (const c of store.entries.values()) {
     if (c.logbookId === logbookId && c.parentId === parentId) out.push(c);
@@ -327,9 +351,9 @@ function siblingsOf(logbookId: string, parentId: string | null): EntryRecord[] {
   return out;
 }
 
-function isAncestor(ancestorId: string, descendantId: string): boolean {
-  let cursor: string | null = descendantId;
-  while (cursor) {
+function isAncestor(ancestorId: number, descendantId: number): boolean {
+  let cursor: number | null = descendantId;
+  while (cursor !== null) {
     if (cursor === ancestorId) return true;
     const node = store.entries.get(cursor);
     cursor = node?.parentId ?? null;
@@ -337,33 +361,42 @@ function isAncestor(ancestorId: string, descendantId: string): boolean {
   return false;
 }
 
-function cascadeCols(rootId: string) {
-  // Walk all descendants of rootId; their col = parent.col - 1.
-  const queue: string[] = [rootId];
+function cascadeCols(rootId: number) {
+  // Build a parent→children index once, then BFS so each node is visited a
+  // constant number of times rather than rescanning the full entry set per
+  // step.
+  const childIndex = new Map<number, EntryRecord[]>();
+  for (const e of store.entries.values()) {
+    if (e.parentId === null) continue;
+    const list = childIndex.get(e.parentId);
+    if (list) list.push(e);
+    else childIndex.set(e.parentId, [e]);
+  }
+  const queue: number[] = [rootId];
   while (queue.length > 0) {
     const id = queue.shift()!;
     const node = store.entries.get(id);
     if (!node) continue;
-    for (const c of store.entries.values()) {
-      if (c.parentId === id) {
-        c.col = node.col - 1;
-        queue.push(c.id);
-      }
+    const kids = childIndex.get(id);
+    if (!kids) continue;
+    for (const c of kids) {
+      c.col = node.col - 1;
+      queue.push(c.id);
     }
   }
 }
 
-export function renameEntry(input: { id: string; name: string }): EntryDetail | null {
+export function renameEntry(input: { id: number; name: string }): EntryDetail | null {
   const e = store.entries.get(input.id);
   if (!e) return null;
   e.name = input.name;
-  e.slug = slugify(input.name);
+  e.slug = slug(input.name);
   e.updatedAt = new Date();
   touchLogbook(e.logbookId, e.updatedAt);
   return getEntry(e.id);
 }
 
-export function updateEntryContent(input: { id: string; content: string }): EntryDetail | null {
+export function updateEntryContent(input: { id: number; content: string }): EntryDetail | null {
   const e = store.entries.get(input.id);
   if (!e) return null;
   e.content = input.content;
@@ -372,7 +405,7 @@ export function updateEntryContent(input: { id: string; content: string }): Entr
   return getEntry(e.id);
 }
 
-export function updateEntryMetadata(input: { id: string; metadata: Metadata }): EntryDetail | null {
+export function updateEntryMetadata(input: { id: number; metadata: Metadata }): EntryDetail | null {
   const e = store.entries.get(input.id);
   if (!e) return null;
   e.metadata = { ...input.metadata };
@@ -381,20 +414,24 @@ export function updateEntryMetadata(input: { id: string; metadata: Metadata }): 
   return getEntry(e.id);
 }
 
-export function deleteEntry(input: { id: string }): boolean {
+export function deleteEntry(input: { id: number }): boolean {
   const e = store.entries.get(input.id);
   if (!e) return false;
-  // Cascade: remove descendants too.
-  const toDelete = new Set<string>([e.id]);
-  let added = true;
-  while (added) {
-    added = false;
-    for (const cand of store.entries.values()) {
-      if (cand.parentId && toDelete.has(cand.parentId) && !toDelete.has(cand.id)) {
-        toDelete.add(cand.id);
-        added = true;
-      }
-    }
+  // BFS over a parent→children index — O(n) instead of repeatedly rescanning.
+  const childIndex = new Map<number, EntryRecord[]>();
+  for (const c of store.entries.values()) {
+    if (c.parentId === null) continue;
+    const list = childIndex.get(c.parentId);
+    if (list) list.push(c);
+    else childIndex.set(c.parentId, [c]);
+  }
+  const toDelete: number[] = [];
+  const queue: EntryRecord[] = [e];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    toDelete.push(node.id);
+    const kids = childIndex.get(node.id);
+    if (kids) queue.push(...kids);
   }
   for (const id of toDelete) store.entries.delete(id);
   touchLogbook(e.logbookId, new Date());

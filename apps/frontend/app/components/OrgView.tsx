@@ -48,23 +48,23 @@ import { routeSegment } from "~/lib/route-segment.ts";
 import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
 
-type AddInput = { col: number; parentId: string | null };
+type AddInput = { col: number; parentId: number | null };
 
 type DropData =
-  | { kind: "before" | "after"; refId: string }
-  | { kind: "child"; parentId: string }
+  | { kind: "before" | "after"; refId: number }
+  | { kind: "child"; parentId: number }
   | { kind: "rootInCol"; col: number };
 
 // ── Tree helpers ───────────────────────────────────────────────────────
 
 /** Index every node in the forest by id; also record each node's parent id. */
 function indexForest(forest: EntryNode[]): {
-  byId: Map<string, EntryNode>;
-  parentOf: Map<string, string | null>;
+  byId: Map<number, EntryNode>;
+  parentOf: Map<number, number | null>;
 } {
-  const byId = new Map<string, EntryNode>();
-  const parentOf = new Map<string, string | null>();
-  const walk = (nodes: EntryNode[], parent: string | null) => {
+  const byId = new Map<number, EntryNode>();
+  const parentOf = new Map<number, number | null>();
+  const walk = (nodes: EntryNode[], parent: number | null) => {
     for (const n of nodes) {
       byId.set(n.id, n);
       parentOf.set(n.id, parent);
@@ -98,13 +98,13 @@ function colRange(forest: EntryNode[]): { min: number; max: number } {
  * Returns null for self-drops and other no-ops.
  */
 function dropToMoveInput(
-  draggedId: string,
+  draggedId: number,
   drop: DropData,
-  byId: Map<string, EntryNode>,
-  parentOf: Map<string, string | null>,
+  byId: Map<number, EntryNode>,
+  parentOf: Map<number, number | null>,
   forest: EntryNode[],
 ): MoveEntryInput | null {
-  const siblingsOf = (parentId: string | null): EntryNode[] => {
+  const siblingsOf = (parentId: number | null): EntryNode[] => {
     const list = parentId === null ? forest : (byId.get(parentId)?.children ?? []);
     return list.filter((n) => n.id !== draggedId);
   };
@@ -212,7 +212,9 @@ function EntryCell({
     disabled: isEditing,
     data: { entryId: entry.id },
   });
-  if (draggable.isDragging) justDraggedRef.current = true;
+  useEffect(() => {
+    if (draggable.isDragging) justDraggedRef.current = true;
+  }, [draggable.isDragging]);
   const topDrop = useDroppable({
     id: `before:${entry.id}`,
     data: { kind: "before", refId: entry.id } satisfies DropData,
@@ -336,13 +338,13 @@ function NestedGroup({
   onRearrange,
 }: {
   siblings: EntryNode[];
-  parentId: string | null;
+  parentId: number | null;
   logbookSegment: string;
-  editingId: string | null;
+  editingId: number | null;
   isDragging: boolean;
   onAdd: (input: AddInput) => void;
-  onSaveName: (id: string, name: string) => void;
-  onRearrange: (id: string) => void;
+  onSaveName: (id: number, name: string) => void;
+  onRearrange: (id: number) => void;
 }) {
   const first = siblings[0];
   if (!first) return null;
@@ -441,13 +443,13 @@ export function OrgView({
   logbookId: string;
   logbookSlug: string;
   /** When set, that entry renders an inline name input instead of a link. */
-  editingId: string | null;
+  editingId: number | null;
   /** When set, that entry is scrolled into view once after it appears. */
-  scrollTargetId: string | null;
+  scrollTargetId: number | null;
   onAdd: (input: AddInput) => void;
-  onRename: (id: string, name: string) => void;
+  onRename: (id: number, name: string) => void;
   onMove: (input: MoveEntryInput) => void;
-  onReorderSiblings: (parentId: string | null, ids: string[]) => void;
+  onReorderSiblings: (parentId: number | null, ids: number[]) => void;
   onScrolled: () => void;
 }) {
   const logbookSegment = routeSegment(logbookSlug, logbookId);
@@ -466,7 +468,7 @@ export function OrgView({
   const topRuns = useMemo(() => runsByCol(forest), [forest]);
 
   // Drag state.
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // The default rectIntersection picks whichever droppable has the largest
@@ -493,7 +495,10 @@ export function OrgView({
   };
   const onDragStart = (e: DragStartEvent) => {
     const id = String(e.active.id);
-    if (id.startsWith("entry:")) setActiveDragId(id.slice("entry:".length));
+    if (id.startsWith("entry:")) {
+      const n = Number(id.slice("entry:".length));
+      if (Number.isFinite(n)) setActiveDragId(n);
+    }
   };
   const onDragEnd = (e: DragEndEvent) => {
     setActiveDragId(null);
@@ -501,22 +506,23 @@ export function OrgView({
     if (!over) return;
     const data = over.data.current as DropData | undefined;
     if (!data) return;
-    const id = String(active.id).replace(/^entry:/, "");
+    const id = Number(String(active.id).replace(/^entry:/, ""));
+    if (!Number.isFinite(id)) return;
     const move = dropToMoveInput(id, data, byId, parentOf, forest);
     if (move) onMove(move);
   };
   const onDragCancel = () => setActiveDragId(null);
 
   const draggedEntry = useMemo(
-    () => (activeDragId ? (byId.get(activeDragId) ?? null) : null),
+    () => (activeDragId !== null ? (byId.get(activeDragId) ?? null) : null),
     [activeDragId, byId],
   );
 
   // Scroll the scroll-target entry into view once it exists. Use a ref so
   // we don't repeat the scroll on later renders.
-  const scrolledRef = useRef<string | null>(null);
+  const scrolledRef = useRef<number | null>(null);
   useLayoutEffect(() => {
-    if (!scrollTargetId || scrolledRef.current === scrollTargetId) return;
+    if (scrollTargetId === null || scrolledRef.current === scrollTargetId) return;
     const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${scrollTargetId}"]`);
     if (node) {
       node.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -526,9 +532,9 @@ export function OrgView({
   }, [scrollTargetId, onScrolled, forest]);
 
   // Rearrange-modal state.
-  const [rearrangeFor, setRearrangeFor] = useState<string | null>(null);
+  const [rearrangeFor, setRearrangeFor] = useState<number | null>(null);
   const rearrangeContext = useMemo(() => {
-    if (!rearrangeFor) return null;
+    if (rearrangeFor === null) return null;
     const target = byId.get(rearrangeFor);
     if (!target) return null;
     const targetParent = parentOf.get(target.id) ?? null;

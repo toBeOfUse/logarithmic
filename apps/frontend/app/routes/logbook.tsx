@@ -24,8 +24,8 @@ export default function LogbookRoute() {
   const moveEntry = useMoveEntry({ demo });
   const reorderSiblings = useReorderSiblings({ demo });
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [scrollTargetId, setScrollTargetId] = useState<number | null>(null);
 
   if (isLoading || !data) {
     return (
@@ -97,7 +97,7 @@ export default function LogbookRoute() {
 
 function findInForest(
   forest: import("logarithmic-backend/api-types").EntryNode[],
-  id: string,
+  id: number,
 ): import("logarithmic-backend/api-types").EntryNode | null {
   for (const node of forest) {
     if (node.id === id) return node;

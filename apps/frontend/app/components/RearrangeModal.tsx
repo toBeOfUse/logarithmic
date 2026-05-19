@@ -59,9 +59,9 @@ export function RearrangeModal({
 }: {
   siblings: EntryNode[];
   onCancel: () => void;
-  onConfirm: (ids: string[]) => void;
+  onConfirm: (ids: number[]) => void;
 }) {
-  const [order, setOrder] = useState<string[]>(() => siblings.map((s) => s.id));
+  const [order, setOrder] = useState<number[]>(() => siblings.map((s) => s.id));
 
   // Reset if siblings change underneath us (e.g., concurrent edit).
   useEffect(() => {
@@ -81,9 +81,12 @@ export function RearrangeModal({
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
+    const fromId = Number(active.id);
+    const toId = Number(over.id);
+    if (!Number.isFinite(fromId) || !Number.isFinite(toId)) return;
     setOrder((prev) => {
-      const oldIdx = prev.indexOf(String(active.id));
-      const newIdx = prev.indexOf(String(over.id));
+      const oldIdx = prev.indexOf(fromId);
+      const newIdx = prev.indexOf(toId);
       if (oldIdx < 0 || newIdx < 0) return prev;
       return arrayMove(prev, oldIdx, newIdx);
     });

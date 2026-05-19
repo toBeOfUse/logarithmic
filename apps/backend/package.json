@@ -15,10 +15,11 @@
     "@mikro-orm/core": "catalog:",
     "@mikro-orm/migrations": "catalog:",
     "@mikro-orm/sqlite": "catalog:",
+    "@sindresorhus/slugify": "catalog:",
     "@trpc/server": "catalog:",
     "cookie": "catalog:",
     "fastify": "catalog:",
-    "logarithmic-config": "workspace:*",
+    "nanoid": "catalog:",
     "superjson": "catalog:",
     "uuid": "^11.0.3",
     "zod": "catalog:"
