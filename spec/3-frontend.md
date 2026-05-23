@@ -82,6 +82,10 @@ We need a simple WYSIWYG text editor (and a way to convert its contents to Markd
 
 Formatting options should include H2, H3, bold, italic, strike-through, bulleted list, numbered list, blockquote, and code. (Note that H1 is not a possible option, since the entry title is the highest-level heading.)
 
+In addition to the standard set of Markdown formatting options, it needs to support inline comments. Text in the editor can be highlighted and set to be a comment just like it can be highlighted and set to be italic. Comments should be stored in the Markdown with the standard `<!-- -->` syntax.
+
+(Note that TipTap has a Beta extension that adds official Markdown support. However, it should not be used here yet, since it specifically doesn't have support for comments.)
+
 The content should auto-save periodically. It should also save when you press Ctrl-S (or Cmd-S.)
 
 ## Demo Logbook

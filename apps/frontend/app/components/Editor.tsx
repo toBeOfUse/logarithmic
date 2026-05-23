@@ -1,67 +1,22 @@
 /**
- * WYSIWYG editor wrapping TipTap, with a Markdown round-trip via marked +
- * turndown so the content stays as Markdown in the store (per
- * spec/1-core-data-model.md). A floating bubble menu appears for the current
- * text selection.
+ * WYSIWYG editor wrapping TipTap. The Markdown ↔ HTML round-trip used to keep
+ * content as Markdown in storage (per spec/1-core-data-model.md) lives in
+ * `~/lib/markdown.ts`; this component just wires it to the editor lifecycle
+ * and renders the floating selection bubble.
  */
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Marked } from "marked";
-import TurndownService from "turndown";
 
+import { CommentMark } from "~/components/CommentMark.ts";
 import { cn } from "~/lib/cn";
+import { htmlToMarkdown, markdownToHtml } from "~/lib/markdown.ts";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
 type BubblePos = { left: number; top: number } | null;
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-// Treat any raw HTML in stored markdown as literal text rather than passing it
-// through to the DOM. Without this, typing something like `<script>` into the
-// editor round-trips through markdown and is re-parsed as a real tag on load.
-const marked = new Marked({
-  renderer: {
-    html({ text }) {
-      return escapeHtml(text);
-    },
-  },
-});
-
-function markdownToHtml(md: string): string {
-  if (!md) return "";
-  const out = marked.parse(md, { async: false });
-  return typeof out === "string" ? out : "";
-}
-
-function buildTurndown(): TurndownService {
-  const td = new TurndownService({
-    headingStyle: "atx",
-    bulletListMarker: "-",
-    codeBlockStyle: "fenced",
-    emDelimiter: "*",
-  });
-  td.addRule("strikethrough", {
-    filter: ["s", "strike"] as TurndownService.Filter,
-    replacement: (content) => `~~${content}~~`,
-  });
-  // Backslash-escape `<` in text so the stored markdown is unambiguous on its
-  // own — any other CommonMark renderer will also treat it as literal text.
-  // Turndown already escapes `>`; `<` is the missing half.
-  const baseEscape = td.escape.bind(td);
-  td.escape = (s: string) => baseEscape(s).replace(/</g, "\\<");
-  return td;
-}
 
 export type MarkdownEditorHandle = { save: () => void };
 
@@ -91,14 +46,13 @@ export function MarkdownEditor({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef<string>(initialMarkdown);
-  const turndown = useMemo(() => buildTurndown(), []);
 
   const flush = (editor: Editor) => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
-    const md = turndown.turndown(editor.getHTML());
+    const md = htmlToMarkdown(editor.getHTML());
     if (md !== lastSaved.current) {
       lastSaved.current = md;
       onSave(md);
@@ -107,7 +61,7 @@ export function MarkdownEditor({
   };
 
   const editor = useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder })],
+    extensions: [StarterKit, Placeholder.configure({ placeholder }), CommentMark],
     content: markdownToHtml(initialMarkdown),
     autofocus: false,
     editorProps: {
@@ -258,6 +212,15 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
         onClick={() => editor.chain().focus().toggleCode().run()}
       >
         <i className="ri-code-line" />
+      </button>
+      <span className="w-px h-4 bg-primary-hover mx-1 flex-shrink-0" />
+      <button
+        type="button"
+        title="Comment (Ctrl+/)"
+        className={cn(bubbleBtnBase, isActive("comment") && "bg-primary-hover text-stark")}
+        onClick={() => editor.chain().focus().toggleMark("comment").run()}
+      >
+        <i className="ri-chat-1-line" />
       </button>
     </div>
   );

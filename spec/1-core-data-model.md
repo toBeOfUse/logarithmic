@@ -16,7 +16,7 @@ The nodes in the tree are called "entries." Their names are simple strings. They
 
 The rich text content is just stored as Markdown.
 
-<!-- TODO: extensions for referencing other entries, uploading images, having inline comments -->
+<!-- TODO: extensions for referencing other entries, uploading images -->
 
 ## Metadata
 
