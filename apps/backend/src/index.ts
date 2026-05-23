@@ -24,9 +24,7 @@ app.get("/health", async () => ({ ok: true }));
 // `IncomingMessage` body into the fetch `Request` stream. Calling `done(null)`
 // without a value would leave `req.body` undefined and the procedure would
 // receive `null` instead of a stream.
-app.addContentTypeParser("application/octet-stream", (_req, payload, done) =>
-  done(null, payload),
-);
+app.addContentTypeParser("application/octet-stream", (_req, payload, done) => done(null, payload));
 
 await app.register(fastifyTRPCPlugin, {
   prefix: "/trpc",
