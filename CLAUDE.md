@@ -12,6 +12,7 @@
 - On the frontend, always prefer links over callbacks that programmatically navigate. (This lets the user open stuff in new tabs.)
 - Run type checks before tests.
 - Do not use `any` or `unknown` to fix type errors.
+- Use `import type` to get types from packages before using them, instead of `const variable: import('some-package').SomeType`.
 - Tests should be organized according to the scenario that they are testing. The purpose of each test should be very clear. Whenever possible, they should be described behaviorally with invariant statements roughly along the lines of "users cannot read other user's records from the database" or "after the doThing function is called, x should be set to y."
 - Use Vite+ to manage the development tools and workspace. Run `vp help` if you need to explore how it works.
 

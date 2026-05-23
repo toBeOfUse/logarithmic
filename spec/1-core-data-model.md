@@ -39,3 +39,7 @@ Entries are also ordered; each node also has an integer indicating its place in 
 Each node belongs to a "logbook." Logbooks partition nodes, and thus, all their content and data. Each metadata template is optionally scoped to a logbook; there should be a set of standard "seed" metadata templates that are universal to all logbooks (and cannot be added to by users.)
 
 Each logbook should have a unguessable random ID.
+
+## Exports and Imports
+
+Although this app relies on a relational database to store live data, content is meant to be able to map cleanly onto static files. Each entry can be expressed as a Markdown file with YAML frontmatter for the metadata. The tree structure can be mapped onto a directory model: each entry with no children becomes a single Markdown file, and each entry with children becomes a folder, with an "index.md" file containing its content.

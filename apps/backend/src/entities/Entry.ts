@@ -10,14 +10,6 @@ import { Logbook } from "./Logbook.ts";
 export type MetadataValue = string | string[] | null;
 export type Metadata = Record<string, MetadataValue>;
 
-/**
- * Maximum length of a decorative slug. Combined with the numeric id, this
- * keeps every URL segment well under the typical 255-byte path limit.
- */
-const SLUG_MAX = 32;
-
-const slug = (name: string) => slugify(name).slice(0, SLUG_MAX);
-
 const EntrySchema = defineEntity({
   name: "Entry",
   properties: {
@@ -34,8 +26,8 @@ const EntrySchema = defineEntity({
      */
     slug: p
       .string()
-      .onCreate((e) => slug(e.name))
-      .onUpdate((e) => slug(e.name)),
+      .onCreate((e) => slugify(e.name))
+      .onUpdate((e) => slugify(e.name)),
     col: p.integer().default(0),
     /**
      * Integer rank among siblings (or among root entries when parent is null).

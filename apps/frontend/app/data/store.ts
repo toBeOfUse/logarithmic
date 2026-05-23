@@ -27,12 +27,6 @@ import type {
 
 import { DEMO_LOGBOOKS } from "./demo-tree.ts";
 
-const SLUG_MAX = 32;
-
-function slug(name: string): string {
-  return slugify(name).slice(0, SLUG_MAX);
-}
-
 const newLogbookId = customAlphabet(
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
   10,
@@ -84,7 +78,7 @@ function seed() {
   for (const demo of DEMO_LOGBOOKS) {
     const lb: LogbookRecord = {
       id: newLogbookId(),
-      slug: slug(demo.name),
+      slug: slugify(demo.name),
       name: demo.name,
       ownerId: DEMO_OWNER_ID,
       createdAt: now,
@@ -119,7 +113,7 @@ function seed() {
       }
       const rec: EntryRecord = {
         id: entry.id,
-        slug: slug(entry.name),
+        slug: slugify(entry.name),
         logbookId: lb.id,
         parentId,
         name: entry.name,
@@ -248,13 +242,22 @@ export function createLogbook(input: { name: string }): LogbookDetail {
   const name = input.name.trim() || "Untitled logbook";
   const lb: LogbookRecord = {
     id: newLogbookId(),
-    slug: slug(name),
+    slug: slugify(name),
     name,
     ownerId: DEMO_OWNER_ID,
     createdAt: now,
     updatedAt: now,
   };
   store.logbooks.set(lb.id, lb);
+  return recToDetail(lb);
+}
+
+export function renameLogbook(input: { logbookId: string; name: string }): LogbookDetail | null {
+  const lb = store.logbooks.get(input.logbookId);
+  if (!lb) return null;
+  lb.name = input.name;
+  lb.slug = slugify(input.name);
+  lb.updatedAt = new Date();
   return recToDetail(lb);
 }
 
@@ -273,7 +276,7 @@ export function createEntry(input: {
   const name = input.name ?? "";
   const rec: EntryRecord = {
     id: nextEntryId++,
-    slug: slug(name),
+    slug: slugify(name),
     logbookId: input.logbookId,
     parentId: parent?.id ?? null,
     name,
@@ -390,7 +393,7 @@ export function renameEntry(input: { id: number; name: string }): EntryDetail | 
   const e = store.entries.get(input.id);
   if (!e) return null;
   e.name = input.name;
-  e.slug = slug(input.name);
+  e.slug = slugify(input.name);
   e.updatedAt = new Date();
   touchLogbook(e.logbookId, e.updatedAt);
   return getEntry(e.id);

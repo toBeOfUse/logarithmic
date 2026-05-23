@@ -38,6 +38,7 @@ export async function createContext({ req, res }: CreateFastifyContextOptions): 
 const t = initTRPC.context<Context>().create({ transformer: superjson });
 
 export const router = t.router;
+export const mergeRouters = t.mergeRouters;
 export const publicProcedure = t.procedure;
 
 /**

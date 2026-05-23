@@ -30,6 +30,11 @@ export type CreateLogbookInput = {
   name: string;
 };
 
+export type RenameLogbookInput = {
+  logbookId: ILogbook["id"];
+  name: string;
+};
+
 // ── Entries (organizational view) ────────────────────────────────────────
 
 /**

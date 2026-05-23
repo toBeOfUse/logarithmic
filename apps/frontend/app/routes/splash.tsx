@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { AppMark } from "~/components/AppMark.tsx";
-import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
+import { useCreateLogbook, useImportLogbook, useLogbooks } from "~/data/hooks.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 
 import styles from "./splash.module.css";
@@ -22,12 +22,18 @@ function formatRelative(d: Date): string {
 const btnPrimary =
   "[font:inherit] text-sm font-medium bg-primary border border-primary text-paper px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-primary-hover disabled:opacity-[0.55] disabled:cursor-not-allowed";
 
+const btnSecondary =
+  "[font:inherit] text-sm font-medium bg-stark border border-paper-edge text-primary px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
+
 export default function Splash() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const { data: logbooks = [], isLoading } = useLogbooks({ demo: false });
   const { data: demoLogbooks = [] } = useLogbooks({ demo: true });
   const createLogbook = useCreateLogbook({ demo: false });
+  const importLogbook = useImportLogbook();
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const hasLogbooks = logbooks.length > 0;
   const hasDemos = demoLogbooks.length > 0;
@@ -42,6 +48,21 @@ export default function Splash() {
         onSuccess: (lb) => {
           setName("");
           void navigate(`/${routeSegment(lb.slug, lb.id)}`);
+        },
+      },
+    );
+  }
+
+  function onImportFile(file: File) {
+    setImportError(null);
+    importLogbook.mutate(
+      { file },
+      {
+        onSuccess: (lb) => {
+          void navigate(`/${routeSegment(lb.slug, lb.id)}`);
+        },
+        onError: (err) => {
+          setImportError(err.message);
         },
       },
     );
@@ -70,7 +91,7 @@ export default function Splash() {
             </>
           )}
 
-          <form className="flex gap-2 mb-9" onSubmit={onCreate}>
+          <form className="flex gap-2 mb-3" onSubmit={onCreate}>
             <input
               className="flex-1 [font:inherit] text-base border border-paper-edge bg-stark text-primary rounded-[7px] px-3 py-2.5 outline-none placeholder:text-muted focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]"
               placeholder={hasLogbooks ? "New logbook…" : "Name your first logbook…"}
@@ -87,6 +108,30 @@ export default function Splash() {
               {hasLogbooks ? "Create" : "Create logbook"}
             </button>
           </form>
+
+          <div className="mb-9 flex items-center gap-3 text-sm text-muted">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportFile(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className={btnSecondary}
+              disabled={importLogbook.isPending}
+              onClick={() => importInputRef.current?.click()}
+            >
+              <i className="ri-upload-2-line" aria-hidden="true" />
+              {importLogbook.isPending ? "Importing…" : "Import logbook (.zip)"}
+            </button>
+            {importError && <span className="text-warn">{importError}</span>}
+          </div>
 
           {hasLogbooks && (
             <>

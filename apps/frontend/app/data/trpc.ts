@@ -5,19 +5,46 @@
  * keys and invalidation rules predates the API, and we don't want to rewrite
  * that surface while moving the data source.
  *
- * `superjson` matches the transformer on the server, so Date objects survive
- * the JSON round trip and the existing date-formatting code keeps working.
+ * `superjson` matches the transformer on the server, so Date objects (and
+ * `Uint8Array` returned by `logbook.export`) survive the JSON round trip and
+ * the existing date-formatting code keeps working.
+ *
+ * `splitLink` routes binary inputs (the `logbook.import` upload, accepted as
+ * a `File`/`Blob`/`Uint8Array`) through a non-batched `httpLink`, since
+ * `httpBatchLink` can't batch non-JSON content. JSON-only calls keep going
+ * through `httpBatchLink` to coalesce roundtrips.
  *
  * The URL is same-origin: in dev, Vite proxies `/trpc` to the backend (see
  * `vite.config.ts`); in prod, the SPA and API are expected to share an origin
  * behind whatever reverse proxy is fronting them.
  */
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import {
+  createTRPCClient,
+  httpBatchLink,
+  httpLink,
+  isNonJsonSerializable,
+  splitLink,
+} from "@trpc/client";
 import superjson from "superjson";
 import type { AppRouter } from "logarithmic-backend/api-router";
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "/trpc";
+const url = (import.meta.env.VITE_API_URL as string | undefined) ?? "/trpc";
 
 export const trpc = createTRPCClient<AppRouter>({
-  links: [httpBatchLink({ url: API_URL, transformer: superjson })],
+  links: [
+    splitLink({
+      condition: (op) => isNonJsonSerializable(op.input),
+      // Binary input: don't transform the body (it's a File/Blob/Uint8Array),
+      // but still run the response through superjson so server-side Date /
+      // Uint8Array values round-trip.
+      true: httpLink({
+        url,
+        transformer: {
+          serialize: (data) => data,
+          deserialize: (data) => superjson.deserialize(data),
+        },
+      }),
+      false: httpBatchLink({ url, transformer: superjson }),
+    }),
+  ],
 });

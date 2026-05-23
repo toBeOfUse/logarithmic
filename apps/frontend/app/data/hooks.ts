@@ -229,6 +229,99 @@ export function useCreateLogbook({ demo = false }: { demo?: boolean } = {}) {
   });
 }
 
+/**
+ * Trigger a logbook ZIP download. `logbook.export` returns the bytes as a
+ * `Uint8Array` (with the suggested filename) through tRPC + superjson, so we
+ * get end-to-end type safety; the browser bits below just wrap the bytes in a
+ * Blob and synthesize a download.
+ *
+ * Browsers don't allow programmatic downloads with a different filename unless
+ * we either set the anchor's `download` attribute (limited to same-origin) or
+ * hand them a Blob URL — we use the Blob-URL trick so this keeps working
+ * if/when the API moves to a different origin.
+ *
+ * The `filename` parameter overrides the server's suggestion so the caller
+ * can keep using the logbook's display slug at the moment of the click,
+ * which can differ from the slug stored on the server.
+ */
+let _lastObjectUrl = "";
+export async function exportLogbookToFile(logbookId: string, filename: string) {
+  const { data } = await trpc.logbook.export.query({ logbookId });
+  // Copy into a fresh `Uint8Array<ArrayBuffer>` so the `BlobPart` type matches
+  // — superjson's typed-array deserializer returns `Uint8Array<ArrayBufferLike>`,
+  // which the DOM lib's BlobPart no longer accepts.
+  const blob = new Blob([new Uint8Array(data)], { type: "application/zip" });
+  if (_lastObjectUrl) {
+    URL.revokeObjectURL(_lastObjectUrl);
+    _lastObjectUrl = "";
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  _lastObjectUrl = url;
+}
+
+export function useImportLogbook() {
+  const qc = useQueryClient();
+  return useMutation<LogbookDetail, Error, { file: File }>({
+    // `logbook.import` accepts `Blob | File | Uint8Array` directly through
+    // `octetInputParser`; the splitLink in `./trpc.ts` routes this around the
+    // batching link so the binary body goes through untouched.
+    mutationFn: ({ file }) => trpc.logbook.import.mutate(file),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.logbooks(false) });
+    },
+  });
+}
+
+type RenameLogbookCtx = {
+  prevOverview: LogbookOverview | null | undefined;
+};
+
+export function useRenameLogbook({ demo = false }: { demo?: boolean } = {}) {
+  const qc = useQueryClient();
+  return useMutation<
+    LogbookDetail | null,
+    Error,
+    { logbookId: string; name: string },
+    RenameLogbookCtx
+  >({
+    mutationFn: (input) =>
+      demo ? Promise.resolve(store.renameLogbook(input)) : trpc.logbook.rename.mutate(input),
+    onMutate: async (vars) => {
+      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
+      await qc.cancelQueries({ queryKey: overviewKey });
+      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      if (prevOverview) {
+        const slug = slugify(vars.name);
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...prevOverview,
+          logbook: {
+            ...prevOverview.logbook,
+            name: vars.name,
+            slug,
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return { prevOverview };
+    },
+    onError: (_err, vars, ctx) => {
+      if (ctx?.prevOverview !== undefined) {
+        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
+      }
+    },
+    onSettled: (_data, _err, vars) => {
+      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
+      void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
+    },
+  });
+}
+
 type CreateEntryVars = {
   logbookId: string;
   name?: string;

@@ -15,7 +15,8 @@ import { Logbook } from "../entities/Logbook.ts";
  * but unbounded strings let any authenticated caller park arbitrary blobs in
  * the database. These values are well past anything a human will type.
  */
-export const ENTRY_NAME_MAX = 1_024;
+export const ENTRY_NAME_MAX = 128;
+export const LOGBOOK_NAME_MAX = 128;
 export const CONTENT_MAX = 2_000_000_000;
 const METADATA_KEY_MAX = 1_024;
 const METADATA_VALUE_MAX = 100_000;

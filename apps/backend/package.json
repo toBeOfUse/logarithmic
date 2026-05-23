@@ -19,9 +19,11 @@
     "@trpc/server": "catalog:",
     "cookie": "catalog:",
     "fastify": "catalog:",
+    "jszip": "catalog:",
     "nanoid": "catalog:",
     "superjson": "catalog:",
     "uuid": "^11.0.3",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
