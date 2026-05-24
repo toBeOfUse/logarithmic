@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
+import { AccessLinkModal } from "~/components/AccessLinkModal.tsx";
 import { AppMark } from "~/components/AppMark.tsx";
 import { useCreateLogbook, useImportLogbook, useLogbooks } from "~/data/hooks.ts";
+import { buildBookmarkUrl } from "~/data/tokens.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 
 import styles from "./splash.module.css";
@@ -25,6 +27,8 @@ const btnPrimary =
 const btnSecondary =
   "[font:inherit] text-sm font-medium bg-stark border border-paper-edge text-primary px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
 
+type PendingShare = { logbookName: string; url: string; nextPath: string };
+
 export default function Splash() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -34,20 +38,29 @@ export default function Splash() {
   const importLogbook = useImportLogbook();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  // Holds the freshly-minted access link after a create/import succeeds, so the
+  // modal can surface it before we navigate away from the splash screen. The
+  // route swap happens once the user dismisses the modal.
+  const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
 
   const hasLogbooks = logbooks.length > 0;
   const hasDemos = demoLogbooks.length > 0;
 
-  function onCreate(e: React.FormEvent) {
+  function onCreate(e: React.SubmitEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
     createLogbook.mutate(
       { name: trimmed },
       {
-        onSuccess: (lb) => {
+        onSuccess: ({ logbook, token }) => {
           setName("");
-          void navigate(`/${routeSegment(lb.slug, lb.id)}`);
+          const path = `/${routeSegment(logbook.slug, logbook.id)}`;
+          setPendingShare({
+            logbookName: logbook.name,
+            url: buildBookmarkUrl(routeSegment(logbook.slug, logbook.id), token),
+            nextPath: path,
+          });
         },
       },
     );
@@ -58,14 +71,25 @@ export default function Splash() {
     importLogbook.mutate(
       { file },
       {
-        onSuccess: (lb) => {
-          void navigate(`/${routeSegment(lb.slug, lb.id)}`);
+        onSuccess: ({ logbook, token }) => {
+          const path = `/${routeSegment(logbook.slug, logbook.id)}`;
+          setPendingShare({
+            logbookName: logbook.name,
+            url: buildBookmarkUrl(routeSegment(logbook.slug, logbook.id), token),
+            nextPath: path,
+          });
         },
         onError: (err) => {
           setImportError(err.message);
         },
       },
     );
+  }
+
+  function dismissShare() {
+    const next = pendingShare?.nextPath ?? null;
+    setPendingShare(null);
+    if (next) void navigate(next);
   }
 
   return (
@@ -191,13 +215,17 @@ export default function Splash() {
           )}
 
           <div className="mt-auto pt-6 text-xs text-muted flex justify-between items-center">
-            <span>v0.1 · local-first · single user</span>
-            <a href="#" className="text-muted no-underline hover:text-primary">
-              {hasLogbooks ? "Sign out" : "Sign in"}
-            </a>
+            <span>v0.1 · local-first · token-gated</span>
           </div>
         </div>
       </div>
+      {pendingShare && (
+        <AccessLinkModal
+          logbookName={pendingShare.logbookName}
+          url={pendingShare.url}
+          onClose={dismissShare}
+        />
+      )}
     </div>
   );
 }

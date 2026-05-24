@@ -25,6 +25,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import slugify from "@sindresorhus/slugify";
 import type {
+  CreatedLogbook,
   EntryDetail,
   EntryNode,
   LogbookDetail,
@@ -35,6 +36,7 @@ import type {
 } from "logarithmic-backend/api-types";
 
 import * as store from "./store.ts";
+import { getAllTokens, saveToken } from "./tokens.ts";
 import { trpc } from "./trpc.ts";
 
 const DEMO_READ_LATENCY_MS = 200;
@@ -185,7 +187,9 @@ export function useLogbooks({ demo = false }: { demo?: boolean } = {}) {
   return useQuery({
     queryKey: keys.logbooks(demo),
     queryFn: () =>
-      demo ? delay(DEMO_READ_LATENCY_MS, () => store.listLogbooks()) : trpc.logbook.list.query(),
+      demo
+        ? delay(DEMO_READ_LATENCY_MS, () => store.listLogbooks())
+        : trpc.logbook.listByTokens.query({ tokens: getAllTokens() }),
   });
 }
 
@@ -204,14 +208,18 @@ export function useLogbookOverview(
   });
 }
 
-export function useEntry(entryId: number | null, { demo = false }: { demo?: boolean } = {}) {
+export function useEntry(
+  entryId: number | null,
+  logbookId: string | undefined,
+  { demo = false }: { demo?: boolean } = {},
+) {
   return useQuery<EntryDetail | null>({
-    enabled: entryId !== null,
+    enabled: entryId !== null && !!logbookId,
     queryKey: keys.entry(demo, entryId ?? 0),
     queryFn: () => {
-      if (entryId === null) return null;
+      if (entryId === null || !logbookId) return null;
       if (demo) return delay(DEMO_READ_LATENCY_MS, () => store.getEntry(entryId));
-      return trpc.entry.get.query({ id: entryId });
+      return trpc.entry.get.query({ logbookId, id: entryId });
     },
   });
 }
@@ -220,9 +228,15 @@ export function useEntry(entryId: number | null, { demo = false }: { demo?: bool
 
 export function useCreateLogbook({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
-  return useMutation<LogbookDetail, Error, { name: string }>({
-    mutationFn: (input) =>
-      demo ? Promise.resolve(store.createLogbook(input)) : trpc.logbook.create.mutate(input),
+  return useMutation<CreatedLogbook, Error, { name: string }>({
+    mutationFn: async (input) => {
+      if (demo) return { logbook: store.createLogbook(input), token: "" };
+      const result = await trpc.logbook.create.mutate(input);
+      // Persist the fresh token immediately so the bookmarkable link the modal
+      // surfaces matches what's already authoritative in localStorage.
+      saveToken(result.logbook.id, result.token);
+      return result;
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
     },
@@ -267,11 +281,15 @@ export async function exportLogbookToFile(logbookId: string, filename: string) {
 
 export function useImportLogbook() {
   const qc = useQueryClient();
-  return useMutation<LogbookDetail, Error, { file: File }>({
+  return useMutation<CreatedLogbook, Error, { file: File }>({
     // `logbook.import` accepts `Blob | File | Uint8Array` directly through
     // `octetInputParser`; the splitLink in `./trpc.ts` routes this around the
     // batching link so the binary body goes through untouched.
-    mutationFn: ({ file }) => trpc.logbook.import.mutate(file),
+    mutationFn: async ({ file }) => {
+      const result = await trpc.logbook.import.mutate(file);
+      saveToken(result.logbook.id, result.token);
+      return result;
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.logbooks(false) });
     },
@@ -445,9 +463,16 @@ type RenameCtx = {
 
 export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
-  return useMutation<EntryDetail | null, Error, { id: number; name: string }, RenameCtx>({
+  return useMutation<
+    EntryDetail | null,
+    Error,
+    { id: number; name: string; logbookId: string },
+    RenameCtx
+  >({
     mutationFn: (input) =>
-      demo ? Promise.resolve(store.renameEntry(input)) : trpc.entry.rename.mutate(input),
+      demo
+        ? Promise.resolve(store.renameEntry({ id: input.id, name: input.name }))
+        : trpc.entry.rename.mutate(input),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
       const prevEntry = qc.getQueryData<EntryDetail | null>(keys.entry(demo, vars.id));
@@ -511,12 +536,12 @@ export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {})
   return useMutation<
     EntryDetail | null,
     Error,
-    { id: number; content: string },
+    { id: number; content: string; logbookId: string },
     { prev: EntryDetail | null | undefined }
   >({
     mutationFn: (input) =>
       demo
-        ? Promise.resolve(store.updateEntryContent(input))
+        ? Promise.resolve(store.updateEntryContent({ id: input.id, content: input.content }))
         : trpc.entry.updateContent.mutate(input),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
@@ -556,10 +581,15 @@ type MetadataCtx = {
 
 export function useUpdateEntryMetadata({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
-  return useMutation<EntryDetail | null, Error, { id: number; metadata: Metadata }, MetadataCtx>({
+  return useMutation<
+    EntryDetail | null,
+    Error,
+    { id: number; metadata: Metadata; logbookId: string },
+    MetadataCtx
+  >({
     mutationFn: (input) =>
       demo
-        ? Promise.resolve(store.updateEntryMetadata(input))
+        ? Promise.resolve(store.updateEntryMetadata({ id: input.id, metadata: input.metadata }))
         : trpc.entry.updateMetadata.mutate(input),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
@@ -615,8 +645,8 @@ type MoveCtx = {
 
 export function useMoveEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
-  return useMutation<EntryDetail | null, Error, MoveEntryInput & { logbookId: string }, MoveCtx>({
-    mutationFn: ({ logbookId: _lb, ...input }) =>
+  return useMutation<EntryDetail | null, Error, MoveEntryInput, MoveCtx>({
+    mutationFn: (input) =>
       demo ? Promise.resolve(store.moveEntry(input)) : trpc.entry.move.mutate(input),
     onMutate: async (vars) => {
       const overviewKey = keys.logbookOverview(demo, vars.logbookId);
@@ -708,8 +738,8 @@ type DeleteCtx = {
 export function useDeleteEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<boolean, Error, { id: number; logbookId: string }, DeleteCtx>({
-    mutationFn: ({ id }) =>
-      demo ? Promise.resolve(store.deleteEntry({ id })) : trpc.entry.delete.mutate({ id }),
+    mutationFn: (input) =>
+      demo ? Promise.resolve(store.deleteEntry({ id: input.id })) : trpc.entry.delete.mutate(input),
     onMutate: async (vars) => {
       const overviewKey = keys.logbookOverview(demo, vars.logbookId);
       const entryKey = keys.entry(demo, vars.id);

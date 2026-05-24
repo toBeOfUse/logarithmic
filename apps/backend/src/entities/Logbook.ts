@@ -3,7 +3,6 @@ import slugify from "@sindresorhus/slugify";
 import { customAlphabet } from "nanoid";
 
 import { Entry } from "./Entry.ts";
-import { User } from "./User.ts";
 
 /**
  * 10-character alphanumeric id. The default nanoid alphabet includes `-` and
@@ -29,7 +28,6 @@ const LogbookSchema = defineEntity({
       .string()
       .onCreate((lb) => slugify(lb.name))
       .onUpdate((lb) => slugify(lb.name)),
-    owner: () => p.manyToOne(User),
     createdAt: p.datetime().onCreate(() => new Date()),
     updatedAt: p
       .datetime()

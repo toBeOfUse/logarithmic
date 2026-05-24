@@ -51,7 +51,6 @@ type LogbookRecord = {
   id: string;
   slug: string;
   name: string;
-  ownerId: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -60,8 +59,6 @@ type Store = {
   logbooks: Map<string, LogbookRecord>;
   entries: Map<number, EntryRecord>;
 };
-
-const DEMO_OWNER_ID = "00000000-0000-0000-0000-00000000demo";
 
 const store: Store = { logbooks: new Map(), entries: new Map() };
 const demoLogbookIds = new Set<string>();
@@ -80,7 +77,6 @@ function seed() {
       id: newLogbookId(),
       slug: slugify(demo.name),
       name: demo.name,
-      ownerId: DEMO_OWNER_ID,
       createdAt: now,
       updatedAt: now,
     };
@@ -159,7 +155,6 @@ function recToDetail(lb: LogbookRecord): LogbookDetail {
     id: lb.id,
     slug: lb.slug,
     name: lb.name,
-    ownerId: lb.ownerId,
     createdAt: lb.createdAt,
     updatedAt: lb.updatedAt,
   };
@@ -244,7 +239,6 @@ export function createLogbook(input: { name: string }): LogbookDetail {
     id: newLogbookId(),
     slug: slugify(name),
     name,
-    ownerId: DEMO_OWNER_ID,
     createdAt: now,
     updatedAt: now,
   };

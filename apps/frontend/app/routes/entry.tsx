@@ -67,7 +67,7 @@ export default function EntryRoute() {
   const entryId = parseEntryId(params.entryId ?? "");
   const demo = isDemoLogbook(logbookId);
 
-  const { data: entry, isLoading } = useEntry(entryId, { demo });
+  const { data: entry, isLoading } = useEntry(entryId, logbookId, { demo });
   const { data: overview } = useLogbookOverview(logbookId, { demo });
 
   const updateContent = useUpdateEntryContent({ demo });
@@ -174,21 +174,21 @@ export default function EntryRoute() {
 
   const onTitleBlur = () => {
     if (titleDraft != null && titleDraft !== entry.name) {
-      renameEntry.mutate({ id: entry.id, name: titleDraft });
+      renameEntry.mutate({ id: entry.id, name: titleDraft, logbookId });
     }
     setTitleDraft(null);
   };
 
   const onSaveContent = (markdown: string) => {
     updateContent.mutate(
-      { id: entry.id, content: markdown },
+      { id: entry.id, content: markdown, logbookId },
       { onSuccess: () => setSavedAt(new Date()) },
     );
   };
 
   const onMetadataChange = (next: Metadata) => {
     updateMetadata.mutate(
-      { id: entry.id, metadata: next },
+      { id: entry.id, metadata: next, logbookId },
       { onSuccess: () => setSavedAt(new Date()) },
     );
   };
@@ -230,7 +230,7 @@ export default function EntryRoute() {
     const trimmed = name.trim();
     const child = entry.children.find((c) => c.id === id);
     if (child && trimmed !== child.name) {
-      renameEntry.mutate({ id, name: trimmed });
+      renameEntry.mutate({ id, name: trimmed, logbookId });
     }
     setEditingChildId((prev) => (prev === id ? null : prev));
   };
@@ -328,11 +328,11 @@ export default function EntryRoute() {
             return (
               <div className="space-y-7 my-7">
                 <section>
-                  {hasAttrs && <SectionHeading>This Entry's Metadata</SectionHeading>}
+                  {hasAttrs && <SectionHeading>Metadata</SectionHeading>}
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
                 </section>
                 <section>
-                  {hasChildren && <SectionHeading>Next Column's Entries</SectionHeading>}
+                  {hasChildren && <SectionHeading>Subsections</SectionHeading>}
                   <div className="flex flex-wrap gap-2 items-center">
                     {entry.children.map((c) => (
                       <WithTrailingSep key={c.id}>

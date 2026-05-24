@@ -33,7 +33,6 @@ export function toLogbookDetail(lb: Logbook): LogbookDetail {
     id: lb.id,
     slug: lb.slug,
     name: lb.name,
-    ownerId: lb.owner.id,
     createdAt: lb.createdAt,
     updatedAt: lb.updatedAt,
   };
@@ -123,13 +122,4 @@ export function cascadeCols(byId: Map<number, Entry>, rootId: number) {
       queue.push(c.id);
     }
   }
-}
-
-/**
- * Resolve a logbook by id, asserting the caller owns it. Throws NOT_FOUND
- * (rather than FORBIDDEN) so the existence of someone else's logbook is not
- * leaked through the error code.
- */
-export async function findOwnedLogbook(em: EntityManager, userId: string, logbookId: string) {
-  return em.findOne(Logbook, { id: logbookId, owner: userId });
 }

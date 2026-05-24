@@ -1,59 +1,70 @@
 /**
- * Logbook tRPC procedures. Defines `logbookProcedure`, a protectedProcedure
- * variant that takes a `logbookId` and resolves it to an owned `Logbook` on
- * `ctx`, throwing NOT_FOUND if the caller doesn't own it. Also exported so
- * entry handlers that key off a logbook (entry.create, entry.reorderSiblings)
- * can reuse the same ownership gate.
+ * Logbook tRPC procedures.
+ *
+ * `logbookProcedure` (in `../trpc.ts`) is the ownership gate: it verifies the
+ * Authorization-header bearer token resolves to the `logbookId` in the input
+ * and attaches the resolved Logbook to `ctx`. Entry handlers that key off a
+ * logbook reuse the same gate.
+ *
+ * `logbook.listByTokens` is the splash-screen lookup: the client posts every
+ * token from localStorage in the body and gets back the corresponding
+ * summaries. It does *not* use the Authorization header — the tokens are the
+ * input, and authorization is per-token (invalid ones just drop out).
  */
-import { TRPCError } from "@trpc/server";
-import slugify from "@sindresorhus/slugify";
 import { z } from "zod";
 
-import type { LogbookDetail, LogbookOverview, LogbookSummary, EntryNode } from "./api-types.ts";
+import type {
+  CreatedLogbook,
+  LogbookDetail,
+  LogbookOverview,
+  LogbookSummary,
+  EntryNode,
+} from "./api-types.ts";
 import { Entry } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
-import { anonymousProcedure, protectedProcedure, publicProcedure, router } from "../trpc.ts";
-import { findOwnedLogbook, LOGBOOK_NAME_MAX, toLogbookDetail } from "./utils.ts";
+import { logbookProcedure, publicAuthoringProcedure, publicProcedure, router } from "../trpc.ts";
+import { issueTokenForLogbook, resolveLogbooksForTokens } from "../tokens.ts";
+import { LOGBOOK_NAME_MAX, toLogbookDetail } from "./utils.ts";
 
-export const logbookProcedure = protectedProcedure
-  .input(z.object({ logbookId: z.string() }))
-  .use(async ({ ctx, input, next }) => {
-    const logbook = await findOwnedLogbook(ctx.em, ctx.user.id, input.logbookId);
-    if (!logbook) throw new TRPCError({ code: "NOT_FOUND", message: "Logbook not found" });
-    return next({ ctx: { ...ctx, logbook } });
-  });
+// Cap on how many tokens a single splash-screen call will validate. bcrypt is
+// intentionally expensive, so a malicious client could otherwise DoS us by
+// posting a giant array. A real user with hundreds of logbooks is implausible.
+const MAX_LIST_TOKENS = 100;
+
+async function summarize(em: import("@mikro-orm/sqlite").EntityManager, logbooks: Logbook[]) {
+  if (logbooks.length === 0) return [];
+  const ids = logbooks.map((lb) => lb.id);
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = await em
+    .getConnection()
+    .execute<{ logbook_id: string; count: number | string }[]>(
+      `SELECT logbook_id, COUNT(*) AS count FROM entry WHERE logbook_id IN (${placeholders}) GROUP BY logbook_id`,
+      ids,
+    );
+  const counts = new Map<string, number>(rows.map((r) => [r.logbook_id, Number(r.count)]));
+  return logbooks.map<LogbookSummary>((lb) => ({
+    id: lb.id,
+    slug: lb.slug,
+    name: lb.name,
+    updatedAt: lb.updatedAt,
+    entryCount: counts.get(lb.id) ?? 0,
+  }));
+}
 
 export const logbookRouter = router({
-  // Public so the splash screen can call it before the visitor has created
-  // anything. Anonymous visitors simply own no logbooks.
-  list: publicProcedure.query(async ({ ctx }): Promise<LogbookSummary[]> => {
-    if (!ctx.user) return [];
-    const logbooks = await ctx.em.find(
-      Logbook,
-      { owner: ctx.user.id },
-      { orderBy: { updatedAt: "desc" } },
-    );
-    if (logbooks.length === 0) return [];
-    // Single GROUP BY query so we get one row per logbook instead of issuing
-    // N COUNT queries. Raw SQL keeps the QueryBuilder's strict typing out of
-    // the way for this aggregation-with-string-alias shape.
-    const ids = logbooks.map((lb) => lb.id);
-    const placeholders = ids.map(() => "?").join(", ");
-    const rows = await ctx.em
-      .getConnection()
-      .execute<{ logbook_id: string; count: number | string }[]>(
-        `SELECT logbook_id, COUNT(*) AS count FROM entry WHERE logbook_id IN (${placeholders}) GROUP BY logbook_id`,
-        ids,
-      );
-    const counts = new Map<string, number>(rows.map((r) => [r.logbook_id, Number(r.count)]));
-    return logbooks.map((lb) => ({
-      id: lb.id,
-      slug: lb.slug,
-      name: lb.name,
-      updatedAt: lb.updatedAt,
-      entryCount: counts.get(lb.id) ?? 0,
-    }));
-  }),
+  /**
+   * Splash-screen list. Takes an array of tokens (everything in localStorage)
+   * and returns summaries for the ones that validate. Tokens that don't
+   * resolve are silently dropped so a stale entry doesn't surface as an error
+   * — the user simply doesn't see that logbook.
+   */
+  listByTokens: publicProcedure
+    .input(z.object({ tokens: z.array(z.string()).max(MAX_LIST_TOKENS) }))
+    .query(async ({ ctx, input }): Promise<LogbookSummary[]> => {
+      const logbooks = await resolveLogbooksForTokens(ctx.em, input.tokens);
+      logbooks.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      return summarize(ctx.em, logbooks);
+    }),
 
   overview: logbookProcedure.query(async ({ ctx }): Promise<LogbookOverview> => {
     const lb = ctx.logbook;
@@ -81,14 +92,15 @@ export const logbookRouter = router({
     return { logbook: toLogbookDetail(lb), entries: build(null) };
   }),
 
-  create: anonymousProcedure
+  create: publicAuthoringProcedure
     .input(z.object({ name: z.string().max(LOGBOOK_NAME_MAX) }))
-    .mutation(async ({ ctx, input }): Promise<LogbookDetail> => {
+    .mutation(async ({ ctx, input }): Promise<CreatedLogbook> => {
       const name = input.name.trim() || "Untitled logbook";
-      const lb = ctx.em.create(Logbook, { name, slug: slugify(name), owner: ctx.user.id });
+      const lb = ctx.em.create(Logbook, { name });
       ctx.em.persist(lb);
       await ctx.em.flush();
-      return toLogbookDetail(lb);
+      const token = await issueTokenForLogbook(ctx.em, lb);
+      return { logbook: toLogbookDetail(lb), token };
     }),
 
   rename: logbookProcedure

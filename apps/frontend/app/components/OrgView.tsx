@@ -103,6 +103,7 @@ function dropToMoveInput(
   byId: Map<number, EntryNode>,
   parentOf: Map<number, number | null>,
   forest: EntryNode[],
+  logbookId: string,
 ): MoveEntryInput | null {
   const siblingsOf = (parentId: number | null): EntryNode[] => {
     const list = parentId === null ? forest : (byId.get(parentId)?.children ?? []);
@@ -119,13 +120,14 @@ function dropToMoveInput(
     const sibs = siblingsOf(refParentId);
     const refIdx = sibs.findIndex((s) => s.id === ref.id);
     const position = drop.kind === "before" ? refIdx : refIdx + 1;
-    return { id: draggedId, parentId: refParentId, col, position };
+    return { logbookId, id: draggedId, parentId: refParentId, col, position };
   }
   if (drop.kind === "child") {
     if (drop.parentId === draggedId) return null;
     const parent = byId.get(drop.parentId);
     if (!parent) return null;
     return {
+      logbookId,
       id: draggedId,
       parentId: parent.id,
       col: parent.col - 1,
@@ -135,6 +137,7 @@ function dropToMoveInput(
   if (drop.kind === "rootInCol") {
     // Append after all existing roots.
     return {
+      logbookId,
       id: draggedId,
       parentId: null,
       col: drop.col,
@@ -515,7 +518,7 @@ export function OrgView({
     if (!data) return;
     const id = Number(String(active.id).replace(/^entry:/, ""));
     if (!Number.isFinite(id)) return;
-    const move = dropToMoveInput(id, data, byId, parentOf, forest);
+    const move = dropToMoveInput(id, data, byId, parentOf, forest, logbookId);
     if (move) onMove(move);
   };
   const onDragCancel = () => setActiveDragId(null);

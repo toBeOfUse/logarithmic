@@ -10,7 +10,15 @@ import {
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { bootstrapTokenFromHash } from "~/data/tokens.ts";
 import "./globals.css";
+
+// Harvest any `#token=<token>` fragment off the entry URL before React renders
+// child routes, so the very first `listByTokens` / overview query sees the
+// freshly-saved token. Runs once at module load; further calls are no-ops.
+if (typeof window !== "undefined") {
+  bootstrapTokenFromHash();
+}
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },

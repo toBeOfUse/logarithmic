@@ -26,11 +26,11 @@ import JSZip from "jszip";
 import slugify from "@sindresorhus/slugify";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import type { LogbookDetail } from "./api-types.ts";
+import type { CreatedLogbook } from "./api-types.ts";
 import { Entry, type Metadata, type MetadataValue } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
-import { anonymousProcedure, router } from "../trpc.ts";
-import { logbookProcedure } from "./logbook-api.ts";
+import { logbookProcedure, publicAuthoringProcedure, router } from "../trpc.ts";
+import { issueTokenForLogbook } from "../tokens.ts";
 import { toLogbookDetail } from "./utils.ts";
 
 const FILENAME_MAX = 64;
@@ -428,12 +428,13 @@ export const exportImportRouter = router({
     };
   }),
 
-  // `anonymousProcedure` so a visitor with no account can import — same flow
-  // as `logbook.create`. `octetInputParser` accepts `Blob | File | Uint8Array`
-  // from the client and hands us a `ReadableStream` on the server.
-  import: anonymousProcedure
+  // Open to any visitor — like `logbook.create`, this mints a brand-new logbook
+  // and returns the freshly-issued token alongside it. `octetInputParser`
+  // accepts `Blob | File | Uint8Array` from the client and hands us a
+  // `ReadableStream` on the server.
+  import: publicAuthoringProcedure
     .input(octetInputParser)
-    .mutation(async ({ ctx, input }): Promise<LogbookDetail> => {
+    .mutation(async ({ ctx, input }): Promise<CreatedLogbook> => {
       const buffer = await streamToBuffer(input);
       let zip: JSZip;
       try {
@@ -449,11 +450,11 @@ export const exportImportRouter = router({
       const lb = ctx.em.create(Logbook, {
         name,
         slug: slugify(name),
-        owner: ctx.user.id,
       });
       ctx.em.persist(lb);
       await ctx.em.flush();
       await persistForest(ctx.em, lb, forest);
-      return toLogbookDetail(lb);
+      const token = await issueTokenForLogbook(ctx.em, lb);
+      return { logbook: toLogbookDetail(lb), token };
     }),
 });

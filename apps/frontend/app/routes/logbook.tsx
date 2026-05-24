@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
+import { AccessLinkModal } from "~/components/AccessLinkModal";
 
 import { OrgView } from "~/components/OrgView.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
@@ -13,6 +14,7 @@ import {
   useRenameLogbook,
   useReorderSiblings,
 } from "~/data/hooks.ts";
+import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 
 export default function LogbookRoute() {
@@ -30,6 +32,7 @@ export default function LogbookRoute() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [scrollTargetId, setScrollTargetId] = useState<number | null>(null);
   const [renamingLogbook, setRenamingLogbook] = useState(false);
+  const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -60,6 +63,12 @@ export default function LogbookRoute() {
       label: "Rename logbook",
       icon: "ri-edit-line",
       onSelect: () => setRenamingLogbook(true),
+    },
+    {
+      id: "access-link",
+      icon: "ri-key-2-line",
+      label: "View access link",
+      onSelect: () => setDisplayingAccessLink(true),
     },
   ];
   if (!demo) {
@@ -101,6 +110,16 @@ export default function LogbookRoute() {
           }}
         />
       )}
+      {displayingAccessLink && data.logbook && (
+        <AccessLinkModal
+          onClose={() => setDisplayingAccessLink(false)}
+          logbookName={data.logbook.name}
+          url={buildBookmarkUrl(
+            routeSegment(data.logbook.slug, data.logbook.id),
+            getToken(data.logbook.id)!,
+          )}
+        />
+      )}
       {exportError && (
         <div className="bg-warn-soft text-warn text-sm px-4 py-2 border-b border-paper-edge flex items-center justify-between">
           <span>Couldn't export logbook: {exportError}</span>
@@ -137,12 +156,12 @@ export default function LogbookRoute() {
           // Find the current entry inside the tree to compare names.
           const current = findInForest(entries, id);
           if (current && trimmed !== current.name) {
-            renameEntry.mutate({ id, name: trimmed });
+            renameEntry.mutate({ id, name: trimmed, logbookId: logbook.id });
           }
           setEditingId((prev) => (prev === id ? null : prev));
         }}
         onMove={(input) => {
-          moveEntry.mutate({ ...input, logbookId: logbook.id });
+          moveEntry.mutate(input);
         }}
         onReorderSiblings={(parentId, ids) => {
           reorderSiblings.mutate({ logbookId: logbook.id, parentId, ids });

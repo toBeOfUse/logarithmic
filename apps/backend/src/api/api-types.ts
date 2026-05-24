@@ -5,7 +5,6 @@
  * the entity types using `Pick<>` so we maintain a single source of truth for
  * field shapes; only relations are flattened to IDs as appropriate.
  */
-import type { IUser } from "../entities/User.ts";
 import type { ILogbook } from "../entities/Logbook.ts";
 import type { IEntry, Metadata } from "../entities/Entry.ts";
 
@@ -22,8 +21,17 @@ export type LogbookSummary = Pick<ILogbook, "id" | "slug" | "name" | "updatedAt"
   entryCount: number;
 };
 
-export type LogbookDetail = Pick<ILogbook, "id" | "slug" | "name" | "createdAt" | "updatedAt"> & {
-  ownerId: IUser["id"];
+export type LogbookDetail = Pick<ILogbook, "id" | "slug" | "name" | "createdAt" | "updatedAt">;
+
+/**
+ * Response from `logbook.create` and `logbook.import`. The server mints a
+ * fresh token on each call and returns it exactly once — the plaintext token
+ * is never persisted, only its bcrypt hash. The frontend is responsible for
+ * stashing it in localStorage and surfacing the bookmarkable link.
+ */
+export type CreatedLogbook = {
+  logbook: LogbookDetail;
+  token: string;
 };
 
 export type CreateLogbookInput = {
@@ -33,6 +41,16 @@ export type CreateLogbookInput = {
 export type RenameLogbookInput = {
   logbookId: ILogbook["id"];
   name: string;
+};
+
+/**
+ * Splash-screen lookup: the client sends every token in localStorage and gets
+ * back the corresponding logbook summaries. Tokens that don't validate are
+ * silently dropped so a stale entry in localStorage doesn't surface as an
+ * error to the user.
+ */
+export type ListLogbooksByTokensInput = {
+  tokens: string[];
 };
 
 // ── Entries (organizational view) ────────────────────────────────────────
@@ -89,17 +107,20 @@ export type CreateEntryInput = {
 };
 
 export type RenameEntryInput = {
+  logbookId: ILogbook["id"];
   id: IEntry["id"];
   name: string;
 };
 
 /** Update just the rich-text content; common enough to have its own endpoint. */
 export type UpdateEntryContentInput = {
+  logbookId: ILogbook["id"];
   id: IEntry["id"];
   content: string;
 };
 
 export type UpdateEntryMetadataInput = {
+  logbookId: ILogbook["id"];
   id: IEntry["id"];
   metadata: Metadata;
 };
@@ -114,6 +135,7 @@ export type UpdateEntryMetadataInput = {
  * it explicitly.
  */
 export type MoveEntryInput = {
+  logbookId: ILogbook["id"];
   id: IEntry["id"];
   parentId: IEntry["id"] | null;
   col: number;
@@ -132,5 +154,6 @@ export type ReorderSiblingsInput = {
 };
 
 export type DeleteEntryInput = {
+  logbookId: ILogbook["id"];
   id: IEntry["id"];
 };

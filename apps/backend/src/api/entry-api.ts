@@ -1,9 +1,11 @@
 /**
- * Entry tRPC procedures. Defines `entryProcedure`, a protectedProcedure
- * variant that takes an entry `id`, asserts the caller owns the containing
- * logbook, and attaches the resolved `entry` (with its logbook populated) to
- * `ctx`. Procedures keyed off a logbook (create, reorderSiblings) reuse the
- * `logbookProcedure` exported from logbook-api.
+ * Entry tRPC procedures. Every procedure that touches an entry takes a
+ * `logbookId` in its input so the `logbookProcedure` auth gate (which
+ * validates the Authorization-header bearer token against that logbookId)
+ * can run before any entry work happens. `entryProcedure` then layers on top:
+ * it loads the entry and rejects with NOT_FOUND if the entry isn't in the
+ * authorized logbook — so a valid token for logbook A can't reach an entry
+ * that lives under logbook B.
  */
 import { TRPCError } from "@trpc/server";
 import slugify from "@sindresorhus/slugify";
@@ -12,8 +14,7 @@ import { z } from "zod";
 import type { EntryDetail } from "./api-types.ts";
 import { Entry } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
-import { protectedProcedure, router } from "../trpc.ts";
-import { logbookProcedure } from "./logbook-api.ts";
+import { logbookProcedure, router } from "../trpc.ts";
 import {
   buildEntryDetail,
   cascadeCols,
@@ -26,12 +27,12 @@ import {
 
 const entryIdSchema = z.number().int().positive();
 
-const entryProcedure = protectedProcedure
+const entryProcedure = logbookProcedure
   .input(z.object({ id: entryIdSchema }))
   .use(async ({ ctx, input, next }) => {
     const entry = await ctx.em.findOne(
       Entry,
-      { id: input.id, logbook: { owner: ctx.user.id } },
+      { id: input.id, logbook: ctx.logbook.id },
       { populate: ["logbook"] },
     );
     if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "Entry not found" });

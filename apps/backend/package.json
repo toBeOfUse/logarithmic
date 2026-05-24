@@ -17,7 +17,7 @@
     "@mikro-orm/sqlite": "catalog:",
     "@sindresorhus/slugify": "catalog:",
     "@trpc/server": "catalog:",
-    "cookie": "catalog:",
+    "bcryptjs": "^3.0.2",
     "fastify": "catalog:",
     "jszip": "catalog:",
     "nanoid": "catalog:",
@@ -27,7 +27,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/cookie": "^0.6.0",
     "@types/node": "catalog:",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.19.2",
