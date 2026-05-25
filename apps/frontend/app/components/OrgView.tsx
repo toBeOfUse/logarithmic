@@ -7,8 +7,9 @@
  * new last sibling. Column numbers are shown in a sticky strip at the top;
  * each one has its own "Add" button that creates a new root in that column.
  *
- * Hovering an entry reveals two buttons on the right: "add child" and
- * "rearrange". Entries can also be dragged onto each other (top-half →
+ * Hovering an entry reveals three buttons on the right: "rename", "reorder",
+ * and "add child". Renaming reuses the same input-cell shape that adding new
+ * entries does. Entries can also be dragged onto each other (top-half →
  * sibling-before, bottom-half → sibling-after), onto an "add child" button
  * (becomes the last child of that entry), or onto a column-strip add button
  * (becomes a new root in that column).
@@ -49,6 +50,16 @@ import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
 
 type AddInput = { col: number; parentId: number | null };
+
+/**
+ * The single input cell that can be live in the org view at a time — either
+ * one being added under a parent, or one in place of an existing entry being
+ * renamed. Per spec, "input cells only exist while they're focused, and there
+ * should never be a need to render two at once."
+ */
+type PendingInput =
+  | { kind: "add"; col: number; parentId: number | null }
+  | { kind: "rename"; entryId: number };
 
 type DropData =
   | { kind: "before" | "after"; refId: number }
@@ -157,6 +168,28 @@ function runsByCol<T extends { col: number }>(items: T[]): { col: number; kids: 
   return runs;
 }
 
+/**
+ * Render specs for the groups belonging to a parent (or null for roots).
+ *
+ * Start from existing same-col runs of children, then splice in the pending
+ * add-input cell at the end if one's targeted at this parent. If the last
+ * run's col matches, the input cell rides along inside it; otherwise it gets
+ * its own group so a not-yet-existent column can be opened up.
+ */
+function groupsForParent(
+  children: EntryNode[],
+  pendingInput: PendingInput | null,
+  parentId: number | null,
+): { col: number; kids: EntryNode[]; hasPendingInput: boolean }[] {
+  const runs = runsByCol(children).map((r) => ({ ...r, hasPendingInput: false }));
+  if (pendingInput?.kind === "add" && pendingInput.parentId === parentId) {
+    const last = runs[runs.length - 1];
+    if (last && last.col === pendingInput.col) last.hasPendingInput = true;
+    else runs.push({ col: pendingInput.col, kids: [], hasPendingInput: true });
+  }
+  return runs;
+}
+
 function colVar(idx: number): CSSProperties {
   return { "--org-col-idx": idx } as CSSProperties;
 }
@@ -178,9 +211,11 @@ function EntryCell({
   isDragging,
   emphasizeAddChild,
   hasChildren,
-  onSaveName,
   onAddChild,
-  onRearrange,
+  onRename,
+  onReorder,
+  onSubmitRename,
+  onCancelRename,
 }: {
   entry: EntryNode;
   logbookSegment: string;
@@ -188,29 +223,16 @@ function EntryCell({
   isDragging: boolean;
   emphasizeAddChild: boolean;
   hasChildren: boolean;
-  onSaveName: (name: string) => void;
   onAddChild: () => void;
-  onRearrange: () => void;
+  onRename: () => void;
+  onReorder: () => void;
+  onSubmitRename: (name: string) => void;
+  onCancelRename: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const linkRef = useRef<HTMLAnchorElement>(null);
-  const wasEditingRef = useRef(isEditing);
   // After a drag, the synthesized click on pointerup would otherwise navigate
   // through the inner <Link>. Track when this cell was the drag source so we
   // can swallow that one click.
   const justDraggedRef = useRef(false);
-
-  // Focus the input when entering edit mode; focus the link when leaving it
-  // (so a second Enter follows the link).
-  useEffect(() => {
-    if (isEditing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    } else if (wasEditingRef.current) {
-      linkRef.current?.focus();
-    }
-    wasEditingRef.current = isEditing;
-  }, [isEditing]);
 
   const draggable = useDraggable({
     id: `entry:${entry.id}`,
@@ -222,13 +244,13 @@ function EntryCell({
   }, [draggable.isDragging]);
   const topDrop = useDroppable({
     id: `before:${entry.id}`,
-    data: { kind: "before", refId: entry.id } satisfies DropData,
     disabled: isEditing,
+    data: { kind: "before", refId: entry.id } satisfies DropData,
   });
   const bottomDrop = useDroppable({
     id: `after:${entry.id}`,
-    data: { kind: "after", refId: entry.id } satisfies DropData,
     disabled: isEditing,
+    data: { kind: "after", refId: entry.id } satisfies DropData,
   });
   const childDrop = useDroppable({
     id: `child:${entry.id}`,
@@ -239,24 +261,11 @@ function EntryCell({
 
   if (isEditing) {
     return (
-      <div className={cn(styles.row, styles.isEditing)}>
-        <input
-          ref={inputRef}
-          className={styles.rowInput}
-          defaultValue={entry.name}
-          placeholder="Unnamed entry"
-          onBlur={(e) => onSaveName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onSaveName(e.currentTarget.value);
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              onSaveName(entry.name);
-            }
-          }}
-        />
-      </div>
+      <PendingInputCell
+        initialValue={entry.name}
+        onSubmit={onSubmitRename}
+        onCancel={onCancelRename}
+      />
     );
   }
 
@@ -281,7 +290,6 @@ function EntryCell({
       {...draggable.listeners}
     >
       <Link
-        ref={linkRef}
         to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
         className={cn(styles.rowLink, !entry.name && styles.isUntitled)}
         draggable={false}
@@ -290,6 +298,24 @@ function EntryCell({
       </Link>
 
       <div className={styles.rowActions} onPointerDown={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={styles.rowAction}
+          aria-label="Rename"
+          title="Rename"
+          onClick={onRename}
+        >
+          <i className="ri-pencil-line" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={styles.rowAction}
+          aria-label="Reorder siblings"
+          title="Reorder siblings"
+          onClick={onReorder}
+        >
+          <i className="ri-arrow-up-down-line" aria-hidden="true" />
+        </button>
         <button
           type="button"
           ref={childDrop.setNodeRef}
@@ -303,15 +329,6 @@ function EntryCell({
           onClick={onAddChild}
         >
           <i className="ri-corner-down-right-line" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className={styles.rowAction}
-          aria-label="Rearrange siblings"
-          title="Rearrange siblings"
-          onClick={onRearrange}
-        >
-          <i className="ri-arrow-up-down-line" aria-hidden="true" />
         </button>
       </div>
 
@@ -330,72 +347,148 @@ function EntryCell({
   );
 }
 
+/**
+ * The shared input cell. Used both for adding a new entry (initialValue="")
+ * and for renaming an existing one. Submission is single-fire: whichever of
+ * blur or Enter happens first commits the value; Escape commits the cancel
+ * path. The caller decides whether an empty submission should create/rename
+ * or be treated as a no-op (per spec, both flows treat an all-whitespace
+ * value as "no change").
+ */
+function PendingInputCell({
+  initialValue,
+  onSubmit,
+  onCancel,
+}: {
+  initialValue: string;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Submit and blur both end the cell; the second handler to fire would
+  // double-submit without this guard.
+  const settledRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
+  return (
+    <div className={cn(styles.row, styles.isEditing)}>
+      <input
+        ref={inputRef}
+        className={styles.rowInput}
+        defaultValue={initialValue}
+        onBlur={(e) => {
+          if (settledRef.current) return;
+          settledRef.current = true;
+          onSubmit(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (settledRef.current) return;
+            settledRef.current = true;
+            onSubmit(e.currentTarget.value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            if (settledRef.current) return;
+            settledRef.current = true;
+            onCancel();
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 // ── Group ──────────────────────────────────────────────────────────────
 
+type GroupSpec = { col: number; kids: EntryNode[]; hasPendingInput: boolean };
+
 function NestedGroup({
-  siblings,
+  spec,
   parentId,
   logbookSegment,
-  editingId,
+  pendingInput,
   draggedId,
   draggedParentId,
   onAdd,
-  onSaveName,
-  onRearrange,
+  onRename,
+  onReorder,
+  onSubmitPending,
+  onCancelPending,
 }: {
-  siblings: EntryNode[];
+  spec: GroupSpec;
   parentId: number | null;
   logbookSegment: string;
-  editingId: number | null;
+  pendingInput: PendingInput | null;
   draggedId: number | null;
   draggedParentId: number | null;
   onAdd: (input: AddInput) => void;
-  onSaveName: (id: number, name: string) => void;
-  onRearrange: (id: number) => void;
+  onRename: (id: number) => void;
+  onReorder: (id: number) => void;
+  onSubmitPending: (name: string) => void;
+  onCancelPending: () => void;
 }) {
-  const first = siblings[0];
-  if (!first) return null;
-  const col = first.col;
+  const { col, kids, hasPendingInput } = spec;
+  if (kids.length === 0 && !hasPendingInput) return null;
   const isDragging = draggedId !== null;
 
   return (
     <div className={cn(styles.box, boxColClass(col))}>
       <div className="flex flex-col">
-        {siblings.map((sib) => (
-          <Fragment key={sib.id}>
-            <EntryCell
-              entry={sib}
-              logbookSegment={logbookSegment}
-              isEditing={editingId === sib.id}
-              isDragging={isDragging}
-              emphasizeAddChild={isDragging && sib.id !== draggedId && sib.id !== draggedParentId}
-              hasChildren={sib.children.length > 0}
-              onSaveName={(name) => onSaveName(sib.id, name)}
-              onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
-              onRearrange={() => onRearrange(sib.id)}
-            />
-            {sib.children.length > 0 &&
-              runsByCol(sib.children).map((run, j) => (
+        {kids.map((sib) => {
+          const childSpecs = groupsForParent(sib.children, pendingInput, sib.id);
+          const isEditing = pendingInput?.kind === "rename" && pendingInput.entryId === sib.id;
+          return (
+            <Fragment key={sib.id}>
+              <EntryCell
+                entry={sib}
+                logbookSegment={logbookSegment}
+                isEditing={isEditing}
+                isDragging={isDragging}
+                emphasizeAddChild={isDragging && sib.id !== draggedId && sib.id !== draggedParentId}
+                hasChildren={childSpecs.length > 0}
+                onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
+                onRename={() => onRename(sib.id)}
+                onReorder={() => onReorder(sib.id)}
+                onSubmitRename={onSubmitPending}
+                onCancelRename={onCancelPending}
+              />
+              {childSpecs.map((s, j) => (
                 <NestedGroup
                   key={`${sib.id}-${j}`}
-                  siblings={run.kids}
+                  spec={s}
                   parentId={sib.id}
                   logbookSegment={logbookSegment}
-                  editingId={editingId}
+                  pendingInput={pendingInput}
                   draggedId={draggedId}
                   draggedParentId={draggedParentId}
                   onAdd={onAdd}
-                  onSaveName={onSaveName}
-                  onRearrange={onRearrange}
+                  onRename={onRename}
+                  onReorder={onReorder}
+                  onSubmitPending={onSubmitPending}
+                  onCancelPending={onCancelPending}
                 />
               ))}
-          </Fragment>
-        ))}
+            </Fragment>
+          );
+        })}
+        {hasPendingInput && (
+          <PendingInputCell initialValue="" onSubmit={onSubmitPending} onCancel={onCancelPending} />
+        )}
       </div>
-      <button type="button" className={styles.add} onClick={() => onAdd({ col, parentId })}>
-        <i className="ri-add-line" aria-hidden="true" />
-        <span>Add</span>
-      </button>
+      {!hasPendingInput && (
+        <button type="button" className={styles.add} onClick={() => onAdd({ col, parentId })}>
+          <i className="ri-add-line" aria-hidden="true" />
+          <span>Add</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -441,26 +534,30 @@ export function OrgView({
   forest,
   logbookId,
   logbookSlug,
-  editingId,
-  scrollTargetId,
+  pendingInput,
+  focusEntryId,
   onAdd,
   onRename,
+  onSubmitPending,
+  onCancelPending,
   onMove,
   onReorderSiblings,
-  onScrolled,
+  onFocused,
 }: {
   forest: EntryNode[];
   logbookId: string;
   logbookSlug: string;
-  /** When set, that entry renders an inline name input instead of a link. */
-  editingId: number | null;
-  /** When set, that entry is scrolled into view once after it appears. */
-  scrollTargetId: number | null;
+  /** The single live input cell — adding a new entry or renaming one. */
+  pendingInput: PendingInput | null;
+  /** When set, that entry is scrolled into view and its link focused. */
+  focusEntryId: number | null;
   onAdd: (input: AddInput) => void;
-  onRename: (id: number, name: string) => void;
+  onRename: (id: number) => void;
+  onSubmitPending: (name: string) => void;
+  onCancelPending: () => void;
   onMove: (input: MoveEntryInput) => void;
   onReorderSiblings: (parentId: number | null, ids: number[]) => void;
-  onScrolled: () => void;
+  onFocused: () => void;
 }) {
   const logbookSegment = routeSegment(logbookSlug, logbookId);
   const isEmpty = forest.length === 0;
@@ -475,7 +572,10 @@ export function OrgView({
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
 
-  const topRuns = useMemo(() => runsByCol(forest), [forest]);
+  const topSpecs = useMemo(
+    () => groupsForParent(forest, pendingInput, null),
+    [forest, pendingInput],
+  );
 
   // Drag state.
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
@@ -529,18 +629,20 @@ export function OrgView({
   );
   const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
 
-  // Scroll the scroll-target entry into view once it exists. Use a ref so
-  // we don't repeat the scroll on later renders.
-  const scrolledRef = useRef<number | null>(null);
+  // Focus the freshly-created entry's link (and scroll it into view) once it
+  // shows up in the forest. The focus is what lets a second Enter follow the
+  // link to the new entry's page; without it the keyboard flow stalls after
+  // the input cell submits.
   useLayoutEffect(() => {
-    if (scrollTargetId === null || scrolledRef.current === scrollTargetId) return;
-    const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${scrollTargetId}"]`);
-    if (node) {
-      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      scrolledRef.current = scrollTargetId;
-      onScrolled();
-    }
-  }, [scrollTargetId, onScrolled, forest]);
+    if (focusEntryId === null) return;
+    const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${focusEntryId}"]`);
+    if (!node) return;
+    const link = node.querySelector<HTMLAnchorElement>("a");
+    if (!link) return;
+    link.focus();
+    node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    onFocused();
+  }, [focusEntryId, onFocused, forest]);
 
   // Rearrange-modal state.
   const [rearrangeFor, setRearrangeFor] = useState<number | null>(null);
@@ -584,7 +686,7 @@ export function OrgView({
             </div>
           </div>
 
-          {isEmpty ? (
+          {isEmpty && !pendingInput ? (
             <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
               <div className={styles.illustration} />
               <h3 className="text-lg font-semibold text-primary m-0">
@@ -598,18 +700,20 @@ export function OrgView({
           ) : (
             <div className={styles.canvasWrap}>
               <div className="relative z-[2]">
-                {topRuns.map((run, i) => (
-                  <div key={i} className={styles.tree} style={colVar(maxCol - run.col)}>
+                {topSpecs.map((spec, i) => (
+                  <div key={i} className={styles.tree} style={colVar(maxCol - spec.col)}>
                     <NestedGroup
-                      siblings={run.kids}
+                      spec={spec}
                       parentId={null}
                       logbookSegment={logbookSegment}
-                      editingId={editingId}
+                      pendingInput={pendingInput}
                       draggedId={activeDragId}
                       draggedParentId={draggedParentId}
                       onAdd={onAdd}
-                      onSaveName={onRename}
-                      onRearrange={(id) => setRearrangeFor(id)}
+                      onRename={onRename}
+                      onReorder={(id) => setRearrangeFor(id)}
+                      onSubmitPending={onSubmitPending}
+                      onCancelPending={onCancelPending}
                     />
                   </div>
                 ))}

@@ -104,10 +104,10 @@ export function RearrangeModal({
         className="w-full max-w-md max-h-[80vh] flex flex-col bg-stark border border-stark-border rounded-lg shadow-2xl p-5"
         role="dialog"
         aria-modal="true"
-        aria-label="Rearrange siblings"
+        aria-label="Reorder siblings"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="m-0 mb-1 text-lg font-semibold text-primary">Rearrange</h3>
+        <h3 className="m-0 mb-1 text-lg font-semibold text-primary">Reorder</h3>
         <p className="m-0 mb-4 text-sm text-muted">
           Drag to reorder. The first entry shows at the top.
         </p>

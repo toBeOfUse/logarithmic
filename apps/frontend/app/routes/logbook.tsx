@@ -14,6 +14,7 @@ import {
   useRenameLogbook,
   useReorderSiblings,
 } from "~/data/hooks.ts";
+import type { EntryNode } from "logarithmic-backend/api-types";
 import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 
@@ -29,8 +30,11 @@ export default function LogbookRoute() {
   const moveEntry = useMoveEntry({ demo });
   const reorderSiblings = useReorderSiblings({ demo });
 
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [scrollTargetId, setScrollTargetId] = useState<number | null>(null);
+  type PendingInput =
+    | { kind: "add"; col: number; parentId: number | null }
+    | { kind: "rename"; entryId: number };
+  const [pendingInput, setPendingInput] = useState<PendingInput | null>(null);
+  const [focusEntryId, setFocusEntryId] = useState<number | null>(null);
   const [renamingLogbook, setRenamingLogbook] = useState(false);
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -136,29 +140,37 @@ export default function LogbookRoute() {
         forest={entries}
         logbookId={logbook.id}
         logbookSlug={logbook.slug}
-        editingId={editingId}
-        scrollTargetId={scrollTargetId}
-        onAdd={({ col, parentId }) => {
-          createEntry.mutate(
-            { logbookId: logbook.id, name: "", col, parentId },
-            {
-              onSuccess: (entry) => {
-                if (entry) {
-                  setEditingId(entry.id);
-                  setScrollTargetId(entry.id);
-                }
-              },
-            },
-          );
-        }}
-        onRename={(id, name) => {
+        pendingInput={pendingInput}
+        focusEntryId={focusEntryId}
+        onAdd={(input) => setPendingInput({ kind: "add", ...input })}
+        onRename={(id) => setPendingInput({ kind: "rename", entryId: id })}
+        onSubmitPending={(name) => {
+          const input = pendingInput;
+          setPendingInput(null);
+          if (!input) return;
           const trimmed = name.trim();
-          // Find the current entry inside the tree to compare names.
-          const current = findInForest(entries, id);
-          if (current && trimmed !== current.name) {
-            renameEntry.mutate({ id, name: trimmed, logbookId: logbook.id });
+          if (input.kind === "add") {
+            if (!trimmed) return;
+            createEntry.mutate(
+              { logbookId: logbook.id, name: trimmed, col: input.col, parentId: input.parentId },
+              {
+                onSuccess: (entry) => {
+                  if (entry) setFocusEntryId(entry.id);
+                },
+              },
+            );
+            return;
           }
-          setEditingId((prev) => (prev === id ? null : prev));
+          // Rename: empty input (or same name) cancels; otherwise commit.
+          const current = findInForest(entries, input.entryId);
+          if (trimmed && current && trimmed !== current.name) {
+            renameEntry.mutate({ id: input.entryId, name: trimmed, logbookId: logbook.id });
+          }
+          setFocusEntryId(input.entryId);
+        }}
+        onCancelPending={() => {
+          if (pendingInput?.kind === "rename") setFocusEntryId(pendingInput.entryId);
+          setPendingInput(null);
         }}
         onMove={(input) => {
           moveEntry.mutate(input);
@@ -166,16 +178,13 @@ export default function LogbookRoute() {
         onReorderSiblings={(parentId, ids) => {
           reorderSiblings.mutate({ logbookId: logbook.id, parentId, ids });
         }}
-        onScrolled={() => setScrollTargetId(null)}
+        onFocused={() => setFocusEntryId(null)}
       />
     </div>
   );
 }
 
-function findInForest(
-  forest: import("logarithmic-backend/api-types").EntryNode[],
-  id: number,
-): import("logarithmic-backend/api-types").EntryNode | null {
+function findInForest(forest: EntryNode[], id: number): EntryNode | null {
   for (const node of forest) {
     if (node.id === id) return node;
     const inChild = findInForest(node.children, id);

@@ -83,7 +83,8 @@ export default function EntryRoute() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [savingFloor, setSavingFloor] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [editingChildId, setEditingChildId] = useState<number | null>(null);
+  const [pendingChild, setPendingChild] = useState(false);
+  const [focusChildId, setFocusChildId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Real-saving = any mutation that affects this entry is in flight.
@@ -149,6 +150,17 @@ export default function EntryRoute() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  // Focus a freshly-created subsection's link once it appears so a second
+  // Enter follows it through to that child's page.
+  useEffect(() => {
+    if (focusChildId === null) return;
+    const link = document.querySelector<HTMLAnchorElement>(`[data-child-anchor="${focusChildId}"]`);
+    if (!link) return;
+    link.focus();
+    link.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setFocusChildId(null);
+  }, [focusChildId, entry?.children]);
+
   if (isLoading || !entry || !overview) {
     return (
       <div className={appShell}>
@@ -193,12 +205,17 @@ export default function EntryRoute() {
     );
   };
 
-  const addChild = () => {
+  const addChild = () => setPendingChild(true);
+
+  const onSubmitPendingChild = (name: string) => {
+    setPendingChild(false);
+    const trimmed = name.trim();
+    if (!trimmed) return;
     createEntry.mutate(
-      { logbookId, name: "", col: entry.col - 1, parentId: entry.id },
+      { logbookId, name: trimmed, col: entry.col - 1, parentId: entry.id },
       {
         onSuccess: (created) => {
-          if (created) setEditingChildId(created.id);
+          if (created) setFocusChildId(created.id);
         },
       },
     );
@@ -224,15 +241,6 @@ export default function EntryRoute() {
         },
       },
     );
-  };
-
-  const onSaveChildName = (id: number, name: string) => {
-    const trimmed = name.trim();
-    const child = entry.children.find((c) => c.id === id);
-    if (child && trimmed !== child.name) {
-      renameEntry.mutate({ id, name: trimmed, logbookId });
-    }
-    setEditingChildId((prev) => (prev === id ? null : prev));
   };
 
   if (maximized) {
@@ -315,7 +323,8 @@ export default function EntryRoute() {
           {(() => {
             const hasChildren = entry.children.length > 0;
             const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
-            if (!hasChildren && !hasAttrs) {
+            const showHeadings = hasChildren || hasAttrs || pendingChild;
+            if (!showHeadings) {
               return (
                 <div className="flex flex-wrap gap-2 items-center my-5">
                   <WithTrailingSep>
@@ -332,22 +341,31 @@ export default function EntryRoute() {
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
                 </section>
                 <section>
-                  {hasChildren && <SectionHeading>Subsections</SectionHeading>}
+                  {(hasChildren || pendingChild) && <SectionHeading>Subsections</SectionHeading>}
                   <div className="flex flex-wrap gap-2 items-center">
                     {entry.children.map((c) => (
                       <WithTrailingSep key={c.id}>
                         <ChildItem
                           href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
+                          id={c.id}
                           name={c.name}
-                          isEditing={editingChildId === c.id}
-                          onSave={(name) => onSaveChildName(c.id, name)}
                         />
                       </WithTrailingSep>
                     ))}
-                    <AddChildPill
-                      onClick={addChild}
-                      label={hasChildren ? "Add..." : "Add subsection..."}
-                    />
+                    {pendingChild && (
+                      <WithTrailingSep>
+                        <PendingChildInput
+                          onSubmit={onSubmitPendingChild}
+                          onCancel={() => setPendingChild(false)}
+                        />
+                      </WithTrailingSep>
+                    )}
+                    {!pendingChild && (
+                      <AddChildPill
+                        onClick={addChild}
+                        label={hasChildren ? "Add..." : "Add subsection..."}
+                      />
+                    )}
                   </div>
                 </section>
               </div>
@@ -398,62 +416,69 @@ function WithTrailingSep({ children }: { children: ReactNode }) {
   );
 }
 
-function ChildItem({
-  href,
-  name,
-  isEditing,
-  onSave,
-}: {
-  href: string;
-  name: string;
-  isEditing: boolean;
-  onSave: (name: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const linkRef = useRef<HTMLAnchorElement>(null);
-  const wasEditingRef = useRef(isEditing);
-
-  // Focus the input when entering edit mode; focus the link when leaving it
-  // (so a second Enter follows the link).
-  useEffect(() => {
-    if (isEditing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    } else if (wasEditingRef.current) {
-      linkRef.current?.focus();
-    }
-    wasEditingRef.current = isEditing;
-  }, [isEditing]);
-
-  if (isEditing) {
-    return (
-      <input
-        ref={inputRef}
-        defaultValue={name}
-        placeholder="Untitled entry"
-        className={cn(
-          childLink,
-          "[font:inherit] bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",
-        )}
-        onBlur={(e) => onSave(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onSave(e.currentTarget.value);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onSave(name);
-          }
-        }}
-      />
-    );
-  }
-
+function ChildItem({ href, id, name }: { href: string; id: number; name: string }) {
   const isUntitled = !name;
   return (
-    <Link ref={linkRef} to={href} className={cn(childLink, isUntitled && "text-muted italic")}>
+    <Link
+      to={href}
+      data-child-anchor={id}
+      className={cn(childLink, isUntitled && "text-muted italic")}
+    >
       {name || "Untitled entry"}
     </Link>
+  );
+}
+
+/**
+ * Inline input for naming a new subsection. Blur and Enter submit the value;
+ * a non-whitespace name commits to a real entry, anything else discards the
+ * input cell without creating one. Escape always discards.
+ */
+function PendingChildInput({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const settledRef = useRef(false);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      defaultValue=""
+      placeholder="New subsection"
+      className={cn(
+        childLink,
+        "[font:inherit] bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",
+      )}
+      onBlur={(e) => {
+        if (settledRef.current) return;
+        settledRef.current = true;
+        onSubmit(e.target.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (settledRef.current) return;
+          settledRef.current = true;
+          onSubmit(e.currentTarget.value);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          if (settledRef.current) return;
+          settledRef.current = true;
+          onCancel();
+        }
+      }}
+    />
   );
 }
 
