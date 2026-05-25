@@ -7,6 +7,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 
@@ -15,8 +16,6 @@ import { cn } from "~/lib/cn";
 import { htmlToMarkdown, markdownToHtml } from "~/lib/markdown.ts";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
-
-type BubblePos = { left: number; top: number } | null;
 
 export type MarkdownEditorHandle = { save: () => void };
 
@@ -42,8 +41,6 @@ export function MarkdownEditor({
   className?: string;
   ref?: Ref<MarkdownEditorHandle>;
 }) {
-  const [bubble, setBubble] = useState<BubblePos>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef<string>(initialMarkdown);
 
@@ -61,26 +58,21 @@ export function MarkdownEditor({
   };
 
   const editor = useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder }), CommentMark],
+    extensions: [
+      StarterKit.configure({
+        link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
+        heading: { levels: [2, 3] },
+        underline: false,
+        horizontalRule: false,
+        hardBreak: false,
+      }),
+      Placeholder.configure({ placeholder }),
+      CommentMark,
+    ],
     content: markdownToHtml(initialMarkdown),
     autofocus: false,
     editorProps: {
-      attributes: { class: "prose max-w-none ProseMirror" },
-    },
-    onSelectionUpdate: ({ editor }) => {
-      const { from, to, empty } = editor.state.selection;
-      if (empty || from === to) {
-        setBubble(null);
-        return;
-      }
-      const wrap = wrapperRef.current;
-      if (!wrap) return;
-      const start = editor.view.coordsAtPos(from);
-      const end = editor.view.coordsAtPos(to);
-      const wrapRect = wrap.getBoundingClientRect();
-      const left = (start.left + end.left) / 2 - wrapRect.left;
-      const top = start.top - wrapRect.top - 44;
-      setBubble({ left, top });
+      attributes: { class: "prose max-w-none editor" },
     },
     onBlur: ({ editor }) => flush(editor),
     onUpdate: ({ editor }) => {
@@ -106,18 +98,10 @@ export function MarkdownEditor({
     };
   }, []);
 
-  useEffect(() => {
-    function close() {
-      setBubble(null);
-    }
-    document.addEventListener("scroll", close, true);
-    return () => document.removeEventListener("scroll", close, true);
-  }, []);
-
   return (
-    <div ref={wrapperRef} className={cn("relative", className)}>
+    <div className={cn("relative", className)}>
       <EditorContent editor={editor} />
-      {editor && bubble && <BubbleMenu editor={editor} pos={bubble} />}
+      {editor && <SelectionBubble editor={editor} />}
     </div>
   );
 }
@@ -125,14 +109,72 @@ export function MarkdownEditor({
 const bubbleBtnBase =
   "font-[inherit] bg-transparent border-0 text-paper-edge size-7 rounded-sm cursor-pointer inline-flex items-center justify-center font-semibold text-base hover:bg-primary-hover hover:text-stark";
 
-function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top: number } }) {
+function SelectionBubble({ editor }: { editor: Editor }) {
+  const [linkEditing, setLinkEditing] = useState(false);
+  const [linkValue, setLinkValue] = useState("");
+  // shouldShow is registered once with the ProseMirror plugin, so it closes
+  // over the *initial* state value. A ref lets the callback see live updates
+  // without re-mounting the menu plugin.
+  const linkEditingRef = useRef(false);
+
+  const setEditing = (next: boolean) => {
+    linkEditingRef.current = next;
+    setLinkEditing(next);
+  };
+
+  const openLinkEditor = () => {
+    const href = (editor.getAttributes("link").href as string | undefined) ?? "";
+    setLinkValue(href);
+    setEditing(true);
+  };
+
+  const applyLink = (raw: string) => {
+    const href = normalizeHref(raw);
+    const chain = editor.chain().focus().extendMarkRange("link");
+    if (!href) {
+      chain.unsetLink().run();
+    } else {
+      chain.setLink({ href }).run();
+    }
+    setEditing(false);
+  };
+
+  const removeLink = () => {
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    setEditing(false);
+  };
+
+  return (
+    <BubbleMenu
+      editor={editor}
+      options={{ placement: "top", offset: 8 }}
+      shouldShow={({ editor, from, to }) => {
+        if (linkEditingRef.current) return true;
+        if (from !== to) return true;
+        return editor.isActive("link");
+      }}
+    >
+      <div className="inline-flex items-center bg-primary text-stark rounded-md p-1 gap-px text-sm shadow-lg">
+        {linkEditing ? (
+          <LinkForm
+            initialValue={linkValue}
+            showRemove={editor.isActive("link")}
+            onApply={applyLink}
+            onRemove={removeLink}
+            onCancel={() => setEditing(false)}
+          />
+        ) : (
+          <Toolbar editor={editor} onOpenLink={openLinkEditor} />
+        )}
+      </div>
+    </BubbleMenu>
+  );
+}
+
+function Toolbar({ editor, onOpenLink }: { editor: Editor; onOpenLink: () => void }) {
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
   return (
-    <div
-      className="inline-flex items-center bg-primary text-stark rounded-md p-1 gap-px text-sm shadow-lg"
-      style={{ position: "absolute", left: pos.left, top: pos.top, transform: "translateX(-50%)" }}
-      onMouseDown={(e) => e.preventDefault()}
-    >
+    <div className="inline-flex items-center gap-px" onMouseDown={(e) => e.preventDefault()}>
       <button
         type="button"
         title="Heading 2"
@@ -180,6 +222,14 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         <i className="ri-strikethrough" />
       </button>
+      <button
+        type="button"
+        title="Link"
+        className={cn(bubbleBtnBase, isActive("link") && "bg-primary-hover text-stark")}
+        onClick={onOpenLink}
+      >
+        <i className="ri-link" />
+      </button>
       <span className="w-px h-4 bg-primary-hover mx-1 flex-shrink-0" />
       <button
         type="button"
@@ -213,6 +263,14 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       >
         <i className="ri-code-line" />
       </button>
+      <button
+        type="button"
+        title="Code block"
+        className={cn(bubbleBtnBase, isActive("codeBlock") && "bg-primary-hover text-stark")}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+      >
+        <i className="ri-code-box-line" />
+      </button>
       <span className="w-px h-4 bg-primary-hover mx-1 flex-shrink-0" />
       <button
         type="button"
@@ -224,4 +282,87 @@ function BubbleMenu({ editor, pos }: { editor: Editor; pos: { left: number; top:
       </button>
     </div>
   );
+}
+
+function LinkForm({
+  initialValue,
+  showRemove,
+  onApply,
+  onRemove,
+  onCancel,
+}: {
+  initialValue: string;
+  showRemove: boolean;
+  onApply: (href: string) => void;
+  onRemove: () => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <form
+      className="inline-flex items-center gap-1"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onApply(value);
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        placeholder="https://example.com"
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        className="bg-primary-hover text-stark placeholder:text-paper-edge px-2 h-7 rounded-sm outline-none w-64 text-sm border-0"
+      />
+      <button
+        type="submit"
+        title="Apply link"
+        className={bubbleBtnBase}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <i className="ri-check-line" />
+      </button>
+      {showRemove && (
+        <button
+          type="button"
+          title="Remove link"
+          className={bubbleBtnBase}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onRemove}
+        >
+          <i className="ri-link-unlink" />
+        </button>
+      )}
+      <button
+        type="button"
+        title="Cancel"
+        className={bubbleBtnBase}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onCancel}
+      >
+        <i className="ri-close-line" />
+      </button>
+    </form>
+  );
+}
+
+function normalizeHref(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("/") || trimmed.startsWith("#")) return trimmed;
+  return `https://${trimmed}`;
 }

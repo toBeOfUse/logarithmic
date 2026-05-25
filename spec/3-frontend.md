@@ -26,6 +26,8 @@ The organizational view shows a spreadsheet/chart of all of the entries. You can
 
 Each sequence of one or more siblings becomes a group that is placed in a container. If an entry has children, those are placed in their own, separate group that is below its parent and offset to the right. At the end of each group, an "Add" button is displayed.
 
+Hovering over an entry reveals three secondary buttons, positioned on the right side of the entry's cell: "Rename", "Reorder", and "Add Child" (in that order.) Their functionality is described down below.
+
 #### Column-Level Emphasis
 
 The column an entry is in indicates the role it plays in the organizational schema; specific roles for specific columns aren't enforced at a data model level, but their typographic style hints at potential uses.
@@ -38,15 +40,21 @@ Make sure that these values are stored as CSS variables so that they can be expe
 
 #### Adding Entries
 
-Creating a new entry adds a new "cell" to the chart. In the cell, a simple text input is rendered, which the user can type the new entry's name into. The new name is saved when the input loses focus or when the user presses enter. If they press enter twice, they end up on the entry's page. (In this scenario, they have pressed enter once to save the name, which leaves the link to new entry present and focused, and once to navigate to that link.) Whenever an entry is created, it's scrolled into view if necessary.
+Creating a new entry adds a new "input cell" to the chart. In the cell, a simple text input is rendered, which the user can type the new entry's name into. (Whenever an input cell is created, it's scrolled into view if necessary.) The new entry is not saved until the input loses focus or the user presses enter; also, a non-whitespace name is required to be present in the input. If there is no non-whitespace content in the input at this point, it goes away and no entry is created.
 
-(If the user clicks away from the cell without typing a name, or if an entry lacks a name for any reason, secondary text saying "Unnamed entry" is displayed where the name would normally go.)
+For convenience, if the user presses enter twice after typing the new entry's name, they end up on its page. (In this scenario, they have pressed enter once to save the name, which leaves the link to the new entry present and focused, and once to navigate to that link.)
 
 At the top, where the column numbers are listed, each has a button below it that creates a new entry in that column. That new entry is created as a new root node, positioned after any existing root nodes in the ordering.
 
 As mentioned above, at the end of each group, an "Add" button is present. This button adds a new last entry to the group of siblings.
 
-Hovering over an entry reveals two secondary buttons, positioned on the right side of the entry's cell. One of them is the "add child" button. Its icon is a mirrored version of the return symbol (⏎); it is an arrow that points down and then right. Clicking it adds a child for the entry (inline, in the same manner described above.) (If that entry already has children, the new one will be the new last child.)
+One of the buttons on each entry is the "add child" button. Its icon is a mirrored version of the return symbol (⏎); it is an arrow that points down and then right. Clicking it adds a child for the entry (inline, in the same manner described above.) (If that entry already has children, the new one will be the new last child.)
+
+#### Editing Entries
+
+Entries can be renamed from the organizational interface using the "Rename" button, which has a pencil as its icon. Clicking it makes an input cell show up. The entry's name can be edited using the same pattern as when the entry is being created; however, if the input cell is empty when the user hits enter or clicks away from it, the edit is simply cancelled and the entry's name is left unchanged.
+
+With regard to adding and editing entries: note that input cells only exist while they're focused, and there should never be a need to render two at once.
 
 #### Moving Entries
 
@@ -54,7 +62,7 @@ At any point, an entry can be dragged and dropped in order to change its positio
 
 While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. (Except: the "add child" button for the entry being dragged and the "add child" button for its current parent, if any, should _not_ be emphasized, because it doesn't really make sense to drag it onto either of them.) Similarly, an entry can be dropped onto the "add" button below a column number in the sticky column number display at the top to turn it into a new root present that column. (Dragging an entry that is already a root onto one of these buttons also allows it to be shifted from column to column.)
 
-Also, the second secondary button that shows up when an entry is hovered over is the "rearrange" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
+Also, one of the secondary buttons that shows up when an entry is hovered over is the "Reorder" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
 
 A well-established drag-and-drop library should be used instead of a purely custom implementation.
 
@@ -80,7 +88,7 @@ These two sections will collapse down if they don't have content to show. Like t
 
 We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text. For now, let's try the TipTap editor (https://tiptap.dev/llms.txt). The formatting buttons should show up in a tooltip when you highlight some text.
 
-Formatting options should include H2, H3, bold, italic, strike-through, bulleted list, numbered list, blockquote, and code. (Note that H1 is not a possible option, since the entry title is the highest-level heading.)
+Formatting options should include H2, H3, bold, italics, links, strike-through, bulleted list, numbered list, blockquote, and code. (Note that H1 is not a possible option, since the entry title is the highest-level heading.)
 
 In addition to the standard set of Markdown formatting options, it needs to support inline comments. Text in the editor can be highlighted and set to be a comment just like it can be highlighted and set to be italic. Comments should be stored in the Markdown with the standard `<!-- -->` syntax.
 
