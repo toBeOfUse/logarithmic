@@ -14,6 +14,7 @@
   --org-col-3plus-name-size: 1.4rem;
   --org-col-0-name-weight: 450;
   --org-col-1-name-weight: 700;
+  --org-col-1-pad-y-extra: 5px;
   --org-col-2-pad-y-extra: 5px;
   --org-col-3plus-pad-y-extra: 10px;
 
@@ -22,8 +23,8 @@
   --org-strip-btn-size: 20px;
 
   /* Canvas layout */
-  --org-group-w: 340px;
-  --org-col-stride: 60px;
+  --org-group-w: 360px;
+  --org-col-stride: 70px;
   --org-canvas-pad-x: 12px;
 
   /* Grid lines */
@@ -155,9 +156,14 @@
   box-shadow: -6px 5px 0px oklch(from var(--org-row-edge) l c h / 0.1);
 }
 
+.box.isCol1 {
+  --row-name-weight: var(--org-col-1-name-weight);
+  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-1-pad-y-extra));
+}
+
 .box.isCol2 {
   --row-name-size: var(--org-col-2-name-size);
-  --row-name-weight: var(--org-col-1-name-weight);
+  --row-name-weight: var(--org-col-2-name-weight);
   --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-2-pad-y-extra));
 }
 
