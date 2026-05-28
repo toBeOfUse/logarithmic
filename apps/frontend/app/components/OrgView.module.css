@@ -110,22 +110,51 @@
   color: var(--color-primary);
 }
 
-.colAdd.isDragContext {
-  color: var(--color-accent-text);
-  background: var(--color-accent-soft);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 var(--org-edge-w) var(--color-accent);
-}
-
-.colAdd.isOver {
-  color: var(--color-paper);
-  background: var(--color-accent);
-}
-
 .tree {
   position: relative;
   margin-left: calc(var(--org-col-idx, 0) * var(--org-col-stride) - var(--org-col-stride) / 2);
-  margin-bottom: var(--org-line-h);
+  margin-bottom: calc(var(--org-line-h) / 2);
+}
+
+/* Extend a root tree's box below its nested child groups so the container
+   has visible breathing room past the last child. (Nested groups still get
+   their bottom edge from the "Add" button row inside them.) */
+.tree > .box {
+  padding-bottom: calc(var(--org-line-h) / 2);
+}
+
+/* Root-entry "after" drop zone — rendered as a direct child of .tree (not
+   inside the box) so it sits in the margin between this tree and the next.
+   The hit-area spans the full inter-tree margin, and the last tree's zone
+   extends well past it so dropping anywhere in the empty canvas below
+   still targets "after the last root". The visible accent line is drawn
+   by a pseudo-element pinned to the middle of the would-be margin, so it
+   stays put regardless of how tall the hit-area is. */
+.tree > .afterDrop {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  bottom: auto;
+  height: calc(var(--org-line-h) / 2);
+  margin: 0;
+}
+
+.tree:last-child > .afterDrop {
+  height: 100px;
+}
+
+.tree > .afterDrop.isOver {
+  box-shadow: none;
+}
+
+.tree > .afterDrop.isOver::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--org-line-h) / 4 - 1px);
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-accent);
 }
 
 .box {
@@ -167,6 +196,12 @@
   --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-2-pad-y-extra));
 }
 
+.box.isCol3plus {
+  --row-name-size: var(--org-col-3plus-name-size);
+  --row-name-weight: var(--org-col-3plus-name-weight);
+  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-3plus-pad-y-extra));
+}
+
 .box.isColNeg {
   --row-name-color: var(--color-muted);
 }
@@ -205,14 +240,9 @@
   background: transparent;
   border-bottom: var(--org-edge-w) solid var(--row-divider);
   box-sizing: border-box;
-  cursor: grab;
   transition:
     background-color var(--org-transition),
     color var(--org-transition);
-}
-
-.row:active {
-  cursor: grabbing;
 }
 
 .row:hover {
@@ -237,7 +267,6 @@
   font-size: 1rem;
   font-weight: var(--org-col-0-name-weight);
   color: var(--color-primary);
-  cursor: grabbing;
   opacity: 0.7;
   pointer-events: none;
 }
@@ -390,6 +419,77 @@
   color: var(--color-paper);
 }
 
+/* Root-row column movers. Positioned just outside the row's left and right
+   edges; revealed by the row's :hover (descendants keep the ancestor in
+   :hover, so the cursor can travel from the row to the button without the
+   row losing hover state). */
+.colMover {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  z-index: 4;
+  opacity: 0;
+  /* Stays interactive while invisible so hovering its slot (including the
+     transparent bridge) is enough to reveal it — the user doesn't need to
+     hover the row first and then track sideways. */
+  pointer-events: auto;
+  transition:
+    opacity var(--org-transition),
+    background-color var(--org-transition),
+    color var(--org-transition);
+}
+
+.colMover.left {
+  left: -26px;
+}
+
+.colMover.right {
+  right: -26px;
+}
+
+/* Transparent bridge between the button and the row edge — without it the
+   cursor crosses a few dead pixels and the row's :hover drops before the
+   cursor reaches the button. */
+.colMover::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 8px;
+}
+
+.colMover.left::before {
+  left: 100%;
+}
+
+.colMover.right::before {
+  right: 100%;
+}
+
+.colMover:hover {
+  background: var(--color-paper-edge);
+  color: var(--color-primary);
+}
+
+.row:hover .colMover,
+.row:focus-within .colMover,
+.colMover:hover {
+  opacity: 1;
+}
+
 .rowDrop {
   position: absolute;
   left: 0;
@@ -416,6 +516,24 @@
 }
 
 .rowDrop.bottom.isOver {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+/* Drop zone for "after entry-with-children". Lives below the entry's child
+   groups so dropping after a parent doesn't slip between it and its kids.
+   Kept thin so it doesn't add a visible gap; negative margins absorb its
+   layout space into the surrounding stack while leaving a usable drop rect. */
+.afterDrop {
+  width: var(--org-group-w);
+  height: 16px;
+  margin-top: -8px;
+  margin-bottom: -8px;
+  pointer-events: none;
+  position: relative;
+  z-index: 3;
+}
+
+.afterDrop.isOver {
   box-shadow: inset 0 -2px 0 0 var(--color-accent);
 }
 

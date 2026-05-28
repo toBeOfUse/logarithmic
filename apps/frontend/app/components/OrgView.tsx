@@ -10,9 +10,10 @@
  * Hovering an entry reveals three buttons on the right: "rename", "reorder",
  * and "add child". Renaming reuses the same input-cell shape that adding new
  * entries does. Entries can also be dragged onto each other (top-half →
- * sibling-before, bottom-half → sibling-after), onto an "add child" button
- * (becomes the last child of that entry), or onto a column-strip add button
- * (becomes a new root in that column).
+ * sibling-before, bottom-half → sibling-after) or onto an "add child" button
+ * (becomes the last child of that entry). Root entries get extra left/right
+ * arrow buttons on hover that shift the root (and its descendants) one
+ * column over.
  *
  * Layout/sizing live in OrgView.module.css under custom properties.
  */
@@ -61,10 +62,7 @@ type PendingInput =
   | { kind: "add"; col: number; parentId: number | null }
   | { kind: "rename"; entryId: number };
 
-type DropData =
-  | { kind: "before" | "after"; refId: number }
-  | { kind: "child"; parentId: number }
-  | { kind: "rootInCol"; col: number };
+type DropData = { kind: "before" | "after"; refId: number } | { kind: "child"; parentId: number };
 
 // ── Tree helpers ───────────────────────────────────────────────────────
 
@@ -145,16 +143,6 @@ function dropToMoveInput(
       position: siblingsOf(parent.id).length,
     };
   }
-  if (drop.kind === "rootInCol") {
-    // Append after all existing roots.
-    return {
-      logbookId,
-      id: draggedId,
-      parentId: null,
-      col: drop.col,
-      position: siblingsOf(null).length,
-    };
-  }
   return null;
 }
 
@@ -171,21 +159,31 @@ function runsByCol<T extends { col: number }>(items: T[]): { col: number; kids: 
 /**
  * Render specs for the groups belonging to a parent (or null for roots).
  *
- * Start from existing same-col runs of children, then splice in the pending
- * add-input cell at the end if one's targeted at this parent. If the last
- * run's col matches, the input cell rides along inside it; otherwise it gets
- * its own group so a not-yet-existent column can be opened up.
+ * For a non-null parent, start from same-col runs of children so true
+ * siblings share a container. For the root forest, each root becomes its
+ * own group: separate trees aren't "siblings" in the same sense — they
+ * shouldn't be glued together just because they happen to fall in the
+ * same column. Then splice in the pending add-input cell at the end if
+ * one's targeted at this parent. For nested groups, if the last run's col
+ * matches, the input rides along inside it; otherwise (and always at
+ * root) it gets its own group so a not-yet-existent column can be opened.
  */
 function groupsForParent(
   children: EntryNode[],
   pendingInput: PendingInput | null,
   parentId: number | null,
 ): { col: number; kids: EntryNode[]; hasPendingInput: boolean }[] {
-  const runs = runsByCol(children).map((r) => ({ ...r, hasPendingInput: false }));
+  const runs =
+    parentId === null
+      ? children.map((c) => ({ col: c.col, kids: [c], hasPendingInput: false }))
+      : runsByCol(children).map((r) => ({ ...r, hasPendingInput: false }));
   if (pendingInput?.kind === "add" && pendingInput.parentId === parentId) {
     const last = runs[runs.length - 1];
-    if (last && last.col === pendingInput.col) last.hasPendingInput = true;
-    else runs.push({ col: pendingInput.col, kids: [], hasPendingInput: true });
+    if (parentId !== null && last && last.col === pendingInput.col) {
+      last.hasPendingInput = true;
+    } else {
+      runs.push({ col: pendingInput.col, kids: [], hasPendingInput: true });
+    }
   }
   return runs;
 }
@@ -214,6 +212,7 @@ function EntryCell({
   onAddChild,
   onRename,
   onReorder,
+  onMoveCol,
   onSubmitRename,
   onCancelRename,
 }: {
@@ -226,6 +225,8 @@ function EntryCell({
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
+  /** When set (root entries only), reveal arrow buttons that shift the entry one column over. */
+  onMoveCol: ((delta: 1 | -1) => void) | null;
   onSubmitRename: (name: string) => void;
   onCancelRename: () => void;
 }) {
@@ -247,9 +248,12 @@ function EntryCell({
     disabled: isEditing,
     data: { kind: "before", refId: entry.id } satisfies DropData,
   });
+  // When the entry has children, "after" lives below the children (see
+  // AfterEntryDrop) — dropping in the row's bottom half would otherwise
+  // land between the entry and its kids, which makes no sense.
   const bottomDrop = useDroppable({
     id: `after:${entry.id}`,
-    disabled: isEditing,
+    disabled: isEditing || hasChildren,
     data: { kind: "after", refId: entry.id } satisfies DropData,
   });
   const childDrop = useDroppable({
@@ -289,6 +293,30 @@ function EntryCell({
       {...draggable.attributes}
       {...draggable.listeners}
     >
+      {onMoveCol && (
+        <>
+          <button
+            type="button"
+            className={cn(styles.colMover, styles.left)}
+            aria-label="Move one column left"
+            title="Move one column left"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onMoveCol(1)}
+          >
+            <i className="ri-arrow-left-s-line" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={cn(styles.colMover, styles.right)}
+            aria-label="Move one column right"
+            title="Move one column right"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onMoveCol(-1)}
+          >
+            <i className="ri-arrow-right-s-line" aria-hidden="true" />
+          </button>
+        </>
+      )}
       <Link
         to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
         className={cn(styles.rowLink, !entry.name && styles.isUntitled)}
@@ -338,12 +366,33 @@ function EntryCell({
         className={cn(styles.rowDrop, styles.top, isOver === "top" && styles.isOver)}
         aria-hidden="true"
       />
-      <div
-        ref={bottomDrop.setNodeRef}
-        className={cn(styles.rowDrop, styles.bottom, isOver === "bottom" && styles.isOver)}
-        aria-hidden="true"
-      />
+      {!hasChildren && (
+        <div
+          ref={bottomDrop.setNodeRef}
+          className={cn(styles.rowDrop, styles.bottom, isOver === "bottom" && styles.isOver)}
+          aria-hidden="true"
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * "After" drop zone for an entry that has children. Rendered below the
+ * entry's child group(s) so the user can place a sibling-after by dropping
+ * past the children rather than into the gap between parent and first child.
+ */
+function AfterEntryDrop({ entryId }: { entryId: number }) {
+  const drop = useDroppable({
+    id: `after:${entryId}`,
+    data: { kind: "after", refId: entryId } satisfies DropData,
+  });
+  return (
+    <div
+      ref={drop.setNodeRef}
+      className={cn(styles.afterDrop, drop.isOver && styles.isOver)}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -420,6 +469,7 @@ function NestedGroup({
   onAdd,
   onRename,
   onReorder,
+  onMoveRootCol,
   onSubmitPending,
   onCancelPending,
 }: {
@@ -432,6 +482,7 @@ function NestedGroup({
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
+  onMoveRootCol: (id: number, delta: 1 | -1) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
 }) {
@@ -444,6 +495,7 @@ function NestedGroup({
       <div className="flex flex-col">
         {kids.map((sib) => {
           const childSpecs = groupsForParent(sib.children, pendingInput, sib.id);
+          const hasChildren = childSpecs.length > 0;
           const isEditing = pendingInput?.kind === "rename" && pendingInput.entryId === sib.id;
           return (
             <Fragment key={sib.id}>
@@ -453,10 +505,11 @@ function NestedGroup({
                 isEditing={isEditing}
                 isDragging={isDragging}
                 emphasizeAddChild={isDragging && sib.id !== draggedId && sib.id !== draggedParentId}
-                hasChildren={childSpecs.length > 0}
+                hasChildren={hasChildren}
                 onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
                 onRename={() => onRename(sib.id)}
                 onReorder={() => onReorder(sib.id)}
+                onMoveCol={parentId === null ? (delta) => onMoveRootCol(sib.id, delta) : null}
                 onSubmitRename={onSubmitPending}
                 onCancelRename={onCancelPending}
               />
@@ -472,10 +525,14 @@ function NestedGroup({
                   onAdd={onAdd}
                   onRename={onRename}
                   onReorder={onReorder}
+                  onMoveRootCol={onMoveRootCol}
                   onSubmitPending={onSubmitPending}
                   onCancelPending={onCancelPending}
                 />
               ))}
+              {hasChildren && sib.id !== draggedId && parentId !== null && (
+                <AfterEntryDrop entryId={sib.id} />
+              )}
             </Fragment>
           );
         })}
@@ -483,7 +540,7 @@ function NestedGroup({
           <PendingInputCell initialValue="" onSubmit={onSubmitPending} onCancel={onCancelPending} />
         )}
       </div>
-      {!hasPendingInput && (
+      {!hasPendingInput && parentId !== null && (
         <button type="button" className={styles.add} onClick={() => onAdd({ col, parentId })}>
           <i className="ri-add-line" aria-hidden="true" />
           <span>Add</span>
@@ -498,27 +555,16 @@ function NestedGroup({
 function ColAddButton({
   col,
   maxCol,
-  isDragging,
   onAdd,
 }: {
   col: number;
   maxCol: number;
-  isDragging: boolean;
   onAdd: (col: number) => void;
 }) {
-  const drop = useDroppable({
-    id: `rootInCol:${col}`,
-    data: { kind: "rootInCol", col } satisfies DropData,
-  });
   return (
     <button
       type="button"
-      ref={drop.setNodeRef}
-      className={cn(
-        styles.colAdd,
-        isDragging && styles.isDragContext,
-        drop.isOver && styles.isOver,
-      )}
+      className={styles.colAdd}
       style={colVar(maxCol - col)}
       aria-label={`Add entry in column ${col}`}
       onClick={() => onAdd(col)}
@@ -581,24 +627,18 @@ export function OrgView({
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  // The default rectIntersection picks whichever droppable has the largest
-  // overlap with the dragged element's rect. Our small "add child" buttons
-  // and column-strip add buttons sit fully inside the row's larger top/bottom
-  // half drop zones, so they would never win. Use pointerWithin and prefer
-  // the small explicit targets when the cursor is inside them.
+  // pointerWithin handles row/child drops; prefer the small "add child"
+  // button when the cursor is inside it. Fall back to rectIntersection so a
+  // drag that hovers just outside any zone still lands somewhere sensible.
   const collisionDetection: CollisionDetection = (args) => {
     const within = pointerWithin(args);
     if (within.length > 0) {
-      const byKind = (kind: DropData["kind"]) =>
-        within.find((c) => {
-          const container = args.droppableContainers.find((d) => d.id === c.id);
-          const data = container?.data.current as DropData | undefined;
-          return data?.kind === kind;
-        });
-      const child = byKind("child");
+      const child = within.find((c) => {
+        const container = args.droppableContainers.find((d) => d.id === c.id);
+        const data = container?.data.current as DropData | undefined;
+        return data?.kind === "child";
+      });
       if (child) return [child];
-      const root = byKind("rootInCol");
-      if (root) return [root];
       return within;
     }
     return rectIntersection(args);
@@ -628,6 +668,22 @@ export function OrgView({
     [activeDragId, byId],
   );
   const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
+
+  // Shift a root entry one column over without changing its position in the
+  // root list. The server's cascade handles dragging descendants along.
+  const onMoveRootCol = (entryId: number, delta: 1 | -1) => {
+    const entry = byId.get(entryId);
+    if (!entry) return;
+    const idx = forest.findIndex((r) => r.id === entryId);
+    if (idx < 0) return;
+    onMove({
+      logbookId,
+      id: entryId,
+      parentId: null,
+      col: entry.col + delta,
+      position: idx,
+    });
+  };
 
   // Focus the freshly-created entry's link (and scroll it into view) once it
   // shows up in the forest. The focus is what lets a second Enter follow the
@@ -667,9 +723,9 @@ export function OrgView({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="flex-1 flex flex-col overflow-auto min-h-0 bg-paper">
+        <div className="flex flex-col overflow-auto bg-paper">
           <div className={styles.colStrip}>
-            <div className="relative w-full h-full">
+            <div className="relative w-full">
               {cols.map((c) => (
                 <Fragment key={c}>
                   <span className={styles.colPill} style={colVar(maxCol - c)}>
@@ -678,7 +734,6 @@ export function OrgView({
                   <ColAddButton
                     col={c}
                     maxCol={maxCol}
-                    isDragging={activeDragId !== null}
                     onAdd={(col) => onAdd({ col, parentId: null })}
                   />
                 </Fragment>
@@ -699,24 +754,35 @@ export function OrgView({
             </div>
           ) : (
             <div className={styles.canvasWrap}>
-              <div className="relative z-[2]">
-                {topSpecs.map((spec, i) => (
-                  <div key={i} className={styles.tree} style={colVar(maxCol - spec.col)}>
-                    <NestedGroup
-                      spec={spec}
-                      parentId={null}
-                      logbookSegment={logbookSegment}
-                      pendingInput={pendingInput}
-                      draggedId={activeDragId}
-                      draggedParentId={draggedParentId}
-                      onAdd={onAdd}
-                      onRename={onRename}
-                      onReorder={(id) => setRearrangeFor(id)}
-                      onSubmitPending={onSubmitPending}
-                      onCancelPending={onCancelPending}
-                    />
-                  </div>
-                ))}
+              <div className="relative z-2">
+                {topSpecs.map((spec, i) => {
+                  // Each root is its own tree (spec.kids has at most one
+                  // entry). The "after" drop zone lives in the margin between
+                  // trees, not inside the box, so dropping below a tree feels
+                  // like dropping between trees rather than inside one.
+                  const root = spec.kids[0] ?? null;
+                  const showAfterDrop =
+                    root !== null && root.children.length > 0 && root.id !== activeDragId;
+                  return (
+                    <div key={i} className={styles.tree} style={colVar(maxCol - spec.col)}>
+                      <NestedGroup
+                        spec={spec}
+                        parentId={null}
+                        logbookSegment={logbookSegment}
+                        pendingInput={pendingInput}
+                        draggedId={activeDragId}
+                        draggedParentId={draggedParentId}
+                        onAdd={onAdd}
+                        onRename={onRename}
+                        onReorder={(id) => setRearrangeFor(id)}
+                        onMoveRootCol={onMoveRootCol}
+                        onSubmitPending={onSubmitPending}
+                        onCancelPending={onCancelPending}
+                      />
+                      {showAfterDrop && <AfterEntryDrop entryId={root.id} />}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

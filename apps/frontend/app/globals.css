@@ -100,9 +100,18 @@ body {
   display: none;
 }
 
-.prose p {
+.prose p:not(:first-child) {
   margin-top: 1rem;
-  margin-bottom: 1rem;
+}
+
+.prose p {
+  margin-bottom: 0;
+}
+
+.prose code {
+  font-size: 0.9rem;
+  padding: 0 3px;
+  background-color: var(--tw-prose-pre-bg);
 }
 
 .prose h2 {
