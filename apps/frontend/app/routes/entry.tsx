@@ -220,7 +220,7 @@ export default function EntryRoute() {
       icon: "ri-file-copy-2-line",
       destructive: false,
       onSelect: () => {
-        navigator.clipboard.writeText(entry.content ?? "");
+        void navigator.clipboard.writeText(entry.content ?? "");
       },
     },
     {
