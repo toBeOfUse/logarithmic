@@ -117,9 +117,11 @@
 }
 
 /* Extend a root tree's box below its nested child groups so the container
-   has visible breathing room past the last child. (Nested groups still get
-   their bottom edge from the "Add" button row inside them.) */
-.tree > .box {
+   has visible breathing room past the last child. Only applies when the root
+   actually has nested children — otherwise the padding renders as an empty
+   stub under a childless root. (Nested groups still get their bottom edge
+   from the "Add" button row inside them.) */
+.tree > .box:has(.box) {
   padding-bottom: calc(var(--org-line-h) / 2);
 }
 
