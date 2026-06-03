@@ -223,6 +223,15 @@ export default function EntryRoute() {
 
   const menuItems: KebabMenuItem[] = [
     {
+      id: "copy-as-markdown",
+      label: "Copy as Markdown",
+      icon: "ri-file-copy-2-line",
+      destructive: false,
+      onSelect: () => {
+        navigator.clipboard.writeText(entry.content ?? "");
+      },
+    },
+    {
       id: "delete",
       label: "Delete entry",
       icon: "ri-delete-bin-line",
