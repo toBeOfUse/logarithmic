@@ -108,6 +108,10 @@ body {
   margin-bottom: 0;
 }
 
+.prose li p {
+  margin-top: 0;
+}
+
 .prose code {
   font-size: 0.9rem;
   padding: 0 3px;
@@ -115,11 +119,13 @@ body {
 }
 
 .prose h2 {
-  margin-top: 1.2em;
+  margin-top: 1em;
+  margin-bottom: 0.8em;
 }
 
 .prose h3 {
   margin-top: 0.9em;
+  margin-bottom: 0.8em;
 }
 
 .editor {
