@@ -43,6 +43,9 @@ export function MarkdownEditor({
 }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef<string>(initialMarkdown);
+  // Mirror the live editor so the unmount cleanup can flush without re-running
+  // the effect on every editor identity change.
+  const editorInstance = useRef<Editor | null>(null);
 
   const flush = (editor: Editor) => {
     if (saveTimer.current) {
@@ -82,6 +85,8 @@ export function MarkdownEditor({
     },
   });
 
+  editorInstance.current = editor;
+
   useImperativeHandle(
     ref,
     () => ({
@@ -92,9 +97,14 @@ export function MarkdownEditor({
     [editor],
   );
 
+  // On unmount (including entry-switch remounts), flush any edit still inside
+  // the debounce window so navigating away never silently drops it. `flush` is
+  // idempotent via `lastSaved`, so a prior blur-flush won't double-save.
   useEffect(() => {
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current && editorInstance.current) {
+        flush(editorInstance.current);
+      }
     };
   }, []);
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useBlocker, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import type { Metadata } from "logarithmic-backend/api-types";
 
@@ -116,19 +116,6 @@ export default function EntryRoute() {
   const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;
   const dirty = titleDirty || editorDirty || mutationPending;
 
-  // Block in-app nav and tab close while there are unsaved changes. The
-  // browser's `beforeunload` prompt is intentionally generic — Chrome and
-  // Firefox ignore custom strings.
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    return dirty && currentLocation.pathname !== nextLocation.pathname;
-  });
-  useEffect(() => {
-    if (blocker.state === "blocked") {
-      const ok = window.confirm("You have unsaved changes. Leave this page?");
-      if (ok) blocker.proceed();
-      else blocker.reset();
-    }
-  }, [blocker]);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
@@ -140,6 +127,11 @@ export default function EntryRoute() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Warn only on genuine app-exit (tab close, refresh, leaving the SPA), where
+  // an in-flight save would be aborted and unsaved edits truly lost. In-app
+  // navigation is intentionally not guarded — the editor flushes pending edits
+  // on unmount and the resulting mutation finishes in the background. The
+  // browser prompt is generic; Chrome and Firefox ignore custom strings.
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
