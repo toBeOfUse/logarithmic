@@ -127,6 +127,27 @@ export default function EntryRoute() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // When nothing editable is focused and the user starts typing, drop them into
+  // the editor at the end of its content. The keystroke fired on `document`, not
+  // the editor, so ProseMirror never sees it — we cancel the default and hand
+  // the character to the editor to insert, so it isn't lost.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.isComposing) return; // let IME composition target a real field
+      if (e.key.length !== 1) return; // ignore non-printable keys (arrows, etc.)
+      const active = document.activeElement as HTMLElement | null;
+      const editable =
+        active != null &&
+        (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+      if (editable) return;
+      e.preventDefault();
+      editorRef.current?.focusEnd(e.key);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // Warn only on genuine app-exit (tab close, refresh, leaving the SPA), where
   // an in-flight save would be aborted and unsaved edits truly lost. In-app
   // navigation is intentionally not guarded — the editor flushes pending edits

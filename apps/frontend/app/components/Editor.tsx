@@ -17,7 +17,16 @@ import { htmlToMarkdown, markdownToHtml } from "~/lib/markdown.ts";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
-export type MarkdownEditorHandle = { save: () => void };
+export type MarkdownEditorHandle = {
+  save: () => void;
+  /**
+   * Move focus to the end of the content. When `insertText` is given, that text
+   * is inserted there too — used by the route's type-to-focus handler, which
+   * `preventDefault`s the originating keystroke (the editor wasn't focused when
+   * it fired, so the character would otherwise be lost) and hands us the char.
+   */
+  focusEnd: (insertText?: string) => void;
+};
 
 export function MarkdownEditor({
   initialMarkdown,
@@ -87,12 +96,22 @@ export function MarkdownEditor({
 
   editorInstance.current = editor;
 
+  const focusEnd = (insertText?: string) => {
+    if (!editor) return;
+    const chain = editor.chain().focus("end");
+    // Insert as an explicit text node rather than a string so characters like
+    // `<`, `>`, and `&` aren't reinterpreted as HTML by insertContent's parser.
+    if (insertText) chain.insertContent({ type: "text", text: insertText });
+    chain.run();
+  };
+
   useImperativeHandle(
     ref,
     () => ({
       save: () => {
         if (editor) flush(editor);
       },
+      focusEnd,
     }),
     [editor],
   );
@@ -110,7 +129,13 @@ export function MarkdownEditor({
 
   return (
     <div className={cn("relative", className)}>
-      <EditorContent editor={editor} />
+      {/* Grow the prose element to fill the flex container so clicks in the
+          space below the content still land inside the editable area (at the
+          nearest position) instead of missing it. `cursor-text` signals that. */}
+      <EditorContent
+        editor={editor}
+        className="flex-1 flex flex-col [&_.editor]:flex-1 cursor-text"
+      />
       {editor && <SelectionBubble editor={editor} />}
     </div>
   );
