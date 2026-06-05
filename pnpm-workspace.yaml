@@ -44,6 +44,8 @@ catalog:
   zod: ^4.3.6
 
 catalogMode: prefer
+# Don't install package releases until they're at least 2 weeks old (in minutes).
+minimumReleaseAge: 20160
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

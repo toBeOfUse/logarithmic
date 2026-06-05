@@ -161,7 +161,7 @@ export default function EntryRoute() {
           logbookName={overview?.logbook.name ?? (isLoading ? "Loading…" : "Logbook")}
           currentName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 overflow-y-auto bg-stark">
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
           <div className={cn("max-w-[720px] mx-auto", pagePadding)}>
             <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
           </div>
@@ -247,7 +247,7 @@ export default function EntryRoute() {
   if (maximized) {
     return (
       <div className={cn(appShell, "bg-stark")}>
-        <div className="flex-1 overflow-y-auto bg-stark">
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
           <div className={cn("max-w-[680px] mx-auto min-h-full flex flex-col", pagePadding)}>
             <div className="flex items-start gap-3 my-4">
               <TitleEditor
@@ -301,7 +301,7 @@ export default function EntryRoute() {
           onConfirm={confirmDelete}
         />
       )}
-      <div className="flex-1 overflow-y-auto bg-stark">
+      <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
         <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
           <div className="flex items-start gap-3">
             <TitleEditor
