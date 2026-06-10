@@ -21,6 +21,9 @@
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
   --org-sticky-gap: 14px;
+  /* Horizontal gutter between the viewport edges and the chart, so content is
+     never flush against the left/right edges. */
+  --org-page-pad-x: 28px;
   /* Vertical space around the rule that separates trees in the forest. */
   --org-tree-gap: 20px;
   --org-transition: 120ms ease;
@@ -44,17 +47,32 @@
   :root {
     --org-card-w: 158px;
     --org-col-gap: 12px;
+    --org-page-pad-x: 12px;
   }
+}
+
+/* ── Scroll viewport ─────────────────────────────────────────── */
+
+/* Horizontal gutter on the scroll container itself (not the centered inner
+   blocks) so the gap survives when the chart is wider than the viewport and
+   scrolls: the left gutter shows at scroll start, the right at scroll end, and
+   the sticky header and canvas stay inset together. */
+.scroll {
+  padding-inline: var(--org-page-pad-x);
 }
 
 /* ── Column-header strip ─────────────────────────────────────── */
 
+/* The strip's paper extends past the label row by the sticky gap, down to the
+   line sticky cards pin to, so scrolling cards disappear exactly at the sticky
+   cards' top edge instead of peeking into the gap above them. The labels stay
+   in the top --org-strip-h (see .colHead); the extra height is empty paper. */
 .colStrip {
   position: sticky;
   top: 0;
   z-index: 10;
   flex-shrink: 0;
-  height: var(--org-strip-h);
+  height: calc(var(--org-strip-h) + var(--org-sticky-gap));
   background: var(--color-paper);
 }
 
@@ -70,7 +88,8 @@
   top: 0;
   left: calc(var(--org-col-idx, 0) * var(--org-stride));
   width: var(--org-card-w);
-  height: 100%;
+  /* Only the label row, not the gap below it, so labels keep their position. */
+  height: var(--org-strip-h);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -119,9 +138,9 @@
 .canvas {
   width: calc(var(--org-card-w) + var(--org-col-span, 0) * var(--org-stride));
   margin: 0 auto;
-  /* Start the first row of cards on the same line a sticky card pins to, so at
-     rest the sticky and non-sticky cards in the top row line up. */
-  padding-top: var(--org-sticky-gap);
+  /* The strip already includes the sticky gap, so the first row sits directly
+     below it — on the same line a sticky card pins to, keeping the top row of
+     sticky and non-sticky cards aligned at rest. */
   /* Headroom so the last tree can scroll up far enough for its sticky cards. */
   padding-bottom: 8vh;
 }
@@ -333,6 +352,94 @@
 
 .cardAction:hover {
   color: var(--color-primary);
+}
+
+/* ── Drag & drop ─────────────────────────────────────────────── */
+
+/* The card being dragged stays in place but dimmed; the floating overlay
+   (.cardOverlay) is what follows the cursor. */
+.card.isSource {
+  opacity: 0.4;
+}
+
+/* Top/bottom drop halves over a card. Each card spans its whole subtree, so
+   its top edge means "becomes the preceding sibling" and its bottom edge
+   "becomes the following sibling" — the accent line marks which. They never
+   take pointer events (dnd-kit resolves drops from their measured rects, not
+   hit-testing), so the card's link and buttons keep working underneath. */
+.cardDrop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.cardDrop.top {
+  top: 0;
+}
+
+.cardDrop.bottom {
+  bottom: 0;
+}
+
+.cardDrop.top.isOver {
+  box-shadow: inset 0 2px 0 0 var(--color-accent);
+}
+
+.cardDrop.bottom.isOver {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+/* While a drag is in progress, valid "add child" targets reveal just their
+   add-child button (emphasized) in place of the meta line, so an entry can be
+   dropped onto it to become that card's last child. */
+.card.childDroppable .cardMeta {
+  display: none;
+}
+
+.card.childDroppable .cardActions {
+  display: flex;
+}
+
+/* Keep all three action slots laid out (so the button holds its rightmost
+   position) but show only the add-child one. */
+.card.childDroppable .cardAction {
+  visibility: hidden;
+}
+
+.card.childDroppable .cardActionChild {
+  visibility: visible;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.card.childDroppable .cardActionChild.isOver {
+  background: var(--color-accent);
+  color: var(--color-paper);
+}
+
+/* Floating ghost that follows the cursor during a drag. */
+.cardOverlay {
+  box-sizing: border-box;
+  width: var(--org-card-w);
+  padding: var(--org-card-pad-y) var(--org-card-pad-x);
+  background: oklch(from var(--color-paper) l c h / 0.95);
+  border: 1px solid var(--color-muted);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
+  font-size: var(--org-title-size);
+  font-weight: var(--org-title-weight);
+  line-height: var(--org-title-lh);
+  color: var(--color-primary);
+  cursor: grabbing;
+}
+
+.cardOverlay.isUntitled {
+  color: var(--color-muted);
+  font-style: italic;
 }
 
 /* ── Input card (add / rename) ───────────────────────────────── */

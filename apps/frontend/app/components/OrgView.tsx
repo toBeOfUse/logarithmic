@@ -20,10 +20,32 @@
  * reorder siblings (↑↓, opens the rearrange modal), and add child (↳). Layout
  * and sizing live in OrgView.module.css under custom properties.
  */
-import { type CSSProperties, Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  rectIntersection,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  type CSSProperties,
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router";
 
-import type { EntryNode } from "logarithmic-backend/api-types";
+import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
 import { cn } from "~/lib/cn.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
@@ -42,6 +64,14 @@ type AddInput = { col: number; parentId: number | null };
 type PendingInput =
   | { kind: "add"; col: number; parentId: number | null }
   | { kind: "rename"; entryId: number };
+
+/**
+ * What a drop zone means, attached to each dnd-kit droppable. "before"/"after"
+ * are relative to an existing entry (drop above it → preceding sibling, below
+ * → following sibling); "child" reparents the dragged entry as the last child
+ * of `parentId` (the entry's "add child" button).
+ */
+type DropData = { kind: "before" | "after"; refId: number } | { kind: "child"; parentId: number };
 
 // ── Tree helpers ───────────────────────────────────────────────────────
 
@@ -98,6 +128,70 @@ function computeStickySet(forest: EntryNode[]): Set<number> {
   return sticky;
 }
 
+/** The ids in `node`'s subtree, including `node` itself. */
+function subtreeIds(node: EntryNode): Set<number> {
+  const ids = new Set<number>();
+  const walk = (n: EntryNode) => {
+    ids.add(n.id);
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return ids;
+}
+
+/**
+ * Convert a drop target into the API's `MoveEntryInput`. Drop zones describe
+ * intent relative to a neighbour or parent; the server wants an absolute
+ * `{parentId, col, position}` triple, and we have the forest here to bridge
+ * the two. Returns null for self-drops and other no-ops. The dragged entry is
+ * excluded from sibling lists so positions count the post-removal ordering,
+ * matching the server's move semantics.
+ */
+function dropToMoveInput(
+  draggedId: number,
+  drop: DropData,
+  byId: Map<number, EntryNode>,
+  parentOf: Map<number, number | null>,
+  forest: EntryNode[],
+  logbookId: string,
+): MoveEntryInput | null {
+  const siblingsOf = (parentId: number | null): EntryNode[] => {
+    const list = parentId === null ? forest : (byId.get(parentId)?.children ?? []);
+    return list.filter((n) => n.id !== draggedId);
+  };
+
+  if (drop.kind === "before" || drop.kind === "after") {
+    if (drop.refId === draggedId) return null;
+    const ref = byId.get(drop.refId);
+    if (!ref) return null;
+    const refParentId = parentOf.get(ref.id) ?? null;
+    const parent = refParentId !== null ? byId.get(refParentId) : null;
+    // A child's column is its parent's minus one; a root keeps the reference
+    // root's column.
+    const col = parent ? parent.col - 1 : ref.col;
+    const sibs = siblingsOf(refParentId);
+    const refIdx = sibs.findIndex((s) => s.id === ref.id);
+    if (refIdx < 0) return null;
+    const position = drop.kind === "before" ? refIdx : refIdx + 1;
+    return { logbookId, id: draggedId, parentId: refParentId, col, position };
+  }
+
+  // kind === "child": become the new last child of `parentId`.
+  if (drop.kind === "child") {
+    if (drop.parentId === draggedId) return null;
+    const parent = byId.get(drop.parentId);
+    if (!parent) return null;
+    return {
+      logbookId,
+      id: draggedId,
+      parentId: parent.id,
+      col: parent.col - 1,
+      position: siblingsOf(parent.id).length,
+    };
+  }
+  return null;
+}
+
 function ordinal(n: number): string {
   const v = n % 100;
   if (v >= 11 && v <= 13) return `${n}th`;
@@ -135,6 +229,9 @@ function EntryCard({
   entry,
   logbookSegment,
   sticky,
+  draggedId,
+  draggedParentId,
+  draggedSubtreeIds,
   onAddChild,
   onRename,
   onReorder,
@@ -142,14 +239,70 @@ function EntryCard({
   entry: EntryNode;
   logbookSegment: string;
   sticky: boolean;
+  /** The entry currently being dragged, or null if no drag is in progress. */
+  draggedId: number | null;
+  draggedParentId: number | null;
+  /** Ids in the dragged entry's subtree (incl. itself); null when idle. */
+  draggedSubtreeIds: Set<number> | null;
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
 }) {
+  const isDragging = draggedId !== null;
+  const isSource = entry.id === draggedId;
+  const inDraggedSubtree = draggedSubtreeIds?.has(entry.id) ?? false;
+  // Per spec: while dragging, emphasize "add child" buttons as drop targets —
+  // except the dragged entry's own subtree (can't reparent under itself) and
+  // its current parent (it's already a child of that).
+  const emphasizeAddChild = isDragging && !inDraggedSubtree && entry.id !== draggedParentId;
+
+  // After a drag, pointerup fires a click that would otherwise follow the
+  // card's <Link>. Swallow that one click.
+  const justDraggedRef = useRef(false);
+  const draggable = useDraggable({ id: `entry:${entry.id}`, data: { entryId: entry.id } });
+  useEffect(() => {
+    if (draggable.isDragging) justDraggedRef.current = true;
+  }, [draggable.isDragging]);
+
+  // Drop targets. before/after are disabled across the dragged subtree (a node
+  // can't become a sibling of itself or its own descendant); the child target
+  // is only live where the add-child button is emphasized.
+  const beforeDrop = useDroppable({
+    id: `before:${entry.id}`,
+    disabled: inDraggedSubtree,
+    data: { kind: "before", refId: entry.id } satisfies DropData,
+  });
+  const afterDrop = useDroppable({
+    id: `after:${entry.id}`,
+    disabled: inDraggedSubtree,
+    data: { kind: "after", refId: entry.id } satisfies DropData,
+  });
+  const childDrop = useDroppable({
+    id: `child:${entry.id}`,
+    disabled: !emphasizeAddChild,
+    data: { kind: "child", parentId: entry.id } satisfies DropData,
+  });
+
   return (
     <div
+      ref={draggable.setNodeRef}
       data-entry-anchor={entry.id}
-      className={cn(styles.card, sticky && styles.sticky, titleColClass(entry.col))}
+      className={cn(
+        styles.card,
+        sticky && styles.sticky,
+        titleColClass(entry.col),
+        isSource && styles.isSource,
+        emphasizeAddChild && styles.childDroppable,
+      )}
+      onClickCapture={(e) => {
+        if (justDraggedRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          justDraggedRef.current = false;
+        }
+      }}
+      {...draggable.attributes}
+      {...draggable.listeners}
     >
       <div className={styles.cardBody}>
         <Link
@@ -168,7 +321,9 @@ function EntryCard({
             {/* Word-count placeholder: counting efficiently needs a backend
                 field. Append " · {n} words" here once the overview supplies it. */}
           </span>
-          <div className={styles.cardActions}>
+          {/* Stop pointerdown so the drag sensor doesn't fire when a button is
+              clicked. */}
+          <div className={styles.cardActions} onPointerDown={(e) => e.stopPropagation()}>
             <button
               type="button"
               className={styles.cardAction}
@@ -189,7 +344,12 @@ function EntryCard({
             </button>
             <button
               type="button"
-              className={styles.cardAction}
+              ref={childDrop.setNodeRef}
+              className={cn(
+                styles.cardAction,
+                styles.cardActionChild,
+                childDrop.isOver && styles.isOver,
+              )}
               aria-label="Add child"
               title="Add child"
               onClick={onAddChild}
@@ -199,6 +359,18 @@ function EntryCard({
           </div>
         </div>
       </div>
+
+      {/* Drop halves: top → sibling-before, bottom → sibling-after. */}
+      <div
+        ref={beforeDrop.setNodeRef}
+        className={cn(styles.cardDrop, styles.top, beforeDrop.isOver && styles.isOver)}
+        aria-hidden="true"
+      />
+      <div
+        ref={afterDrop.setNodeRef}
+        className={cn(styles.cardDrop, styles.bottom, afterDrop.isOver && styles.isOver)}
+        aria-hidden="true"
+      />
     </div>
   );
 }
@@ -270,6 +442,9 @@ function Subtree({
   logbookSegment,
   stickySet,
   pendingInput,
+  draggedId,
+  draggedParentId,
+  draggedSubtreeIds,
   onAdd,
   onRename,
   onReorder,
@@ -280,6 +455,9 @@ function Subtree({
   logbookSegment: string;
   stickySet: Set<number>;
   pendingInput: PendingInput | null;
+  draggedId: number | null;
+  draggedParentId: number | null;
+  draggedSubtreeIds: Set<number> | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
@@ -309,6 +487,9 @@ function Subtree({
             entry={node}
             logbookSegment={logbookSegment}
             sticky={sticky}
+            draggedId={draggedId}
+            draggedParentId={draggedParentId}
+            draggedSubtreeIds={draggedSubtreeIds}
             onAddChild={() => onAdd({ col: childCol, parentId: node.id })}
             onRename={() => onRename(node.id)}
             onReorder={() => onReorder(node.id)}
@@ -325,6 +506,9 @@ function Subtree({
               logbookSegment={logbookSegment}
               stickySet={stickySet}
               pendingInput={pendingInput}
+              draggedId={draggedId}
+              draggedParentId={draggedParentId}
+              draggedSubtreeIds={draggedSubtreeIds}
               onAdd={onAdd}
               onRename={onRename}
               onReorder={onReorder}
@@ -360,6 +544,7 @@ export function OrgView({
   onRename,
   onSubmitPending,
   onCancelPending,
+  onMove,
   onReorderSiblings,
   onFocused,
 }: {
@@ -374,6 +559,8 @@ export function OrgView({
   onRename: (id: number) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
+  /** Commit a drag-and-drop move (re-parent and/or reposition an entry). */
+  onMove: (input: MoveEntryInput) => void;
   onReorderSiblings: (parentId: number | null, ids: number[]) => void;
   onFocused: () => void;
 }) {
@@ -382,6 +569,55 @@ export function OrgView({
   const { byId, parentOf } = useMemo(() => indexForest(forest), [forest]);
   const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
   const stickySet = useMemo(() => computeStickySet(forest), [forest]);
+
+  // ── Drag & drop ──────────────────────────────────────────────────────
+  // dnd-kit auto-scrolls the scroll container when the cursor nears its top
+  // or bottom edge (the spec's "drag near the edge to scroll") out of the box.
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const draggedEntry = activeDragId !== null ? (byId.get(activeDragId) ?? null) : null;
+  const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
+  const draggedSubtreeIds = useMemo(
+    () => (draggedEntry ? subtreeIds(draggedEntry) : null),
+    [draggedEntry],
+  );
+
+  // pointerWithin resolves card vs add-child drops; prefer the small add-child
+  // button when the cursor is inside it. Fall back to rectIntersection so a
+  // drag hovering just outside every zone still lands somewhere sensible.
+  const collisionDetection: CollisionDetection = (args) => {
+    const within = pointerWithin(args);
+    if (within.length > 0) {
+      const child = within.find((c) => {
+        const container = args.droppableContainers.find((d) => d.id === c.id);
+        const data = container?.data.current as DropData | undefined;
+        return data?.kind === "child";
+      });
+      return child ? [child] : within;
+    }
+    return rectIntersection(args);
+  };
+
+  const onDragStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (id.startsWith("entry:")) {
+      const n = Number(id.slice("entry:".length));
+      if (Number.isFinite(n)) setActiveDragId(n);
+    }
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = e;
+    if (!over) return;
+    const data = over.data.current as DropData | undefined;
+    if (!data) return;
+    const id = Number(String(active.id).replace(/^entry:/, ""));
+    if (!Number.isFinite(id)) return;
+    const move = dropToMoveInput(id, data, byId, parentOf, forest, logbookId);
+    if (move) onMove(move);
+  };
+  const onDragCancel = () => setActiveDragId(null);
 
   // Header columns: the data range, unioned with the default working set
   // [1, 0, -1] (heading / body / aside) so there's always somewhere to add a
@@ -480,77 +716,96 @@ export function OrgView({
       className="flex-1 flex flex-col overflow-hidden bg-paper"
       style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
     >
-      <div ref={scrollRef} className="flex flex-col overflow-auto bg-paper">
-        <div className={styles.colStrip}>
-          <div className={styles.colStripInner}>
-            {cols.map((c) => (
-              <div key={c} className={styles.colHead} style={colVar(maxCol - c)}>
-                <span className={styles.colLabel}>Column {c}</span>
-                <button
-                  type="button"
-                  className={styles.colAdd}
-                  aria-label={`Add entry in column ${c}`}
-                  title={`Add entry in column ${c}`}
-                  onClick={() => onAdd({ col: c, parentId: null })}
-                >
-                  <i className="ri-add-line" aria-hidden="true" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {isEmpty && !pendingInput ? (
-          <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
-            <div className={styles.illustration} />
-            <h3 className="text-lg font-semibold text-primary m-0">
-              An empty logbook is a fine place to start.
-            </h3>
-            <p className="text-base text-muted m-0 max-w-xs">
-              Click the <i className="ri-add-line align-middle text-base" aria-hidden="true" />{" "}
-              under any column above to create your first entry there.
-            </p>
-          </div>
-        ) : (
-          <div className={styles.canvas}>
-            {forest.map((root, i) => (
-              <Fragment key={root.id}>
-                {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                <div className={styles.tree} style={colVar(maxCol - root.col)}>
-                  <Subtree
-                    node={root}
-                    logbookSegment={logbookSegment}
-                    stickySet={stickySet}
-                    pendingInput={pendingInput}
-                    onAdd={onAdd}
-                    onRename={onRename}
-                    onReorder={(id) => setRearrangeFor(id)}
-                    onSubmitPending={onSubmitPending}
-                    onCancelPending={onCancelPending}
-                  />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+      >
+        <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-paper")}>
+          <div className={styles.colStrip}>
+            <div className={styles.colStripInner}>
+              {cols.map((c) => (
+                <div key={c} className={styles.colHead} style={colVar(maxCol - c)}>
+                  <span className={styles.colLabel}>Column {c}</span>
+                  <button
+                    type="button"
+                    className={styles.colAdd}
+                    aria-label={`Add entry in column ${c}`}
+                    title={`Add entry in column ${c}`}
+                    onClick={() => onAdd({ col: c, parentId: null })}
+                  >
+                    <i className="ri-add-line" aria-hidden="true" />
+                  </button>
                 </div>
-              </Fragment>
-            ))}
-            {addingRoot && (
-              <Fragment>
-                {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                <div className={styles.tree} style={colVar(maxCol - addingRoot.col)}>
-                  <div className={styles.subtree}>
-                    <div className={styles.cell}>
-                      <InputCard
-                        initialValue=""
-                        sticky={false}
-                        onSubmit={onSubmitPending}
-                        onCancel={onCancelPending}
-                      />
+              ))}
+            </div>
+          </div>
+
+          {isEmpty && !pendingInput ? (
+            <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
+              <div className={styles.illustration} />
+              <h3 className="text-lg font-semibold text-primary m-0">
+                An empty logbook is a fine place to start.
+              </h3>
+              <p className="text-base text-muted m-0 max-w-xs">
+                Click the <i className="ri-add-line align-middle text-base" aria-hidden="true" />{" "}
+                under any column above to create your first entry there.
+              </p>
+            </div>
+          ) : (
+            <div className={styles.canvas}>
+              {forest.map((root, i) => (
+                <Fragment key={root.id}>
+                  {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                  <div className={styles.tree} style={colVar(maxCol - root.col)}>
+                    <Subtree
+                      node={root}
+                      logbookSegment={logbookSegment}
+                      stickySet={stickySet}
+                      pendingInput={pendingInput}
+                      draggedId={activeDragId}
+                      draggedParentId={draggedParentId}
+                      draggedSubtreeIds={draggedSubtreeIds}
+                      onAdd={onAdd}
+                      onRename={onRename}
+                      onReorder={(id) => setRearrangeFor(id)}
+                      onSubmitPending={onSubmitPending}
+                      onCancelPending={onCancelPending}
+                    />
+                  </div>
+                </Fragment>
+              ))}
+              {addingRoot && (
+                <Fragment>
+                  {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                  <div className={styles.tree} style={colVar(maxCol - addingRoot.col)}>
+                    <div className={styles.subtree}>
+                      <div className={styles.cell}>
+                        <InputCard
+                          initialValue=""
+                          sticky={false}
+                          onSubmit={onSubmitPending}
+                          onCancel={onCancelPending}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Fragment>
-            )}
-          </div>
-        )}
-      </div>
+                </Fragment>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {draggedEntry ? (
+            <div className={cn(styles.cardOverlay, !draggedEntry.name && styles.isUntitled)}>
+              {draggedEntry.name || "Unnamed entry"}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {rearrangeContext && (
         <RearrangeModal

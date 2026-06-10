@@ -25,7 +25,10 @@
       "Bash(curl -sI http://localhost:5173)",
       "Bash(curl -I http://localhost:3001/health)",
       "WebFetch(domain:marked.js.org)",
-      "Bash(curl -s -m 3 http://localhost:3001/health)"
+      "Bash(curl -s -m 3 http://localhost:3001/health)",
+      "PowerShell(vp fmt *)",
+      "PowerShell(vp check *)",
+      "PowerShell(vp test *)"
     ]
   }
 }

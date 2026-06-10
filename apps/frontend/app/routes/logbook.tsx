@@ -9,6 +9,7 @@ import {
   isDemoLogbook,
   useCreateEntry,
   useLogbookOverview,
+  useMoveEntry,
   useRenameEntry,
   useRenameLogbook,
   useReorderSiblings,
@@ -27,6 +28,7 @@ export default function LogbookRoute() {
   const renameEntry = useRenameEntry({ demo });
   const renameLogbook = useRenameLogbook({ demo });
   const reorderSiblings = useReorderSiblings({ demo });
+  const moveEntry = useMoveEntry({ demo });
 
   type PendingInput =
     | { kind: "add"; col: number; parentId: number | null }
@@ -170,6 +172,7 @@ export default function LogbookRoute() {
           if (pendingInput?.kind === "rename") setFocusEntryId(pendingInput.entryId);
           setPendingInput(null);
         }}
+        onMove={(input) => moveEntry.mutate(input)}
         onReorderSiblings={(parentId, ids) => {
           reorderSiblings.mutate({ logbookId: logbook.id, parentId, ids });
         }}
