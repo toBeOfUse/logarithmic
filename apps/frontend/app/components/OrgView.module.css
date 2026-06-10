@@ -9,7 +9,7 @@
    column line up across every tree and under the sticky column header. */
 
 :root {
-  --org-card-w: 200px;
+  --org-card-w: 235px;
   --org-col-gap: 18px;
   --org-card-gap: 9px;
   --org-stride: calc(var(--org-card-w) + var(--org-col-gap));
