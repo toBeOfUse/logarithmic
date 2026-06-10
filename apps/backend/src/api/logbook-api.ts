@@ -85,7 +85,7 @@ export const logbookRouter = router({
         col: e.col,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt,
-        hasContent: e.content != null && e.content.length > 0,
+        wordCount: e.wordCount,
         metadataKeys: e.metadata ? Object.keys(e.metadata) : [],
         children: build(e.id),
       }));

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./api-types": "./src/api/api-types.ts",
-    "./api-router": "./src/api/api-router.ts"
+    "./api-router": "./src/api/api-router.ts",
+    "./word-count": "./src/word-count.ts"
   },
   "scripts": {
     "dev": "node --import=tsx --watch src/index.ts"

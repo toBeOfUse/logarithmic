@@ -1,6 +1,7 @@
 import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
 import slugify from "@sindresorhus/slugify";
 
+import { countWords } from "../word-count.ts";
 import { Logbook } from "./Logbook.ts";
 
 /**
@@ -36,6 +37,17 @@ const EntrySchema = defineEntity({
      */
     order: p.integer().default(0),
     content: p.string().nullable(),
+    /**
+     * Cached word count of `content`, kept as the source of truth for the
+     * frontend so it never recomputes live. Derived here at persist time (same
+     * onCreate/onUpdate pattern as `slug`) so it stays in lockstep with whatever
+     * the content ends up being — including imports and any other write path.
+     */
+    wordCount: p
+      .integer()
+      .default(0)
+      .onCreate((e) => countWords(e.content))
+      .onUpdate((e) => countWords(e.content)),
     metadata: p.json<Metadata>().nullable(),
     logbook: () => p.manyToOne(Logbook),
     parent: () => p.manyToOne(Entry).nullable(),

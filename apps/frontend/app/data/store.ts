@@ -24,6 +24,7 @@ import type {
   Metadata,
   MoveEntryInput,
 } from "logarithmic-backend/api-types";
+import { countWords } from "logarithmic-backend/word-count";
 
 import { DEMO_LOGBOOKS } from "./demo-tree.ts";
 
@@ -177,7 +178,7 @@ function buildTree(logbookId: string): EntryNode[] {
       col: e.col,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
-      hasContent: e.content != null && e.content.length > 0,
+      wordCount: countWords(e.content),
       metadataKeys: e.metadata ? Object.keys(e.metadata) : [],
       children: build(e.id),
     }));
@@ -223,6 +224,7 @@ export function getEntry(entryId: number): EntryDetail | null {
     metadata: e.metadata,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
+    wordCount: countWords(e.content),
     logbookId: e.logbookId,
     parentId: e.parentId,
     ancestors,

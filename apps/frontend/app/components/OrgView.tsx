@@ -318,8 +318,9 @@ function EntryCard({
         <div className={styles.cardFooter}>
           <span className={styles.cardMeta}>
             {formatCardDate(entry.updatedAt)}
-            {/* Word-count placeholder: counting efficiently needs a backend
-                field. Append " · {n} words" here once the overview supplies it. */}
+            {/* Word count is only meaningful once there's prose to count, so it's
+                shown only for entries that have content. */}
+            {entry.wordCount > 0 && ` · ${entry.wordCount} words`}
           </span>
           {/* Stop pointerdown so the drag sensor doesn't fire when a button is
               clicked. */}

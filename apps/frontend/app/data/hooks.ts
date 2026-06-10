@@ -34,6 +34,7 @@ import type {
   Metadata,
   MoveEntryInput,
 } from "logarithmic-backend/api-types";
+import { countWords } from "logarithmic-backend/word-count";
 
 import * as store from "./store.ts";
 import { getAllTokens, saveToken } from "./tokens.ts";
@@ -379,7 +380,7 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
           col,
           createdAt: now,
           updatedAt: now,
-          hasContent: false,
+          wordCount: 0,
           metadataKeys: [],
           children: [],
         };
@@ -420,7 +421,7 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
             col: data.col,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
-            hasContent: data.content != null && data.content.length > 0,
+            wordCount: data.wordCount,
             metadataKeys: data.metadata ? Object.keys(data.metadata) : [],
             children: [],
           };
@@ -531,44 +532,71 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
   });
 }
 
+type UpdateContentCtx = {
+  prev: EntryDetail | null | undefined;
+  prevOverview: LogbookOverview | null | undefined;
+};
+
 export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation<
     EntryDetail | null,
     Error,
     { id: number; content: string; logbookId: string },
-    { prev: EntryDetail | null | undefined }
+    UpdateContentCtx
   >({
     mutationFn: (input) =>
       demo
         ? Promise.resolve(store.updateEntryContent({ id: input.id, content: input.content }))
         : trpc.entry.updateContent.mutate(input),
     onMutate: async (vars) => {
-      await qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
-      const prev = qc.getQueryData<EntryDetail | null>(keys.entry(demo, vars.id));
+      const entryKey = keys.entry(demo, vars.id);
+      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
+      await Promise.all([
+        qc.cancelQueries({ queryKey: entryKey }),
+        qc.cancelQueries({ queryKey: overviewKey }),
+      ]);
+      const prev = qc.getQueryData<EntryDetail | null>(entryKey);
+      const wordCount = countWords(vars.content);
+      const updatedAt = new Date();
       if (prev) {
-        qc.setQueryData<EntryDetail | null>(keys.entry(demo, vars.id), {
+        qc.setQueryData<EntryDetail | null>(entryKey, {
           ...prev,
           content: vars.content,
-          updatedAt: new Date(),
+          wordCount,
+          updatedAt,
         });
       }
-      return { prev };
+      // The org-view card shows this entry's word count, so the overview's node
+      // has to track it too. `countWords` is the same function the server runs,
+      // so this optimistic value already matches what a refetch would return —
+      // which is exactly why onSuccess can avoid refetching the whole tree.
+      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      if (prevOverview) {
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...prevOverview,
+          entries: mapNode(prevOverview.entries, vars.id, (n) => ({
+            ...n,
+            wordCount,
+            updatedAt,
+          })),
+        });
+      }
+      return { prev, prevOverview };
     },
     onError: (_err, vars, ctx) => {
       if (ctx?.prev !== undefined) qc.setQueryData(keys.entry(demo, vars.id), ctx.prev);
-    },
-    onSuccess: (data, vars, ctx) => {
-      // The overview projection only depends on `hasContent` (a boolean), so
-      // only refetch it when the value actually flipped. Without this guard
-      // every debounced autosave (~once per 800ms while the user types) would
-      // refetch the whole logbook tree.
-      const wasNonEmpty = (ctx?.prev?.content?.length ?? 0) > 0;
-      const becameNonEmpty = vars.content.length > 0;
-      void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
-      if (data?.logbookId && becameNonEmpty !== wasNonEmpty) {
-        void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, data.logbookId) });
+      if (ctx?.prevOverview !== undefined) {
+        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
       }
+    },
+    onSuccess: (_data, vars) => {
+      // Both the entry and the overview node were patched optimistically above
+      // with the same word count the server computes, so a routine autosave
+      // (~once per 800ms while typing) needs no overview refetch. Only
+      // invalidate the entry itself; the overview reconciles on its own next
+      // load. (See onMutate for why the optimistic value is authoritative.)
+      void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
     },
   });
 }

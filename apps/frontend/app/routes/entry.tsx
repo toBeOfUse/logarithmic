@@ -41,14 +41,6 @@ function formatRelative(d: Date): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function wordCount(markdown: string | null): number {
-  if (!markdown) return 0;
-  return markdown
-    .replace(/[`*_>#-]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean).length;
-}
-
 const appShell =
   "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden";
 
@@ -409,7 +401,7 @@ export default function EntryRoute() {
             createdAt={entry.createdAt}
             savedAt={savedAt}
             saving={saving}
-            content={entry.content}
+            wordCount={entry.wordCount}
           />
         </div>
       </div>
@@ -636,12 +628,12 @@ function Footer({
   createdAt,
   savedAt,
   saving,
-  content,
+  wordCount,
 }: {
   createdAt: Date;
   savedAt: Date | null;
   saving: boolean;
-  content: string | null;
+  wordCount: number;
 }) {
   const status = saving ? "Saving…" : savedAt ? `Saved · ${formatRelative(savedAt)}` : "Saved";
   return (
@@ -651,7 +643,7 @@ function Footer({
         {status}
       </span>
       <span>
-        Created {formatDate(createdAt)} · {wordCount(content)} words
+        Created {formatDate(createdAt)} · {wordCount} words
       </span>
     </div>
   );

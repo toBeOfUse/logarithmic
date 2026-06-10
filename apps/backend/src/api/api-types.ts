@@ -61,8 +61,10 @@ export type ListLogbooksByTokensInput = {
  * parent/child relationships from a flat list. Excludes `content` and
  * `metadata` so we never download full bodies for an overview.
  */
-export type EntryNode = Pick<IEntry, "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt"> & {
-  hasContent: boolean;
+export type EntryNode = Pick<
+  IEntry,
+  "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt" | "wordCount"
+> & {
   metadataKeys: string[];
   children: EntryNode[];
 };
@@ -82,7 +84,7 @@ export type LogbookOverview = {
  */
 export type EntryDetail = Pick<
   IEntry,
-  "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt"
+  "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt" | "wordCount"
 > & {
   // Override nullable fields so the API type is exact-shape (non-optional).
   content: string | null;
