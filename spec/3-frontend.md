@@ -20,23 +20,19 @@ When you're in the organizational interface, the kebab menu allows you to rename
 
 ### Organizational Interface
 
-The organizational view shows a spreadsheet/chart of all of the entries. You can tell which column each entry falls into from its horizontal position; each entry is centered under the column number it corresponds to. (The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport.) They are arranged in nested groups of one or more entries, which creates a layout vaguely similar to a file tree. Here is a wireframe:
+The organizational view shows a spreadsheet/chart of all of the entries. Each entry is represented by a simple card in a column. The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport. Only the necessary columns for the cards on screen are shown. Cards' children are present in the column to their right. Cards visually extend downwards to occupy the space taken up by their descendants. There is a horizontal line and a small gap between trees in the forest.
 
-![](org_view_v2_wireframe.png)
+![](org_view_v3_wireframe.png)
 
-Each sequence of one or more siblings becomes a group that is placed in a container. If an entry has children, those are placed in their own, separate group that is below its parent and offset to the right. At the end of each group, an "Add" button is displayed.
+Cards in columns greater than 0 have bold titles. (Their font size does not change.) Cards in columns less than 0 have a secondary font color. Hovering over an entry's card reveals three secondary buttons, positioned on the right side of the entry's cell: "Rename", "Reorder", and "Add Child" (in that order.) Their functionality is described down below.
 
-Hovering over an entry reveals three secondary buttons, positioned on the right side of the entry's cell: "Rename", "Reorder", and "Add Child" (in that order.) Their functionality is described down below.
+![](org_view_v3_card_wireframe.png)
 
-#### Column-Level Emphasis
+Entries with more than one child or a descendant with more than one child are "sticky." As you scroll down, their top edge moves down and their content stays on screen as long as any of their descendants are on screen. Also, their bottom edge stays on screen, and is fixed in the same place visually until the last descendant in a column to the right has its bottom edge move above the bottom of the viewport. Here is a mock up with a (very short) viewport:
 
-The column an entry is in indicates the role it plays in the organizational schema; specific roles for specific columns aren't enforced at a data model level, but their typographic style hints at potential uses.
+![](org_view_v3_viewport_wireframe.png)
 
-- Column 0 is like body text; it's the column that most content is concentrated in.
-- Columns greater than 0 are like headings, and are emphasized correspondingly; they should be displayed with increased font sizes, weight, and vertical padding.
-- Columns less than 0 contain asides, digressions, and half-formed ideas. They use the default font size (1rem), but the secondary text color.
-
-Make sure that these values are stored as CSS variables so that they can be experimented with.
+Note that there is a visible vertical gap between the top of the viewport and the top of the sticky card, and between the bottom of the viewport and the bottom of the sticky card.
 
 #### Adding Entries
 
@@ -45,8 +41,6 @@ Creating a new entry adds a new "input cell" to the chart. In the cell, a simple
 For convenience, if the user presses enter twice after typing the new entry's name, they end up on its page. (In this scenario, they have pressed enter once to save the name, which leaves the link to the new entry present and focused, and once to navigate to that link.)
 
 At the top, where the column numbers are listed, each has a button below it that creates a new entry in that column. That new entry is created as a new root node, positioned after any existing root nodes in the ordering.
-
-As mentioned above, at the end of each group, an "Add" button is present. This button adds a new last entry to the group of siblings.
 
 One of the buttons on each entry is the "add child" button. Its icon is a mirrored version of the return symbol (⏎); it is an arrow that points down and then right. Clicking it adds a child for the entry (inline, in the same manner described above.) (If that entry already has children, the new one will be the new last child.)
 
@@ -58,9 +52,9 @@ With regard to adding and editing entries: note that input cells only exist whil
 
 #### Moving Entries
 
-At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped on the top half of another entry, it's moved to be the sibling directly preceding that entry; if it's dropped on the bottom half of another entry, it's moved to be the sibling directly after that entry; and if it's dropped on the "add child" button for an entry, it is moved to be the (last) child of that entry. (This is mainly useful if its new parent has no children currently, and thus the entry being moved can't be dropped among them.)
+At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped above another entry, it's moved to be the sibling directly preceding that entry; if it's dropped below another entry, it's moved to be the sibling directly after that entry; and if it's dropped on the "add child" button for an entry, it is moved to be the (last) child of that entry. (This is mainly useful if its new parent has no children currently, and thus the entry being moved can't be dropped among them.)
 
-While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. (Except: the "add child" button for the entry being dragged and the "add child" button for its current parent, if any, should _not_ be emphasized, because it doesn't really make sense to drag it onto either of them.) Similarly, an entry can be dropped onto the "add" button below a column number in the sticky column number display at the top to turn it into a new root present that column. (Dragging an entry that is already a root onto one of these buttons also allows it to be shifted from column to column.)
+While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. (Except: the "add child" button for the entry being dragged and the "add child" button for its current parent, if any, should _not_ be emphasized, because it doesn't really make sense to drag it onto either of them.)
 
 Also, one of the secondary buttons that shows up when an entry is hovered over is the "Reorder" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
 
