@@ -1,48 +1,29 @@
 /**
- * Organizational view (v2 spec).
+ * Organizational view — chart layout.
  *
- * Each sequence of siblings is a group rendered as a single container. If a
- * sibling has children, those children form their own group nested inside,
- * offset to the right. Every group ends with an "Add" button that creates a
- * new last sibling. Column numbers are shown in a sticky strip at the top;
- * each one has its own "Add" button that creates a new root in that column.
+ * The forest is drawn as a horizontal tree of cards: a parent sits directly to
+ * the LEFT of its children (one column over) and its card stretches downward to
+ * span the full vertical extent of its descendants, so each subtree reads as a
+ * single block. Higher column numbers sit further left; column 0 is body text,
+ * columns > 0 are headings (bold titles), columns < 0 are asides (secondary
+ * color). Only the columns the data needs are shown, unioned with a default
+ * [1, 0, -1] working set so there's always a heading / body / aside column to
+ * seed a root into.
  *
- * Hovering an entry reveals three buttons on the right: "rename", "reorder",
- * and "add child". Renaming reuses the same input-cell shape that adding new
- * entries does. Entries can also be dragged onto each other (top-half →
- * sibling-before, bottom-half → sibling-after) or onto an "add child" button
- * (becomes the last child of that entry). Root entries get extra left/right
- * arrow buttons on hover that shift the root (and its descendants) one
- * column over.
+ * Entries whose subtree branches anywhere — i.e. the entry, or any descendant,
+ * has more than one child — get a "sticky" card: as you scroll, its content
+ * pins near the top of the viewport and its box bottom pins near the bottom, so
+ * it stays on screen while any descendant is visible. Single chains never grow
+ * tall, so they don't stick.
  *
- * Layout/sizing live in OrgView.module.css under custom properties.
+ * Hovering a card swaps its meta line for three actions: rename (pencil),
+ * reorder siblings (↑↓, opens the rearrange modal), and add child (↳). Layout
+ * and sizing live in OrgView.module.css under custom properties.
  */
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  pointerWithin,
-  rectIntersection,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import {
-  type CSSProperties,
-  Fragment,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
+import type { EntryNode } from "logarithmic-backend/api-types";
 
 import { cn } from "~/lib/cn.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
@@ -53,16 +34,14 @@ import { RearrangeModal } from "./RearrangeModal.tsx";
 type AddInput = { col: number; parentId: number | null };
 
 /**
- * The single input cell that can be live in the org view at a time — either
- * one being added under a parent, or one in place of an existing entry being
+ * The single input cell that can be live in the org view at a time — either one
+ * being added under a parent, or one in place of an existing entry being
  * renamed. Per spec, "input cells only exist while they're focused, and there
  * should never be a need to render two at once."
  */
 type PendingInput =
   | { kind: "add"; col: number; parentId: number | null }
   | { kind: "rename"; entryId: number };
-
-type DropData = { kind: "before" | "after"; refId: number } | { kind: "child"; parentId: number };
 
 // ── Tree helpers ───────────────────────────────────────────────────────
 
@@ -100,322 +79,149 @@ function colRange(forest: EntryNode[]): { min: number; max: number } {
 }
 
 /**
- * Convert a drop target (the dnd-kit concept attached to each drop zone) into
- * the API's `MoveEntryInput`. The drop zones describe intent in terms of
- * relative neighbours; the server expects an absolute `{parentId, col,
- * position}` triple, and we have the forest right here to bridge the two.
- * Returns null for self-drops and other no-ops.
+ * The set of entries that should stick while scrolling: those whose subtree
+ * branches anywhere (the entry itself, or any descendant, has more than one
+ * child). This is exactly the set of entries that ever grow taller than a
+ * single card, so it's also the set worth pinning.
  */
-function dropToMoveInput(
-  draggedId: number,
-  drop: DropData,
-  byId: Map<number, EntryNode>,
-  parentOf: Map<number, number | null>,
-  forest: EntryNode[],
-  logbookId: string,
-): MoveEntryInput | null {
-  const siblingsOf = (parentId: number | null): EntryNode[] => {
-    const list = parentId === null ? forest : (byId.get(parentId)?.children ?? []);
-    return list.filter((n) => n.id !== draggedId);
-  };
-
-  if (drop.kind === "before" || drop.kind === "after") {
-    if (drop.refId === draggedId) return null;
-    const ref = byId.get(drop.refId);
-    if (!ref) return null;
-    const refParentId = parentOf.get(ref.id) ?? null;
-    const parent = refParentId ? byId.get(refParentId) : null;
-    const col = parent ? parent.col - 1 : ref.col;
-    const sibs = siblingsOf(refParentId);
-    const refIdx = sibs.findIndex((s) => s.id === ref.id);
-    const position = drop.kind === "before" ? refIdx : refIdx + 1;
-    return { logbookId, id: draggedId, parentId: refParentId, col, position };
-  }
-  if (drop.kind === "child") {
-    if (drop.parentId === draggedId) return null;
-    const parent = byId.get(drop.parentId);
-    if (!parent) return null;
-    return {
-      logbookId,
-      id: draggedId,
-      parentId: parent.id,
-      col: parent.col - 1,
-      position: siblingsOf(parent.id).length,
-    };
-  }
-  return null;
-}
-
-function runsByCol<T extends { col: number }>(items: T[]): { col: number; kids: T[] }[] {
-  const runs: { col: number; kids: T[] }[] = [];
-  for (const c of items) {
-    const last = runs[runs.length - 1];
-    if (last && last.col === c.col) last.kids.push(c);
-    else runs.push({ col: c.col, kids: [c] });
-  }
-  return runs;
-}
-
-/**
- * Render specs for the groups belonging to a parent (or null for roots).
- *
- * For a non-null parent, start from same-col runs of children so true
- * siblings share a container. For the root forest, each root becomes its
- * own group: separate trees aren't "siblings" in the same sense — they
- * shouldn't be glued together just because they happen to fall in the
- * same column. Then splice in the pending add-input cell at the end if
- * one's targeted at this parent. For nested groups, if the last run's col
- * matches, the input rides along inside it; otherwise (and always at
- * root) it gets its own group so a not-yet-existent column can be opened.
- */
-function groupsForParent(
-  children: EntryNode[],
-  pendingInput: PendingInput | null,
-  parentId: number | null,
-): { col: number; kids: EntryNode[]; hasPendingInput: boolean }[] {
-  const runs =
-    parentId === null
-      ? children.map((c) => ({ col: c.col, kids: [c], hasPendingInput: false }))
-      : runsByCol(children).map((r) => ({ ...r, hasPendingInput: false }));
-  if (pendingInput?.kind === "add" && pendingInput.parentId === parentId) {
-    const last = runs[runs.length - 1];
-    if (parentId !== null && last && last.col === pendingInput.col) {
-      last.hasPendingInput = true;
-    } else {
-      runs.push({ col: pendingInput.col, kids: [], hasPendingInput: true });
+function computeStickySet(forest: EntryNode[]): Set<number> {
+  const sticky = new Set<number>();
+  const visit = (n: EntryNode): boolean => {
+    let branchy = n.children.length > 1;
+    for (const c of n.children) {
+      if (visit(c)) branchy = true;
     }
+    if (branchy) sticky.add(n.id);
+    return branchy;
+  };
+  forest.forEach(visit);
+  return sticky;
+}
+
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
   }
-  return runs;
+}
+
+/** "Dec 12th, 2026" — the card-design "Date Updated". */
+function formatCardDate(d: Date): string {
+  const month = d.toLocaleDateString(undefined, { month: "short" });
+  return `${month} ${ordinal(d.getDate())}, ${d.getFullYear()}`;
 }
 
 function colVar(idx: number): CSSProperties {
   return { "--org-col-idx": idx } as CSSProperties;
 }
 
-function boxColClass(col: number): string | undefined {
-  if (col < 0) return styles.isColNeg;
-  if (col >= 3) return styles.isCol3plus;
-  if (col === 0) return styles.isCol0;
-  if (col === 1) return styles.isCol1;
-  return styles.isCol2;
+function titleColClass(col: number): string | undefined {
+  if (col < 0) return styles.isAside;
+  if (col > 0) return styles.isHeading;
+  return undefined;
 }
 
-// ── Cell ───────────────────────────────────────────────────────────────
+// ── Cards ──────────────────────────────────────────────────────────────
 
-function EntryCell({
+function EntryCard({
   entry,
   logbookSegment,
-  isEditing,
-  isDragging,
-  emphasizeAddChild,
-  hasChildren,
+  sticky,
   onAddChild,
   onRename,
   onReorder,
-  onMoveCol,
-  onSubmitRename,
-  onCancelRename,
 }: {
   entry: EntryNode;
   logbookSegment: string;
-  isEditing: boolean;
-  isDragging: boolean;
-  emphasizeAddChild: boolean;
-  hasChildren: boolean;
+  sticky: boolean;
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
-  /** When set (root entries only), reveal arrow buttons that shift the entry one column over. */
-  onMoveCol: ((delta: 1 | -1) => void) | null;
-  onSubmitRename: (name: string) => void;
-  onCancelRename: () => void;
 }) {
-  // After a drag, the synthesized click on pointerup would otherwise navigate
-  // through the inner <Link>. Track when this cell was the drag source so we
-  // can swallow that one click.
-  const justDraggedRef = useRef(false);
-
-  const draggable = useDraggable({
-    id: `entry:${entry.id}`,
-    disabled: isEditing,
-    data: { entryId: entry.id },
-  });
-  useEffect(() => {
-    if (draggable.isDragging) justDraggedRef.current = true;
-  }, [draggable.isDragging]);
-  const topDrop = useDroppable({
-    id: `before:${entry.id}`,
-    disabled: isEditing,
-    data: { kind: "before", refId: entry.id } satisfies DropData,
-  });
-  // When the entry has children, "after" lives below the children (see
-  // AfterEntryDrop) — dropping in the row's bottom half would otherwise
-  // land between the entry and its kids, which makes no sense.
-  const bottomDrop = useDroppable({
-    id: `after:${entry.id}`,
-    disabled: isEditing || hasChildren,
-    data: { kind: "after", refId: entry.id } satisfies DropData,
-  });
-  const childDrop = useDroppable({
-    id: `child:${entry.id}`,
-    data: { kind: "child", parentId: entry.id } satisfies DropData,
-  });
-
-  const isOver = topDrop.isOver || bottomDrop.isOver ? (topDrop.isOver ? "top" : "bottom") : null;
-
-  if (isEditing) {
-    return (
-      <PendingInputCell
-        initialValue={entry.name}
-        onSubmit={onSubmitRename}
-        onCancel={onCancelRename}
-      />
-    );
-  }
-
   return (
     <div
-      ref={draggable.setNodeRef}
       data-entry-anchor={entry.id}
-      className={cn(
-        styles.row,
-        hasChildren && styles.hasChildren,
-        draggable.isDragging && styles.isSource,
-        isDragging && styles.isDragContext,
-      )}
-      onClickCapture={(e) => {
-        if (justDraggedRef.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          justDraggedRef.current = false;
-        }
-      }}
-      {...draggable.attributes}
-      {...draggable.listeners}
+      className={cn(styles.card, sticky && styles.sticky, titleColClass(entry.col))}
     >
-      {onMoveCol && (
-        <>
-          <button
-            type="button"
-            className={cn(styles.colMover, styles.left)}
-            aria-label="Move one column left"
-            title="Move one column left"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onMoveCol(1)}
-          >
-            <i className="ri-arrow-left-s-line" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(styles.colMover, styles.right)}
-            aria-label="Move one column right"
-            title="Move one column right"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onMoveCol(-1)}
-          >
-            <i className="ri-arrow-right-s-line" aria-hidden="true" />
-          </button>
-        </>
-      )}
-      <Link
-        to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
-        className={cn(styles.rowLink, !entry.name && styles.isUntitled)}
-        draggable={false}
-      >
-        <span className={styles.rowName}>{entry.name || "Unnamed entry"}</span>
-      </Link>
+      <div className={styles.cardBody}>
+        <Link
+          to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
+          className={styles.cardLink}
+          draggable={false}
+        >
+          <span className={cn(styles.cardTitle, !entry.name && styles.isUntitled)}>
+            {entry.name || "Unnamed entry"}
+          </span>
+        </Link>
 
-      <div className={styles.rowActions} onPointerDown={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          className={styles.rowAction}
-          aria-label="Rename"
-          title="Rename"
-          onClick={onRename}
-        >
-          <i className="ri-pencil-line" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className={styles.rowAction}
-          aria-label="Reorder siblings"
-          title="Reorder siblings"
-          onClick={onReorder}
-        >
-          <i className="ri-arrow-up-down-line" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          ref={childDrop.setNodeRef}
-          className={cn(
-            styles.rowAction,
-            emphasizeAddChild && styles.isDragContext,
-            emphasizeAddChild && childDrop.isOver && styles.isOver,
-          )}
-          aria-label="Add child"
-          title="Add child"
-          onClick={onAddChild}
-        >
-          <i className="ri-corner-down-right-line" aria-hidden="true" />
-        </button>
+        <div className={styles.cardFooter}>
+          <span className={styles.cardMeta}>
+            {formatCardDate(entry.updatedAt)}
+            {/* Word-count placeholder: counting efficiently needs a backend
+                field. Append " · {n} words" here once the overview supplies it. */}
+          </span>
+          <div className={styles.cardActions}>
+            <button
+              type="button"
+              className={styles.cardAction}
+              aria-label="Rename"
+              title="Rename"
+              onClick={onRename}
+            >
+              <i className="ri-pencil-line" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.cardAction}
+              aria-label="Reorder siblings"
+              title="Reorder siblings"
+              onClick={onReorder}
+            >
+              <i className="ri-arrow-up-down-line" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.cardAction}
+              aria-label="Add child"
+              title="Add child"
+              onClick={onAddChild}
+            >
+              <i className="ri-corner-down-right-line" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </div>
-
-      {/* Drop halves cover the row, but sit below the action buttons. */}
-      <div
-        ref={topDrop.setNodeRef}
-        className={cn(styles.rowDrop, styles.top, isOver === "top" && styles.isOver)}
-        aria-hidden="true"
-      />
-      {!hasChildren && (
-        <div
-          ref={bottomDrop.setNodeRef}
-          className={cn(styles.rowDrop, styles.bottom, isOver === "bottom" && styles.isOver)}
-          aria-hidden="true"
-        />
-      )}
     </div>
   );
 }
 
 /**
- * "After" drop zone for an entry that has children. Rendered below the
- * entry's child group(s) so the user can place a sibling-after by dropping
- * past the children rather than into the gap between parent and first child.
+ * The shared input card. Used both for adding a new entry (initialValue="") and
+ * for renaming an existing one. Submission is single-fire: whichever of blur or
+ * Enter happens first commits the value; Escape commits the cancel path. The
+ * caller decides whether an empty submission creates/renames or is a no-op (per
+ * spec, both flows treat an all-whitespace value as "no change").
  */
-function AfterEntryDrop({ entryId }: { entryId: number }) {
-  const drop = useDroppable({
-    id: `after:${entryId}`,
-    data: { kind: "after", refId: entryId } satisfies DropData,
-  });
-  return (
-    <div
-      ref={drop.setNodeRef}
-      className={cn(styles.afterDrop, drop.isOver && styles.isOver)}
-      aria-hidden="true"
-    />
-  );
-}
-
-/**
- * The shared input cell. Used both for adding a new entry (initialValue="")
- * and for renaming an existing one. Submission is single-fire: whichever of
- * blur or Enter happens first commits the value; Escape commits the cancel
- * path. The caller decides whether an empty submission should create/rename
- * or be treated as a no-op (per spec, both flows treat an all-whitespace
- * value as "no change").
- */
-function PendingInputCell({
+function InputCard({
   initialValue,
+  sticky,
   onSubmit,
   onCancel,
 }: {
   initialValue: string;
+  sticky: boolean;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  // Submit and blur both end the cell; the second handler to fire would
-  // double-submit without this guard.
   const settledRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -427,150 +233,118 @@ function PendingInputCell({
   }, []);
 
   return (
-    <div className={cn(styles.row, styles.isEditing)}>
-      <input
-        ref={inputRef}
-        className={styles.rowInput}
-        defaultValue={initialValue}
-        onBlur={(e) => {
-          if (settledRef.current) return;
-          settledRef.current = true;
-          onSubmit(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
+    <div className={cn(styles.card, styles.cardEditing, sticky && styles.sticky)}>
+      <div className={styles.cardBody}>
+        <input
+          ref={inputRef}
+          className={styles.cardInput}
+          defaultValue={initialValue}
+          onBlur={(e) => {
             if (settledRef.current) return;
             settledRef.current = true;
-            onSubmit(e.currentTarget.value);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            if (settledRef.current) return;
-            settledRef.current = true;
-            onCancel();
-          }
-        }}
-      />
+            onSubmit(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (settledRef.current) return;
+              settledRef.current = true;
+              onSubmit(e.currentTarget.value);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              if (settledRef.current) return;
+              settledRef.current = true;
+              onCancel();
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }
 
-// ── Group ──────────────────────────────────────────────────────────────
+// ── Subtree ────────────────────────────────────────────────────────────
 
-type GroupSpec = { col: number; kids: EntryNode[]; hasPendingInput: boolean };
-
-function NestedGroup({
-  spec,
-  parentId,
+function Subtree({
+  node,
   logbookSegment,
+  stickySet,
   pendingInput,
-  draggedId,
-  draggedParentId,
   onAdd,
   onRename,
   onReorder,
-  onMoveRootCol,
   onSubmitPending,
   onCancelPending,
 }: {
-  spec: GroupSpec;
-  parentId: number | null;
+  node: EntryNode;
   logbookSegment: string;
+  stickySet: Set<number>;
   pendingInput: PendingInput | null;
-  draggedId: number | null;
-  draggedParentId: number | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
-  onMoveRootCol: (id: number, delta: 1 | -1) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
 }) {
-  const { col, kids, hasPendingInput } = spec;
-  if (kids.length === 0 && !hasPendingInput) return null;
-  const isDragging = draggedId !== null;
+  const isRenaming = pendingInput?.kind === "rename" && pendingInput.entryId === node.id;
+  const addingHere = pendingInput?.kind === "add" && pendingInput.parentId === node.id;
+  const sticky = stickySet.has(node.id);
+  const childCol = node.col - 1;
+  // The child column exists when there are children, or when a child is being
+  // added under this node (so the first child's input has somewhere to live).
+  const hasChildCol = node.children.length > 0 || addingHere;
 
   return (
-    <div className={cn(styles.box, boxColClass(col))}>
-      <div className="flex flex-col">
-        {kids.map((sib) => {
-          const childSpecs = groupsForParent(sib.children, pendingInput, sib.id);
-          const hasChildren = childSpecs.length > 0;
-          const isEditing = pendingInput?.kind === "rename" && pendingInput.entryId === sib.id;
-          return (
-            <Fragment key={sib.id}>
-              <EntryCell
-                entry={sib}
-                logbookSegment={logbookSegment}
-                isEditing={isEditing}
-                isDragging={isDragging}
-                emphasizeAddChild={isDragging && sib.id !== draggedId && sib.id !== draggedParentId}
-                hasChildren={hasChildren}
-                onAddChild={() => onAdd({ col: sib.col - 1, parentId: sib.id })}
-                onRename={() => onRename(sib.id)}
-                onReorder={() => onReorder(sib.id)}
-                onMoveCol={parentId === null ? (delta) => onMoveRootCol(sib.id, delta) : null}
-                onSubmitRename={onSubmitPending}
-                onCancelRename={onCancelPending}
-              />
-              {childSpecs.map((s, j) => (
-                <NestedGroup
-                  key={`${sib.id}-${j}`}
-                  spec={s}
-                  parentId={sib.id}
-                  logbookSegment={logbookSegment}
-                  pendingInput={pendingInput}
-                  draggedId={draggedId}
-                  draggedParentId={draggedParentId}
-                  onAdd={onAdd}
-                  onRename={onRename}
-                  onReorder={onReorder}
-                  onMoveRootCol={onMoveRootCol}
-                  onSubmitPending={onSubmitPending}
-                  onCancelPending={onCancelPending}
-                />
-              ))}
-              {hasChildren && sib.id !== draggedId && parentId !== null && (
-                <AfterEntryDrop entryId={sib.id} />
-              )}
-            </Fragment>
-          );
-        })}
-        {hasPendingInput && (
-          <PendingInputCell initialValue="" onSubmit={onSubmitPending} onCancel={onCancelPending} />
+    <div className={styles.subtree}>
+      <div className={styles.cell}>
+        {isRenaming ? (
+          <InputCard
+            initialValue={node.name}
+            sticky={sticky}
+            onSubmit={onSubmitPending}
+            onCancel={onCancelPending}
+          />
+        ) : (
+          <EntryCard
+            entry={node}
+            logbookSegment={logbookSegment}
+            sticky={sticky}
+            onAddChild={() => onAdd({ col: childCol, parentId: node.id })}
+            onRename={() => onRename(node.id)}
+            onReorder={() => onReorder(node.id)}
+          />
         )}
       </div>
-      {!hasPendingInput && parentId !== null && (
-        <button type="button" className={styles.add} onClick={() => onAdd({ col, parentId })}>
-          <i className="ri-add-line" aria-hidden="true" />
-          <span>Add</span>
-        </button>
+
+      {hasChildCol && (
+        <div className={styles.childCol}>
+          {node.children.map((child) => (
+            <Subtree
+              key={child.id}
+              node={child}
+              logbookSegment={logbookSegment}
+              stickySet={stickySet}
+              pendingInput={pendingInput}
+              onAdd={onAdd}
+              onRename={onRename}
+              onReorder={onReorder}
+              onSubmitPending={onSubmitPending}
+              onCancelPending={onCancelPending}
+            />
+          ))}
+          {/* Adding a sibling here is the hover "Add child" action's job, so
+              the column holds only children plus the live add-input (if any). */}
+          {addingHere && (
+            <InputCard
+              initialValue=""
+              sticky={false}
+              onSubmit={onSubmitPending}
+              onCancel={onCancelPending}
+            />
+          )}
+        </div>
       )}
     </div>
-  );
-}
-
-// ── Column strip ───────────────────────────────────────────────────────
-
-function ColAddButton({
-  col,
-  maxCol,
-  onAdd,
-}: {
-  col: number;
-  maxCol: number;
-  onAdd: (col: number) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={styles.colAdd}
-      style={colVar(maxCol - col)}
-      aria-label={`Add entry in column ${col}`}
-      onClick={() => onAdd(col)}
-    >
-      <i className="ri-add-line" aria-hidden="true" />
-    </button>
   );
 }
 
@@ -586,7 +360,6 @@ export function OrgView({
   onRename,
   onSubmitPending,
   onCancelPending,
-  onMove,
   onReorderSiblings,
   onFocused,
 }: {
@@ -601,7 +374,6 @@ export function OrgView({
   onRename: (id: number) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
-  onMove: (input: MoveEntryInput) => void;
   onReorderSiblings: (parentId: number | null, ids: number[]) => void;
   onFocused: () => void;
 }) {
@@ -609,86 +381,75 @@ export function OrgView({
   const isEmpty = forest.length === 0;
   const { byId, parentOf } = useMemo(() => indexForest(forest), [forest]);
   const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
-  // Strip always shows cols -1 through 3 by default. When data is present,
-  // also pad one extra column past either extreme so it's always possible
-  // to add an entry one column lower or higher than what currently exists.
-  const minCol = isEmpty ? -1 : Math.min(dataMin - 1, -1);
-  const maxCol = isEmpty ? 3 : Math.max(dataMax + 1, 3);
+  const stickySet = useMemo(() => computeStickySet(forest), [forest]);
 
+  // Header columns: the data range, unioned with the default working set
+  // [1, 0, -1] (heading / body / aside) so there's always somewhere to add a
+  // root even in a sparse or empty logbook. For balanced data this collapses
+  // to exactly the columns in use — only the necessary columns are shown.
+  const maxCol = Math.max(dataMax, 1);
+  const minCol = Math.min(dataMin, -1);
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
 
-  const topSpecs = useMemo(
-    () => groupsForParent(forest, pendingInput, null),
-    [forest, pendingInput],
-  );
+  // Drive the height of sticky cards imperatively. A sticky card has to both
+  // span its subtree (so the box stretches down past its descendants) and be
+  // shorter than its cell (so it has room to travel and pin) — a plain sticky
+  // element can't do both. So each frame we set a sticky card's box to span
+  // [max(cellTop, pinLine) .. min(cellBottom, viewportBottom − gap)]: its top
+  // pins under the header with a gap, its bottom holds a gap above the viewport
+  // floor while the subtree runs past it, and it shrinks back to the true
+  // subtree bounds near either end. The cell (a sibling of the child column)
+  // already stretches to the subtree's full height, so its rect is the span.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const scrollEl = scrollRef.current;
+    const stickyClass = styles.sticky;
+    if (!scrollEl || !stickyClass) return;
+    const rootStyle = getComputedStyle(document.documentElement);
+    const stripH = parseFloat(rootStyle.getPropertyValue("--org-strip-h")) || 50;
+    const gap = parseFloat(rootStyle.getPropertyValue("--org-sticky-gap")) || 14;
+    const pinTop = stripH + gap;
 
-  // Drag state.
-  const [activeDragId, setActiveDragId] = useState<number | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  // pointerWithin handles row/child drops; prefer the small "add child"
-  // button when the cursor is inside it. Fall back to rectIntersection so a
-  // drag that hovers just outside any zone still lands somewhere sensible.
-  const collisionDetection: CollisionDetection = (args) => {
-    const within = pointerWithin(args);
-    if (within.length > 0) {
-      const child = within.find((c) => {
-        const container = args.droppableContainers.find((d) => d.id === c.id);
-        const data = container?.data.current as DropData | undefined;
-        return data?.kind === "child";
-      });
-      if (child) return [child];
-      return within;
-    }
-    return rectIntersection(args);
-  };
-  const onDragStart = (e: DragStartEvent) => {
-    const id = String(e.active.id);
-    if (id.startsWith("entry:")) {
-      const n = Number(id.slice("entry:".length));
-      if (Number.isFinite(n)) setActiveDragId(n);
-    }
-  };
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveDragId(null);
-    const { active, over } = e;
-    if (!over) return;
-    const data = over.data.current as DropData | undefined;
-    if (!data) return;
-    const id = Number(String(active.id).replace(/^entry:/, ""));
-    if (!Number.isFinite(id)) return;
-    const move = dropToMoveInput(id, data, byId, parentOf, forest, logbookId);
-    if (move) onMove(move);
-  };
-  const onDragCancel = () => setActiveDragId(null);
-
-  const draggedEntry = useMemo(
-    () => (activeDragId !== null ? (byId.get(activeDragId) ?? null) : null),
-    [activeDragId, byId],
-  );
-  const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
-
-  // Shift a root entry one column over without changing its position in the
-  // root list. The server's cascade handles dragging descendants along.
-  const onMoveRootCol = (entryId: number, delta: 1 | -1) => {
-    const entry = byId.get(entryId);
-    if (!entry) return;
-    const idx = forest.findIndex((r) => r.id === entryId);
-    if (idx < 0) return;
-    onMove({
-      logbookId,
-      id: entryId,
-      parentId: null,
-      col: entry.col + delta,
-      position: idx,
-    });
-  };
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const vpBottom = scrollEl.clientHeight - gap;
+      const originTop = scrollEl.getBoundingClientRect().top;
+      for (const card of scrollEl.querySelectorAll<HTMLElement>(`.${stickyClass}`)) {
+        const cell = card.parentElement;
+        const body = card.firstElementChild;
+        if (!cell || !(body instanceof HTMLElement)) continue;
+        const r = cell.getBoundingClientRect();
+        const top = Math.max(r.top - originTop, pinTop);
+        const bottom = Math.min(r.bottom - originTop, vpBottom);
+        // Never shrink below the content; once the box would, the card keeps
+        // its content height and `position: sticky` scrolls it up off the top
+        // (its bottom held to the cell) so nothing is clipped.
+        const contentH = body.offsetHeight + (card.offsetHeight - card.clientHeight);
+        card.style.setProperty("--org-sticky-h", `${Math.max(bottom - top, contentH)}px`);
+      }
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    apply();
+    scrollEl.addEventListener("scroll", schedule, { passive: true });
+    const ro = new ResizeObserver(schedule);
+    ro.observe(scrollEl);
+    return () => {
+      scrollEl.removeEventListener("scroll", schedule);
+      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // Re-measure whenever the rendered cards change (tree edits, or an input
+    // cell swapping in for a renamed entry).
+  }, [forest, pendingInput]);
 
   // Focus the freshly-created entry's link (and scroll it into view) once it
   // shows up in the forest. The focus is what lets a second Enter follow the
-  // link to the new entry's page; without it the keyboard flow stalls after
-  // the input cell submits.
+  // link to the new entry's page; without it the keyboard flow stalls after the
+  // input cell submits.
   useLayoutEffect(() => {
     if (focusEntryId === null) return;
     const node = document.querySelector<HTMLElement>(`[data-entry-anchor="${focusEntryId}"]`);
@@ -711,93 +472,85 @@ export function OrgView({
     return { parentId: targetParent, siblings };
   }, [rearrangeFor, byId, parentOf, forest]);
 
+  const addingRoot =
+    pendingInput?.kind === "add" && pendingInput.parentId === null ? pendingInput : null;
+
   return (
     <div
       className="flex-1 flex flex-col overflow-hidden bg-paper"
       style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={collisionDetection}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={onDragCancel}
-      >
-        <div className="flex flex-col overflow-auto bg-paper">
-          <div className={styles.colStrip}>
-            <div className="relative w-full">
-              {cols.map((c) => (
-                <Fragment key={c}>
-                  <span className={styles.colPill} style={colVar(maxCol - c)}>
-                    {c > 0 ? `+${c}` : `${c}`}
-                  </span>
-                  <ColAddButton
-                    col={c}
-                    maxCol={maxCol}
-                    onAdd={(col) => onAdd({ col, parentId: null })}
-                  />
-                </Fragment>
-              ))}
-            </div>
-          </div>
-
-          {isEmpty && !pendingInput ? (
-            <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
-              <div className={styles.illustration} />
-              <h3 className="text-lg font-semibold text-primary m-0">
-                An empty logbook is a fine place to start.
-              </h3>
-              <p className="text-base text-muted m-0 max-w-xs">
-                Click the <i className="ri-add-line align-middle text-base" aria-hidden="true" />{" "}
-                under any column above to create your first entry there.
-              </p>
-            </div>
-          ) : (
-            <div className={styles.canvasWrap}>
-              <div className="relative z-2">
-                {topSpecs.map((spec, i) => {
-                  // Each root is its own tree (spec.kids has at most one
-                  // entry). The "after" drop zone lives in the margin between
-                  // trees, not inside the box, so dropping below a tree feels
-                  // like dropping between trees rather than inside one.
-                  const root = spec.kids[0] ?? null;
-                  const showAfterDrop =
-                    root !== null && root.children.length > 0 && root.id !== activeDragId;
-                  return (
-                    <div key={i} className={styles.tree} style={colVar(maxCol - spec.col)}>
-                      <NestedGroup
-                        spec={spec}
-                        parentId={null}
-                        logbookSegment={logbookSegment}
-                        pendingInput={pendingInput}
-                        draggedId={activeDragId}
-                        draggedParentId={draggedParentId}
-                        onAdd={onAdd}
-                        onRename={onRename}
-                        onReorder={(id) => setRearrangeFor(id)}
-                        onMoveRootCol={onMoveRootCol}
-                        onSubmitPending={onSubmitPending}
-                        onCancelPending={onCancelPending}
-                      />
-                      {showAfterDrop && <AfterEntryDrop entryId={root.id} />}
-                    </div>
-                  );
-                })}
+      <div ref={scrollRef} className="flex flex-col overflow-auto bg-paper">
+        <div className={styles.colStrip}>
+          <div className={styles.colStripInner}>
+            {cols.map((c) => (
+              <div key={c} className={styles.colHead} style={colVar(maxCol - c)}>
+                <span className={styles.colLabel}>Column {c}</span>
+                <button
+                  type="button"
+                  className={styles.colAdd}
+                  aria-label={`Add entry in column ${c}`}
+                  title={`Add entry in column ${c}`}
+                  onClick={() => onAdd({ col: c, parentId: null })}
+                >
+                  <i className="ri-add-line" aria-hidden="true" />
+                </button>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
 
-        <DragOverlay dropAnimation={null}>
-          {draggedEntry ? (
-            <div className={cn(styles.row, styles.isOverlay)}>
-              <span className={cn(styles.rowName, !draggedEntry.name && styles.isUntitled)}>
-                {draggedEntry.name || "Unnamed entry"}
-              </span>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        {isEmpty && !pendingInput ? (
+          <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
+            <div className={styles.illustration} />
+            <h3 className="text-lg font-semibold text-primary m-0">
+              An empty logbook is a fine place to start.
+            </h3>
+            <p className="text-base text-muted m-0 max-w-xs">
+              Click the <i className="ri-add-line align-middle text-base" aria-hidden="true" />{" "}
+              under any column above to create your first entry there.
+            </p>
+          </div>
+        ) : (
+          <div className={styles.canvas}>
+            {forest.map((root, i) => (
+              <Fragment key={root.id}>
+                {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                <div className={styles.tree} style={colVar(maxCol - root.col)}>
+                  <Subtree
+                    node={root}
+                    logbookSegment={logbookSegment}
+                    stickySet={stickySet}
+                    pendingInput={pendingInput}
+                    onAdd={onAdd}
+                    onRename={onRename}
+                    onReorder={(id) => setRearrangeFor(id)}
+                    onSubmitPending={onSubmitPending}
+                    onCancelPending={onCancelPending}
+                  />
+                </div>
+              </Fragment>
+            ))}
+            {addingRoot && (
+              <Fragment>
+                {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                <div className={styles.tree} style={colVar(maxCol - addingRoot.col)}>
+                  <div className={styles.subtree}>
+                    <div className={styles.cell}>
+                      <InputCard
+                        initialValue=""
+                        sticky={false}
+                        onSubmit={onSubmitPending}
+                        onCancel={onCancelPending}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </Fragment>
+            )}
+          </div>
+        )}
+      </div>
 
       {rearrangeContext && (
         <RearrangeModal

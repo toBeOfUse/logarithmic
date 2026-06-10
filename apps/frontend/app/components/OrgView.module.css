@@ -1,575 +1,370 @@
-/* Org view — row geometry, column-header strip, and nested layout. The
-   custom properties drive calc()-based positioning that can't be expressed
-   as Tailwind utilities. */
+/* Org view — chart layout. Each entry is a card; a parent sits one column to
+   the LEFT of its children and stretches downward to span the full vertical
+   extent of its descendants, so a whole subtree reads as one block. The custom
+   properties below drive the calc()-based column geometry that can't be
+   expressed as Tailwind utilities.
+
+   The horizontal position of a card is purely a function of its column: every
+   column is one `--org-stride` wide (card width + gap), so cards in the same
+   column line up across every tree and under the sticky column header. */
 
 :root {
-  --org-row-h: 42px;
-  --org-line-h: var(--org-row-h);
-  --org-row-pad-x: 14px;
-  --org-row-pad-y: 10px;
-  --org-edge-w: 1px;
+  --org-card-w: 200px;
+  --org-col-gap: 18px;
+  --org-card-gap: 9px;
+  --org-stride: calc(var(--org-card-w) + var(--org-col-gap));
+
+  --org-card-pad-x: 12px;
+  --org-card-pad-y: 9px;
+  --org-card-min-h: 58px;
+
+  --org-strip-h: 50px;
+  /* The visible gap between the viewport edge and a stuck card, top & bottom. */
+  --org-sticky-gap: 14px;
+  /* Vertical space around the rule that separates trees in the forest. */
+  --org-tree-gap: 20px;
   --org-transition: 120ms ease;
 
-  --org-col-2-name-size: 1.2rem;
-  --org-col-3plus-name-size: 1.4rem;
-  --org-col-0-name-weight: 450;
-  --org-col-1-name-weight: 700;
-  --org-col-1-pad-y-extra: 5px;
-  --org-col-2-pad-y-extra: 5px;
-  --org-col-3plus-pad-y-extra: 10px;
+  /* Column 0 is body text. Columns > 0 are headings — same size, bold. Columns
+     < 0 are asides — same size, secondary color. (Per the card-design spec,
+     font size does NOT vary by column.) */
+  --org-title-size: 1rem;
+  --org-title-lh: 1.3;
+  --org-title-weight: 450;
+  --org-title-weight-bold: 650;
+  --org-meta-size: 0.78rem;
+  /* Footer row height — shared by the meta line and the action buttons so the
+     card doesn't change height on hover. */
+  --org-footer-row-h: 1.18rem;
 
-  /* Column-header strip */
-  --org-strip-h: calc(var(--org-row-h) * 1.7);
-  --org-strip-btn-size: 20px;
-
-  /* Canvas layout */
-  --org-group-w: 360px;
-  --org-col-stride: 70px;
-  --org-canvas-pad-x: 12px;
-
-  /* Grid lines */
-  --org-row-edge: oklch(0.83 0.011 240);
-  --org-row-divider: oklch(0.9 0.008 240);
-  --org-row-hover: oklch(0.96 0.008 240);
+  --org-card-edge: var(--color-paper-edge);
 }
 
 @media (max-width: 640px) {
   :root {
-    --org-col-stride: 36px;
-    --org-canvas-pad-x: 4px;
+    --org-card-w: 158px;
+    --org-col-gap: 12px;
   }
 }
 
-.canvasWrap {
-  position: relative;
-  margin: 0 auto;
-  padding: 0 var(--org-canvas-pad-x);
-  box-sizing: content-box;
-  width: calc(
-    var(--org-group-w) + var(--org-col-span, 0) * var(--org-col-stride) - var(--org-col-stride) / 2
-  );
-}
+/* ── Column-header strip ─────────────────────────────────────── */
 
 .colStrip {
   position: sticky;
   top: 0;
-  z-index: 5;
-  margin: 0 auto;
-  padding: 0 var(--org-canvas-pad-x);
-  box-sizing: content-box;
-  width: calc(
-    var(--org-group-w) + var(--org-col-span, 0) * var(--org-col-stride) - var(--org-col-stride) / 2
-  );
+  z-index: 10;
+  flex-shrink: 0;
   height: var(--org-strip-h);
   background: var(--color-paper);
-  flex-shrink: 0;
 }
 
-.colPill {
+.colStripInner {
+  position: relative;
+  width: calc(var(--org-card-w) + var(--org-col-span, 0) * var(--org-stride));
+  height: 100%;
+  margin: 0 auto;
+}
+
+.colHead {
   position: absolute;
-  top: calc(var(--org-row-h) * 0.6);
-  left: calc(
-    var(--org-group-w) / 2 + var(--org-col-idx, 0) * var(--org-col-stride) - var(--org-col-stride) /
-      2
-  );
-  transform: translate(-50%, -50%);
-  font-size: 10px;
+  top: 0;
+  left: calc(var(--org-col-idx, 0) * var(--org-stride));
+  width: var(--org-card-w);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.colLabel {
+  font-size: 0.78rem;
   font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  padding: 2px 6px;
+  letter-spacing: 0.01em;
   color: var(--color-muted);
   white-space: nowrap;
 }
 
 .colAdd {
-  position: absolute;
-  top: calc(var(--org-row-h) * 1.15);
-  left: calc(
-    var(--org-group-w) / 2 + var(--org-col-idx, 0) * var(--org-col-stride) - var(--org-col-stride) /
-      2
-  );
-  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--org-strip-btn-size);
-  height: var(--org-strip-btn-size);
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--color-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  transition: color var(--org-transition);
+  opacity: 0.6;
+  transition:
+    color var(--org-transition),
+    opacity var(--org-transition);
+}
+
+.colHead:hover .colAdd {
+  opacity: 1;
 }
 
 .colAdd:hover {
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 
+/* ── Canvas & trees ──────────────────────────────────────────── */
+
+.canvas {
+  width: calc(var(--org-card-w) + var(--org-col-span, 0) * var(--org-stride));
+  margin: 0 auto;
+  /* Start the first row of cards on the same line a sticky card pins to, so at
+     rest the sticky and non-sticky cards in the top row line up. */
+  padding-top: var(--org-sticky-gap);
+  /* Headroom so the last tree can scroll up far enough for its sticky cards. */
+  padding-bottom: 8vh;
+}
+
+/* Offset each tree so its root lands under the matching column header. */
 .tree {
-  position: relative;
-  margin-left: calc(var(--org-col-idx, 0) * var(--org-col-stride) - var(--org-col-stride) / 2);
-  margin-bottom: calc(var(--org-line-h) / 2);
+  margin-left: calc(var(--org-col-idx, 0) * var(--org-stride));
 }
 
-/* Extend a root tree's box below its nested child groups so the container
-   has visible breathing room past the last child. Only applies when the root
-   actually has nested children — otherwise the padding renders as an empty
-   stub under a childless root. (Nested groups still get their bottom edge
-   from the "Add" button row inside them.) */
-.tree > .box:has(.box) {
-  padding-bottom: calc(var(--org-line-h) / 2);
+/* A horizontal rule with a small gap on either side, between trees. */
+.treeDivider {
+  width: 100%;
+  height: 0;
+  border-top: 1px solid var(--color-paper-edge);
+  margin: var(--org-tree-gap) 0;
 }
 
-/* Root-entry "after" drop zone — rendered as a direct child of .tree (not
-   inside the box) so it sits in the margin between this tree and the next.
-   The hit-area spans the full inter-tree margin, and the last tree's zone
-   extends well past it so dropping anywhere in the empty canvas below
-   still targets "after the last root". The visible accent line is drawn
-   by a pseudo-element pinned to the middle of the would-be margin, so it
-   stays put regardless of how tall the hit-area is. */
-.tree > .afterDrop {
-  position: absolute;
-  left: 0;
-  top: 100%;
-  bottom: auto;
-  height: calc(var(--org-line-h) / 2);
-  margin: 0;
+/* ── Subtree layout ──────────────────────────────────────────── */
+
+/* A subtree is a flex row: the entry's cell on the left, the column of its
+   child subtrees on the right. `align-items: stretch` is what makes the
+   parent cell grow to the full height of its descendants. */
+.subtree {
+  display: flex;
+  align-items: stretch;
+  gap: var(--org-col-gap);
 }
 
-.tree:last-child > .afterDrop {
-  height: 100px;
-}
-
-.tree > .afterDrop.isOver {
-  box-shadow: none;
-}
-
-.tree > .afterDrop.isOver::before {
-  content: "";
-  position: absolute;
-  top: calc(var(--org-line-h) / 4 - 1px);
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--color-accent);
-}
-
-.box {
-  /* Per-box hover/divider colors that cells inherit. */
-  --row-hover: var(--org-row-hover);
-  --row-divider: var(--org-row-divider);
-  --row-edge: var(--org-row-edge);
-
-  /* Per-box typography defaults (column 0). Modifier classes override
-     these. Resetting here (rather than on :root) prevents inheritance — a
-     column-0 box nested inside a higher-column box must not pick up the
-     parent's font-size. */
-  --row-name-size: 1rem;
-  --row-name-weight: var(--org-col-0-name-weight);
-  --row-name-color: var(--color-secondary);
-  --row-pad-y: var(--org-row-pad-y);
-
-  position: relative;
-  isolation: isolate;
-  z-index: 2;
-  width: var(--org-group-w);
+/* The fixed-width slot for one card. Column orientation so the card inside
+   grows *vertically* (flex:1) to fill the stretched cell. */
+.cell {
+  flex: 0 0 var(--org-card-w);
   display: flex;
   flex-direction: column;
+}
+
+.childCol {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--org-card-gap);
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  width: var(--org-card-w);
+  /* Grow to fill the cell (i.e. span the subtree); content (.cardBody) stays
+     pinned to the top, so a tall parent card is mostly empty below its title. */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: var(--org-card-min-h);
+  /* Clip the (empty) area below the content when a sticky card shrinks. */
+  overflow: hidden;
   background: var(--color-paper);
+  border: 1px solid var(--org-card-edge);
+  /* Sharp, non-rounded corners. */
+  border-radius: 0;
+  color: var(--color-primary);
+  --card-title-weight: var(--org-title-weight);
+  --card-title-color: var(--color-primary);
+  transition:
+    background-color var(--org-transition),
+    border-color var(--org-transition);
 }
 
-.box.isCol0 {
-  box-shadow: -6px 5px 0px oklch(from var(--org-row-edge) l c h / 0.1);
+/* The card's content lives here. It's never height-constrained, so its
+   offsetHeight is the floor a sticky card's box is clamped to (so content is
+   never cut off — the card scrolls up instead). Padding lives here, not on the
+   card, so that floor is easy to measure. */
+.cardBody {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--org-card-pad-y) var(--org-card-pad-x);
 }
 
-.box.isCol1 {
-  --row-name-weight: var(--org-col-1-name-weight);
-  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-1-pad-y-extra));
+.card:hover {
+  background: var(--color-paper-soft);
+  border-color: var(--color-muted);
 }
 
-.box.isCol2 {
-  --row-name-size: var(--org-col-2-name-size);
-  --row-name-weight: var(--org-col-2-name-weight);
-  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-2-pad-y-extra));
+.card.isHeading {
+  --card-title-weight: var(--org-title-weight-bold);
 }
 
-.box.isCol3plus {
-  --row-name-size: var(--org-col-3plus-name-size);
-  --row-name-weight: var(--org-col-3plus-name-weight);
-  --row-pad-y: calc(var(--org-row-pad-y) + var(--org-col-3plus-pad-y-extra));
+.card.isAside {
+  --card-title-color: var(--color-secondary);
 }
 
-.box.isColNeg {
-  --row-name-color: var(--color-muted);
+/* Branching entries stick: the card pins below the header (with a gap) and is
+   capped to the viewport height (leaving a matching gap at the bottom), so its
+   content rides along while any descendant is on screen. The cap is what
+   produces the bottom gap; `--org-vp-h` is measured from the scroll viewport. */
+.card.sticky {
+  position: sticky;
+  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  /* Height is driven imperatively (see OrgView's sticky effect) so the box can
+     both span its subtree and travel/clamp within the viewport — something a
+     plain sticky element can't do on its own. */
+  flex: 0 0 auto;
+  height: var(--org-sticky-h, auto);
+  min-height: 0;
+  z-index: 3;
 }
 
-.box::after {
+/* Stretched link: the title is the link, but its ::after covers the whole card
+   so a click anywhere (except the action buttons) navigates. */
+.cardLink {
+  flex: 0 0 auto;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  outline: none;
+}
+
+.cardLink::after {
   content: "";
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  box-shadow:
-    inset 0 var(--org-edge-w) 0 0 var(--row-edge),
-    inset var(--org-edge-w) 0 0 0 var(--row-edge),
-    inset calc(-1 * var(--org-edge-w)) 0 0 0 var(--row-edge),
-    0 var(--org-edge-w) 0 0 var(--row-edge);
-  z-index: 1;
+  z-index: 0;
 }
 
-/* Indent nested boxes by one column stride. */
-.box > div > .box {
-  margin-left: var(--org-col-stride);
-}
-
-/* Space stacked sibling boxes so adjacent borders don't merge into a double line. */
-.tree > .box + .box,
-.box > div > .box + .box {
-  margin-top: calc(var(--org-line-h) / 2);
-}
-
-.row {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  width: 100%;
-  min-height: var(--org-row-h);
-  color: var(--row-name-color);
-  background: transparent;
-  border-bottom: var(--org-edge-w) solid var(--row-divider);
-  box-sizing: border-box;
-  transition:
-    background-color var(--org-transition),
-    color var(--org-transition);
-}
-
-.row:hover {
-  background: var(--row-hover);
-  color: var(--color-primary);
-}
-
-.row.isSource {
-  opacity: 0.35;
-}
-
-.row.isOverlay {
-  /* Translucent so drop targets underneath (esp. the small "add child"
-     buttons) stay visible through the ghost. */
-  background: oklch(from var(--color-paper) l c h / 0.55);
-  border: var(--org-edge-w) solid var(--row-edge);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-  padding: 0 var(--org-row-pad-x);
-  width: var(--org-group-w);
-  height: var(--org-row-h);
-  align-items: center;
-  font-size: 1rem;
-  font-weight: var(--org-col-0-name-weight);
-  color: var(--color-primary);
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-.rowLink {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  box-sizing: border-box;
-  min-height: var(--org-row-h);
-  padding: var(--row-pad-y) var(--org-row-pad-x);
-  font: inherit;
-  font-size: var(--row-name-size);
-  font-weight: var(--row-name-weight);
-  line-height: 1.3;
-  color: inherit;
-  text-decoration: none;
-  position: relative;
-  z-index: 2;
-  outline: none;
-}
-
-.rowLink:focus-visible {
+.cardLink:focus-visible::after {
   box-shadow: inset 0 0 0 2px var(--color-accent);
 }
 
-.rowName {
+.cardTitle {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
+  font-size: var(--org-title-size);
+  font-weight: var(--card-title-weight);
+  line-height: var(--org-title-lh);
+  color: var(--card-title-color);
   word-break: break-word;
 }
 
-.rowLink.isUntitled .rowName,
-.rowName.isUntitled {
+.cardTitle.isUntitled {
   color: var(--color-muted);
   font-style: italic;
 }
 
-.row.hasChildren {
-  border-bottom: 0;
+/* Footer: shows the meta line normally, the action row on hover. Pointer
+   events fall through (so meta clicks still navigate); only the buttons
+   re-enable them. */
+.cardFooter {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid transparent;
+  pointer-events: none;
 }
 
-.row.isEditing {
-  cursor: text;
-  background: var(--color-paper);
-  box-shadow: inset 0 0 0 var(--org-edge-w) var(--color-accent);
+.card:hover .cardFooter {
+  border-top-color: var(--color-stark-border);
 }
 
-.rowInput {
+.cardMeta {
+  font-size: var(--org-meta-size);
+  line-height: var(--org-footer-row-h);
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card:hover .cardMeta {
+  display: none;
+}
+
+.cardActions {
+  display: none;
   flex: 1;
-  box-sizing: border-box;
-  min-height: var(--org-row-h);
-  padding: var(--row-pad-y) var(--org-row-pad-x);
+  align-items: center;
+  justify-content: space-between;
+  height: var(--org-footer-row-h);
+}
+
+.card:hover .cardActions {
+  display: flex;
+}
+
+.cardAction {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: var(--org-footer-row-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: color var(--org-transition);
+}
+
+.cardAction:hover {
+  color: var(--color-primary);
+}
+
+/* ── Input card (add / rename) ───────────────────────────────── */
+
+.cardEditing {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  background: var(--color-paper);
+  cursor: text;
+}
+
+.cardInput {
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 0;
   font: inherit;
-  font-size: var(--row-name-size);
-  font-weight: var(--row-name-weight);
+  font-size: var(--org-title-size);
+  font-weight: var(--card-title-weight);
+  line-height: var(--org-title-lh);
   color: var(--color-primary);
   background: transparent;
   border: 0;
   outline: none;
-  width: 100%;
 }
 
-.rowInput::placeholder {
-  color: var(--color-muted);
-  font-style: italic;
-}
-
-.rowActions {
-  position: absolute;
-  top: var(--org-edge-w);
-  right: var(--org-edge-w);
-  bottom: var(--org-edge-w);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  /* Opaque background that fades into transparent on the left so long
-     entry names slip out of view rather than being clipped harshly. */
-  padding: 0 4px 0 24px;
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    var(--row-actions-bg, var(--color-paper)) 22px,
-    var(--row-actions-bg, var(--color-paper)) 100%
-  );
-  z-index: 4;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--org-transition);
-}
-
-.row:hover .rowActions,
-.row:focus-within .rowActions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.row:focus-within .rowActions {
-  --row-actions-bg: var(--color-paper);
-}
-
-.row:hover .rowActions {
-  --row-actions-bg: var(--row-hover);
-}
-
-/* While dragging, keep add-child buttons reachable & emphasized. */
-.row.isDragContext .rowActions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.rowAction {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-muted);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  transition:
-    background-color var(--org-transition),
-    color var(--org-transition);
-}
-
-.rowAction:hover {
-  background: var(--color-paper-edge);
-  color: var(--color-primary);
-}
-
-.rowAction.isDragContext {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-text);
-  box-shadow: 0 0 0 var(--org-edge-w) var(--color-accent);
-}
-
-.rowAction.isOver {
-  background: var(--color-accent);
-  color: var(--color-paper);
-}
-
-/* Root-row column movers. Positioned just outside the row's left and right
-   edges; revealed by the row's :hover (descendants keep the ancestor in
-   :hover, so the cursor can travel from the row to the button without the
-   row losing hover state). */
-.colMover {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-muted);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  z-index: 4;
-  opacity: 0;
-  /* Stays interactive while invisible so hovering its slot (including the
-     transparent bridge) is enough to reveal it — the user doesn't need to
-     hover the row first and then track sideways. */
-  pointer-events: auto;
-  transition:
-    opacity var(--org-transition),
-    background-color var(--org-transition),
-    color var(--org-transition);
-}
-
-.colMover.left {
-  left: -26px;
-}
-
-.colMover.right {
-  right: -26px;
-}
-
-/* Transparent bridge between the button and the row edge — without it the
-   cursor crosses a few dead pixels and the row's :hover drops before the
-   cursor reaches the button. */
-.colMover::before {
-  content: "";
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 8px;
-}
-
-.colMover.left::before {
-  left: 100%;
-}
-
-.colMover.right::before {
-  right: 100%;
-}
-
-.colMover:hover {
-  background: var(--color-paper-edge);
-  color: var(--color-primary);
-}
-
-.row:hover .colMover,
-.row:focus-within .colMover,
-.colMover:hover {
-  opacity: 1;
-}
-
-.rowDrop {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 50%;
-  z-index: 3;
-  pointer-events: none;
-}
-
-.row.isDragContext .rowDrop {
-  pointer-events: auto;
-}
-
-.rowDrop.top {
-  top: 0;
-}
-
-.rowDrop.bottom {
-  bottom: 0;
-}
-
-.rowDrop.top.isOver {
-  box-shadow: inset 0 2px 0 0 var(--color-accent);
-}
-
-.rowDrop.bottom.isOver {
-  box-shadow: inset 0 -2px 0 0 var(--color-accent);
-}
-
-/* Drop zone for "after entry-with-children". Lives below the entry's child
-   groups so dropping after a parent doesn't slip between it and its kids.
-   Kept thin so it doesn't add a visible gap; negative margins absorb its
-   layout space into the surrounding stack while leaving a usable drop rect. */
-.afterDrop {
-  width: var(--org-group-w);
-  height: 16px;
-  margin-top: -8px;
-  margin-bottom: -8px;
-  pointer-events: none;
-  position: relative;
-  z-index: 3;
-}
-
-.afterDrop.isOver {
-  box-shadow: inset 0 -2px 0 0 var(--color-accent);
-}
-
-.add {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  height: var(--org-row-h);
-  padding: 0 var(--org-row-pad-x);
-  font: inherit;
-  font-size: 11px;
-  font-weight: var(--org-col-0-name-weight);
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
-  border: 0;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-  transition: color var(--org-transition);
-}
-
-.add:hover {
-  color: var(--color-secondary);
-}
+/* ── Empty state ─────────────────────────────────────────────── */
 
 .illustration {
   width: 120px;
   height: 90px;
-  border: var(--org-edge-w) dashed var(--color-paper-edge);
-  background-image: radial-gradient(
-    var(--color-paper-edge) var(--org-edge-w),
-    transparent var(--org-edge-w)
-  );
+  border: 1px dashed var(--color-paper-edge);
+  background-image: radial-gradient(var(--color-paper-edge) 1px, transparent 1px);
   background-size: 12px 12px;
   background-position: 6px 6px;
 }
