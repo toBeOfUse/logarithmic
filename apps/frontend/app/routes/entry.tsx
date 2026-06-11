@@ -76,6 +76,10 @@ export default function EntryRoute() {
   const [savingFloor, setSavingFloor] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [pendingChild, setPendingChild] = useState(false);
+  // A submitted subsection awaiting the server's id. Creation isn't optimistic,
+  // so we hold the typed name to show a loading placeholder in the Subsections
+  // list until the server confirms and we can focus the new child's real link.
+  const [pendingChildName, setPendingChildName] = useState<string | null>(null);
   const [focusChildId, setFocusChildId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -216,12 +220,16 @@ export default function EntryRoute() {
     setPendingChild(false);
     const trimmed = name.trim();
     if (!trimmed) return;
+    setPendingChildName(trimmed);
     createEntry.mutate(
       { logbookId, name: trimmed, col: entry.col - 1, parentId: entry.id },
       {
+        // The id only exists now; focus the new child's real link, which also
+        // lets a second Enter follow it through to its page.
         onSuccess: (created) => {
           if (created) setFocusChildId(created.id);
         },
+        onSettled: () => setPendingChildName(null),
       },
     );
   };
@@ -337,7 +345,8 @@ export default function EntryRoute() {
           {(() => {
             const hasChildren = entry.children.length > 0;
             const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
-            const showHeadings = hasChildren || hasAttrs || pendingChild;
+            const creatingChild = pendingChildName != null;
+            const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
             if (!showHeadings) {
               return (
                 <div className="flex flex-wrap gap-2 items-center my-5">
@@ -355,7 +364,9 @@ export default function EntryRoute() {
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
                 </section>
                 <section>
-                  {(hasChildren || pendingChild) && <SectionHeading>Subsections</SectionHeading>}
+                  {(hasChildren || pendingChild || creatingChild) && (
+                    <SectionHeading>Subsections</SectionHeading>
+                  )}
                   <div className="flex flex-wrap gap-2 items-center">
                     {entry.children.map((c) => (
                       <WithTrailingSep key={c.id}>
@@ -366,6 +377,11 @@ export default function EntryRoute() {
                         />
                       </WithTrailingSep>
                     ))}
+                    {creatingChild && (
+                      <WithTrailingSep>
+                        <PendingChildItem name={pendingChildName} />
+                      </WithTrailingSep>
+                    )}
                     {pendingChild && (
                       <WithTrailingSep>
                         <PendingChildInput
@@ -436,10 +452,31 @@ function ChildItem({ href, id, name }: { href: string; id: number; name: string 
     <Link
       to={href}
       data-child-anchor={id}
-      className={cn(childLink, isUntitled && "text-muted italic")}
+      // Ring keyed off :focus (not :focus-visible) so it shows for the
+      // programmatic focus a freshly-created child receives; clicking a link
+      // navigates away, so there's no downside to showing it on plain focus.
+      className={cn(
+        childLink,
+        "rounded-sm focus:outline-none focus:ring-2 focus:ring-accent",
+        isUntitled && "text-muted italic",
+      )}
     >
       {name || "Untitled entry"}
     </Link>
+  );
+}
+
+/**
+ * Placeholder for a just-submitted subsection while the server assigns its id.
+ * Creation isn't optimistic, so this stands in until the real, focusable child
+ * link appears in its place on confirmation.
+ */
+function PendingChildItem({ name }: { name: string }) {
+  return (
+    <span className={cn(childLink, "text-muted gap-1")} aria-busy="true">
+      <i className="ri-loader-4-line animate-spin" aria-hidden="true" />
+      {name || "Untitled entry"}
+    </span>
   );
 }
 

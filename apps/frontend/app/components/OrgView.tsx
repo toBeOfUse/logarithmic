@@ -66,6 +66,13 @@ type PendingInput =
   | { kind: "rename"; entryId: number };
 
 /**
+ * A submitted-but-unconfirmed new entry. Creation waits on the server for the
+ * real id, so during the round trip we render a loading placeholder in the new
+ * entry's slot (a new last child of `parentId`, or a new last root when null).
+ */
+type PendingCreate = { col: number; parentId: number | null; name: string };
+
+/**
  * What a drop zone means, attached to each dnd-kit droppable. "before"/"after"
  * are relative to an existing entry (drop above it → preceding sibling, below
  * → following sibling); "child" reparents the dragged entry as the last child
@@ -449,6 +456,34 @@ function InputCard({
   );
 }
 
+/**
+ * Placeholder shown in a new entry's slot while its creation is in flight.
+ * Entry creation isn't optimistic (the server assigns the id the link needs),
+ * so we render the typed name with a spinner here until the server confirms,
+ * at which point the real, focusable card replaces it.
+ */
+function LoadingCard({ name }: { name: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+  return (
+    <div ref={ref} className={cn(styles.card, "opacity-65")} aria-busy="true">
+      <div className={styles.cardBody}>
+        <span className={cn(styles.cardTitle, !name && styles.isUntitled)}>
+          {name || "Unnamed entry"}
+        </span>
+        <div className={styles.cardFooter}>
+          <span className={cn(styles.cardMeta, "inline-flex items-center gap-1")}>
+            <i className="ri-loader-4-line animate-spin" aria-hidden="true" />
+            Adding…
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Subtree ────────────────────────────────────────────────────────────
 
 function Subtree({
@@ -456,6 +491,7 @@ function Subtree({
   logbookSegment,
   stickySet,
   pendingInput,
+  pendingCreate,
   draggedId,
   draggedParentId,
   draggedSubtreeIds,
@@ -469,6 +505,7 @@ function Subtree({
   logbookSegment: string;
   stickySet: Set<number>;
   pendingInput: PendingInput | null;
+  pendingCreate: PendingCreate | null;
   draggedId: number | null;
   draggedParentId: number | null;
   draggedSubtreeIds: Set<number> | null;
@@ -480,15 +517,17 @@ function Subtree({
 }) {
   const isRenaming = pendingInput?.kind === "rename" && pendingInput.entryId === node.id;
   const addingHere = pendingInput?.kind === "add" && pendingInput.parentId === node.id;
+  const creatingHere = pendingCreate?.parentId === node.id;
   const sticky = stickySet.has(node.id);
   const childCol = node.col - 1;
-  // The child column exists when there are children, or when a child is being
-  // added under this node (so the first child's input has somewhere to live).
-  const hasChildCol = node.children.length > 0 || addingHere;
+  // The child column exists when there are children, when a child is being
+  // added under this node (so the first child's input has somewhere to live),
+  // or while a just-submitted child is being confirmed by the server.
+  const hasChildCol = node.children.length > 0 || addingHere || creatingHere;
 
   return (
     <div className={styles.subtree}>
-      <div className={styles.cell}>
+      <div className={styles.cell} style={widthVar(node.col)}>
         {isRenaming ? (
           <InputCard
             initialValue={node.name}
@@ -520,6 +559,7 @@ function Subtree({
               logbookSegment={logbookSegment}
               stickySet={stickySet}
               pendingInput={pendingInput}
+              pendingCreate={pendingCreate}
               draggedId={draggedId}
               draggedParentId={draggedParentId}
               draggedSubtreeIds={draggedSubtreeIds}
@@ -531,7 +571,8 @@ function Subtree({
             />
           ))}
           {/* Adding a sibling here is the hover "Add child" action's job, so
-              the column holds only children plus the live add-input (if any). */}
+              the column holds only children plus the live add-input (if any),
+              then the loading placeholder once that input is submitted. */}
           {addingHere && (
             <InputCard
               initialValue=""
@@ -540,6 +581,7 @@ function Subtree({
               onCancel={onCancelPending}
             />
           )}
+          {creatingHere && <LoadingCard name={pendingCreate.name} />}
         </div>
       )}
     </div>
@@ -553,6 +595,7 @@ export function OrgView({
   logbookId,
   logbookSlug,
   pendingInput,
+  pendingCreate,
   focusEntryId,
   onAdd,
   onRename,
@@ -567,6 +610,8 @@ export function OrgView({
   logbookSlug: string;
   /** The single live input cell — adding a new entry or renaming one. */
   pendingInput: PendingInput | null;
+  /** A submitted new entry awaiting the server's id, shown as a placeholder. */
+  pendingCreate: PendingCreate | null;
   /** When set, that entry is scrolled into view and its link focused. */
   focusEntryId: number | null;
   onAdd: (input: AddInput) => void;
@@ -737,6 +782,7 @@ export function OrgView({
 
   const addingRoot =
     pendingInput?.kind === "add" && pendingInput.parentId === null ? pendingInput : null;
+  const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
 
   return (
     <div
@@ -774,7 +820,7 @@ export function OrgView({
             </div>
           </div>
 
-          {isEmpty && !pendingInput ? (
+          {isEmpty && !pendingInput && !creatingRoot ? (
             <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
               <div className={styles.illustration} />
               <h3 className="text-lg font-semibold text-primary m-0">
@@ -796,6 +842,7 @@ export function OrgView({
                       logbookSegment={logbookSegment}
                       stickySet={stickySet}
                       pendingInput={pendingInput}
+                      pendingCreate={pendingCreate}
                       draggedId={activeDragId}
                       draggedParentId={draggedParentId}
                       draggedSubtreeIds={draggedSubtreeIds}
@@ -820,6 +867,18 @@ export function OrgView({
                           onSubmit={onSubmitPending}
                           onCancel={onCancelPending}
                         />
+                      </div>
+                    </div>
+                  </div>
+                </Fragment>
+              )}
+              {creatingRoot && (
+                <Fragment>
+                  {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                  <div className={styles.tree} style={colStyle(creatingRoot.col, maxCol)}>
+                    <div className={styles.subtree}>
+                      <div className={styles.cell} style={widthVar(creatingRoot.col)}>
+                        <LoadingCard name={creatingRoot.name} />
                       </div>
                     </div>
                   </div>

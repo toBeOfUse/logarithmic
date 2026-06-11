@@ -168,20 +168,6 @@ function reorderForestChildren(
   });
 }
 
-/** The largest id present anywhere in the forest. Returns 0 if the forest is
- *  empty so the next mintable id is 1. */
-function maxIdInForest(forest: EntryNode[]): number {
-  let max = 0;
-  const walk = (nodes: EntryNode[]) => {
-    for (const n of nodes) {
-      if (n.id > max) max = n.id;
-      walk(n.children);
-    }
-  };
-  walk(forest);
-  return max;
-}
-
 // ── Reads ──────────────────────────────────────────────────────────────
 
 export function useLogbooks({ demo = false }: { demo?: boolean } = {}) {
@@ -348,92 +334,70 @@ type CreateEntryVars = {
   parentId?: number | null;
 };
 
-type CreateEntryCtx = {
-  prevOverview: LogbookOverview | null | undefined;
-  tempId: number;
-};
-
+/**
+ * Creating an entry is deliberately NOT optimistic. The entry's id is assigned
+ * by the server, and the UI needs that real id to render a working link to the
+ * new entry — guessing it client-side risks linking to an entry the server has
+ * never heard of. So we wait for the response, then write the authoritative
+ * node into the caches and let the caller focus its link. Callers render a
+ * loading placeholder in the new entry's slot until then.
+ */
 export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
   const qc = useQueryClient();
-  return useMutation<EntryDetail | null, Error, CreateEntryVars, CreateEntryCtx>({
+  return useMutation<EntryDetail | null, Error, CreateEntryVars>({
     mutationFn: (input) =>
       demo ? Promise.resolve(store.createEntry(input)) : trpc.entry.create.mutate(input),
-    onMutate: async (vars) => {
+    onSuccess: (data, vars) => {
+      if (!data) return;
+      const parentId = vars.parentId ?? null;
+
+      // Drop the real node into the overview tree (as the last child of its
+      // parent, or the last root) so the org view shows it immediately on
+      // confirmation rather than waiting for the reconciling refetch.
       const overviewKey = keys.logbookOverview(demo, vars.logbookId);
-      await qc.cancelQueries({ queryKey: overviewKey });
-      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
-      // Mint a provisional id as `max(existing) + 1`. Sequential ids on the
-      // server make this a plausible guess, and on reconciliation the
-      // optimistic node is removed and the server's authoritative result
-      // takes its place via `onSuccess`.
-      const tempId = prevOverview ? maxIdInForest(prevOverview.entries) + 1 : 1;
-      if (prevOverview) {
-        const parentId = vars.parentId ?? null;
-        const parent = parentId === null ? null : findNode(prevOverview.entries, parentId);
-        const col = vars.col ?? (parent ? parent.col - 1 : 0);
-        const name = vars.name ?? "";
-        const now = new Date();
-        const stub: EntryNode = {
-          id: tempId,
-          slug: slugify(name),
-          name,
-          col,
-          createdAt: now,
-          updatedAt: now,
-          wordCount: 0,
-          metadataKeys: [],
+      const overview = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      if (overview) {
+        const node: EntryNode = {
+          id: data.id,
+          slug: data.slug,
+          name: data.name,
+          col: data.col,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          wordCount: data.wordCount,
+          metadataKeys: data.metadata ? Object.keys(data.metadata) : [],
           children: [],
         };
-        // Append as the last child of the chosen parent (or as the last root).
-        if (parentId === null) {
-          qc.setQueryData<LogbookOverview | null>(overviewKey, {
-            ...prevOverview,
-            entries: [...prevOverview.entries, stub],
-          });
-        } else {
-          qc.setQueryData<LogbookOverview | null>(overviewKey, {
-            ...prevOverview,
-            entries: mapNode(prevOverview.entries, parentId, (n) => ({
-              ...n,
-              children: [...n.children, stub],
-            })),
-          });
-        }
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...overview,
+          entries: insertNode(overview.entries, parentId, Number.MAX_SAFE_INTEGER, node),
+        });
       }
-      return { prevOverview, tempId };
-    },
-    onError: (_err, vars, ctx) => {
-      if (ctx?.prevOverview !== undefined) {
-        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
-      }
-    },
-    onSuccess: (data, vars, ctx) => {
-      if (data && ctx) {
-        // Replace the temp-id stub with the server's authoritative node so the
-        // tree settles without waiting for the upcoming refetch.
-        const overviewKey = keys.logbookOverview(demo, vars.logbookId);
-        const cached = qc.getQueryData<LogbookOverview | null>(overviewKey);
-        if (cached) {
-          const real: EntryNode = {
-            id: data.id,
-            slug: data.slug,
-            name: data.name,
-            col: data.col,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-            wordCount: data.wordCount,
-            metadataKeys: data.metadata ? Object.keys(data.metadata) : [],
-            children: [],
-          };
-          qc.setQueryData<LogbookOverview | null>(overviewKey, {
-            ...cached,
-            entries: mapNode(cached.entries, ctx.tempId, () => real),
+
+      // The content view lists a parent's children off its EntryDetail, so the
+      // new child has to land there too for its link to appear on that page.
+      if (parentId !== null) {
+        const parentKey = keys.entry(demo, parentId);
+        const parent = qc.getQueryData<EntryDetail | null>(parentKey);
+        if (parent) {
+          qc.setQueryData<EntryDetail | null>(parentKey, {
+            ...parent,
+            children: [
+              ...parent.children,
+              {
+                id: data.id,
+                slug: data.slug,
+                name: data.name,
+                col: data.col,
+                metadata: data.metadata,
+              },
+            ],
           });
         }
-        // Seed the entry cache so a follow-up `useEntry(data.id)` skips a
-        // round-trip.
-        qc.setQueryData<EntryDetail | null>(keys.entry(demo, data.id), data);
       }
+
+      // Seed the new entry's own cache so navigating to it skips a round-trip.
+      qc.setQueryData<EntryDetail | null>(keys.entry(demo, data.id), data);
     },
     onSettled: (data, _err, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
@@ -446,15 +410,6 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
       }
     },
   });
-}
-
-function findNode(forest: EntryNode[], id: number): EntryNode | null {
-  for (const n of forest) {
-    if (n.id === id) return n;
-    const hit = findNode(n.children, id);
-    if (hit) return hit;
-  }
-  return null;
 }
 
 type RenameCtx = {

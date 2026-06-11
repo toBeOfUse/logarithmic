@@ -34,6 +34,14 @@ export default function LogbookRoute() {
     | { kind: "add"; col: number; parentId: number | null }
     | { kind: "rename"; entryId: number };
   const [pendingInput, setPendingInput] = useState<PendingInput | null>(null);
+  // A submitted new entry awaiting the server's id. Entry creation isn't
+  // optimistic, so we hold the typed name here to render a loading placeholder
+  // in its slot until the server confirms and we can focus its real link.
+  const [pendingCreate, setPendingCreate] = useState<{
+    col: number;
+    parentId: number | null;
+    name: string;
+  } | null>(null);
   const [focusEntryId, setFocusEntryId] = useState<number | null>(null);
   const [renamingLogbook, setRenamingLogbook] = useState(false);
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
@@ -141,6 +149,7 @@ export default function LogbookRoute() {
         logbookId={logbook.id}
         logbookSlug={logbook.slug}
         pendingInput={pendingInput}
+        pendingCreate={pendingCreate}
         focusEntryId={focusEntryId}
         onAdd={(input) => setPendingInput({ kind: "add", ...input })}
         onRename={(id) => setPendingInput({ kind: "rename", entryId: id })}
@@ -151,12 +160,16 @@ export default function LogbookRoute() {
           const trimmed = name.trim();
           if (input.kind === "add") {
             if (!trimmed) return;
+            setPendingCreate({ col: input.col, parentId: input.parentId, name: trimmed });
             createEntry.mutate(
               { logbookId: logbook.id, name: trimmed, col: input.col, parentId: input.parentId },
               {
+                // The id only exists now; focus the new entry's real link, which
+                // also lets a second Enter follow it through to its page.
                 onSuccess: (entry) => {
                   if (entry) setFocusEntryId(entry.id);
                 },
+                onSettled: () => setPendingCreate(null),
               },
             );
             return;

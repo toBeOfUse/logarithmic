@@ -286,8 +286,13 @@
   z-index: 0;
 }
 
-.cardLink:focus-visible::after {
+/* Keyed off :focus (not :focus-visible) so the ring is shown for the
+   programmatic focus a freshly-created entry receives — :focus-visible's
+   heuristics suppress it for non-keyboard focus. Clicking a card navigates
+   away, so showing the ring on plain focus has no downside here. */
+.cardLink:focus::after {
   box-shadow: inset 0 0 0 2px var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 .cardTitle {
