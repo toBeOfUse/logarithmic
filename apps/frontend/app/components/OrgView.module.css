@@ -9,10 +9,16 @@
    column line up across every tree and under the sticky column header. */
 
 :root {
-  --org-card-w: 235px;
+  /* Column 0 (body text) is wider than the rest; every other column uses
+     --org-card-width. The stride (one column's horizontal advance) is built from
+     --org-card-width, so only the geometry that crosses column 0 picks up the
+     extra (--org-card-width-0 − --org-card-width) — see the --org-col-shift term on
+     .colHead / .tree and the container-width calcs. */
+  --org-card-width-0: 320px;
+  --org-card-width: 235px;
   --org-col-gap: 18px;
   --org-card-gap: 9px;
-  --org-stride: calc(var(--org-card-w) + var(--org-col-gap));
+  --org-stride: calc(var(--org-card-width) + var(--org-col-gap));
 
   --org-card-pad-x: 12px;
   --org-card-pad-y: 9px;
@@ -45,7 +51,8 @@
 
 @media (max-width: 640px) {
   :root {
-    --org-card-w: 158px;
+    --org-card-width-0: 210px;
+    --org-card-width: 158px;
     --org-col-gap: 12px;
     --org-page-pad-x: 12px;
   }
@@ -78,16 +85,23 @@
 
 .colStripInner {
   position: relative;
-  width: calc(var(--org-card-w) + var(--org-col-span, 0) * var(--org-stride));
+  width: calc(var(--org-card-width-0) + var(--org-col-span, 0) * var(--org-stride));
   height: 100%;
-  margin: 0 auto;
+  /* Centered when the heading (>0) and aside (<0) columns balance; otherwise the
+     heavier side's outer margin collapses to 0 so the chart hugs that edge. The
+     non-auto margin is set per-side in OrgView (see alignVars). */
+  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
 }
 
 .colHead {
   position: absolute;
   top: 0;
-  left: calc(var(--org-col-idx, 0) * var(--org-stride));
-  width: var(--org-card-w);
+  /* idx * stride, plus the column-0 widening for any column to its right. */
+  left: calc(
+    var(--org-col-idx, 0) * var(--org-stride) + var(--org-col-shift, 0) *
+      (var(--org-card-width-0) - var(--org-card-width))
+  );
+  width: var(--col-width, var(--org-card-width));
   /* Only the label row, not the gap below it, so labels keep their position. */
   height: var(--org-strip-h);
   display: flex;
@@ -136,8 +150,9 @@
 /* ── Canvas & trees ──────────────────────────────────────────── */
 
 .canvas {
-  width: calc(var(--org-card-w) + var(--org-col-span, 0) * var(--org-stride));
-  margin: 0 auto;
+  width: calc(var(--org-card-width-0) + var(--org-col-span, 0) * var(--org-stride));
+  /* Same edge-alignment as the column strip, so the two stay in lockstep. */
+  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
   /* The strip already includes the sticky gap, so the first row sits directly
      below it — on the same line a sticky card pins to, keeping the top row of
      sticky and non-sticky cards aligned at rest. */
@@ -147,7 +162,10 @@
 
 /* Offset each tree so its root lands under the matching column header. */
 .tree {
-  margin-left: calc(var(--org-col-idx, 0) * var(--org-stride));
+  margin-left: calc(
+    var(--org-col-idx, 0) * var(--org-stride) + var(--org-col-shift, 0) *
+      (var(--org-card-width-0) - var(--org-card-width))
+  );
 }
 
 /* A horizontal rule with a small gap on either side, between trees. */
@@ -172,7 +190,7 @@
 /* The fixed-width slot for one card. Column orientation so the card inside
    grows *vertically* (flex:1) to fill the stretched cell. */
 .cell {
-  flex: 0 0 var(--org-card-w);
+  flex: 0 0 var(--col-width, var(--org-card-width));
   display: flex;
   flex-direction: column;
 }
@@ -189,7 +207,7 @@
 
 .card {
   position: relative;
-  width: var(--org-card-w);
+  width: var(--col-width, var(--org-card-width));
   /* Grow to fill the cell (i.e. span the subtree); content (.cardBody) stays
      pinned to the top, so a tall parent card is mostly empty below its title. */
   flex: 1 1 auto;
@@ -425,7 +443,7 @@
 /* Floating ghost that follows the cursor during a drag. */
 .cardOverlay {
   box-sizing: border-box;
-  width: var(--org-card-w);
+  width: var(--col-width, var(--org-card-width));
   padding: var(--org-card-pad-y) var(--org-card-pad-x);
   background: oklch(from var(--color-paper) l c h / 0.95);
   border: 1px solid var(--color-muted);

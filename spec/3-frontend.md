@@ -24,6 +24,8 @@ The organizational view shows a spreadsheet/chart of all of the entries. Each en
 
 ![](org_view_v3_wireframe.png)
 
+Column 0 (body text) is rendered wider than the other columns, which all share a single narrower width. The chart and the column-number strip are centered horizontally only when there are an equal number of columns greater than 0 and less than 0. When there are more columns greater than 0 that columns less than 0, the content is aligned to the left edge instead; when there are more columns less than 0, it is aligned to the right edge. (This is not shown in the wireframe.)
+
 Cards in columns greater than 0 have bold titles. (Their font size does not change.) Cards in columns less than 0 have a secondary font color. Hovering over an entry's card reveals three secondary buttons, positioned on the right side of the entry's cell: "Rename", "Reorder", and "Add Child" (in that order.) Their functionality is described down below.
 
 ![](org_view_v3_card_wireframe.png)

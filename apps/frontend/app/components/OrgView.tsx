@@ -213,8 +213,21 @@ function formatCardDate(d: Date): string {
   return `${month} ${ordinal(d.getDate())}, ${d.getFullYear()}`;
 }
 
-function colVar(idx: number): CSSProperties {
-  return { "--org-col-idx": idx } as CSSProperties;
+/**
+ * Horizontal-position vars for a column header or a tree root at column `c`:
+ * its index from the left, and whether it sits right of column 0 (the widened
+ * body column) and so must be shifted by the extra width. Pairs with the
+ * calc() on .colHead / .tree.
+ */
+function colStyle(c: number, maxCol: number): CSSProperties {
+  return { "--org-col-idx": maxCol - c, "--org-col-shift": c < 0 ? 1 : 0 } as CSSProperties;
+}
+
+/** Pick a cell/card's width: column 0 is the wide body column, the rest aren't. */
+function widthVar(c: number): CSSProperties {
+  return {
+    "--col-width": c === 0 ? "var(--org-card-width-0)" : "var(--org-card-width)",
+  } as CSSProperties;
 }
 
 function titleColClass(col: number): string | undefined {
@@ -629,6 +642,19 @@ export function OrgView({
   const cols: number[] = [];
   for (let c = maxCol; c >= minCol; c--) cols.push(c);
 
+  // The chart is centered only when the heading columns (>0, of which there are
+  // `maxCol`) and the aside columns (<0, of which there are `-minCol`) balance.
+  // When one side has more columns, that side's outer margin collapses to 0 so
+  // the chart hugs that edge instead of drifting off-center: more headings →
+  // pin left, more asides → pin right. Set as CSS vars consumed by
+  // .colStripInner / .canvas; the unset side keeps its `auto` default.
+  const alignVars: CSSProperties =
+    maxCol > -minCol
+      ? ({ "--org-align-left": "0" } as CSSProperties)
+      : maxCol < -minCol
+        ? ({ "--org-align-right": "0" } as CSSProperties)
+        : {};
+
   // Drive the height of sticky cards imperatively. A sticky card has to both
   // span its subtree (so the box stretches down past its descendants) and be
   // shorter than its cell (so it has room to travel and pin) — a plain sticky
@@ -715,7 +741,7 @@ export function OrgView({
   return (
     <div
       className="flex-1 flex flex-col overflow-hidden bg-paper"
-      style={{ "--org-col-span": maxCol - minCol } as CSSProperties}
+      style={{ "--org-col-span": maxCol - minCol, ...alignVars } as CSSProperties}
     >
       <DndContext
         sensors={sensors}
@@ -728,7 +754,11 @@ export function OrgView({
           <div className={styles.colStrip}>
             <div className={styles.colStripInner}>
               {cols.map((c) => (
-                <div key={c} className={styles.colHead} style={colVar(maxCol - c)}>
+                <div
+                  key={c}
+                  className={styles.colHead}
+                  style={{ ...colStyle(c, maxCol), ...widthVar(c) }}
+                >
                   <span className={styles.colLabel}>Column {c}</span>
                   <button
                     type="button"
@@ -760,7 +790,7 @@ export function OrgView({
               {forest.map((root, i) => (
                 <Fragment key={root.id}>
                   {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                  <div className={styles.tree} style={colVar(maxCol - root.col)}>
+                  <div className={styles.tree} style={colStyle(root.col, maxCol)}>
                     <Subtree
                       node={root}
                       logbookSegment={logbookSegment}
@@ -781,9 +811,9 @@ export function OrgView({
               {addingRoot && (
                 <Fragment>
                   {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                  <div className={styles.tree} style={colVar(maxCol - addingRoot.col)}>
+                  <div className={styles.tree} style={colStyle(addingRoot.col, maxCol)}>
                     <div className={styles.subtree}>
-                      <div className={styles.cell}>
+                      <div className={styles.cell} style={widthVar(addingRoot.col)}>
                         <InputCard
                           initialValue=""
                           sticky={false}
@@ -801,7 +831,10 @@ export function OrgView({
 
         <DragOverlay dropAnimation={null}>
           {draggedEntry ? (
-            <div className={cn(styles.cardOverlay, !draggedEntry.name && styles.isUntitled)}>
+            <div
+              className={cn(styles.cardOverlay, !draggedEntry.name && styles.isUntitled)}
+              style={widthVar(draggedEntry.col)}
+            >
               {draggedEntry.name || "Unnamed entry"}
             </div>
           ) : null}
