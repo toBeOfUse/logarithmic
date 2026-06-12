@@ -49,7 +49,7 @@ export default function LogbookRoute() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  useDocumentTitle(data ? `${data.logbook.name} [Logbook]` : null);
+  useDocumentTitle(data ? `${data.logbook.name} Logbook` : null);
 
   if (isLoading || !data) {
     return (

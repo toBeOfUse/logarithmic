@@ -40,9 +40,9 @@ export function TopBar({
       <span className="inline-flex items-center gap-1.5 tracking-tight font-semibold">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-primary no-underline rounded-[5px] px-0.5 -mx-0.5"
-          aria-label="Close logbook — back to your logbooks"
-          title="Close logbook"
+          className="inline-flex items-center gap-2 text-primary no-underline px-0.5 -mx-0.5"
+          aria-label="Go to Logarithmic home"
+          title="Go to Logarithmic home"
         >
           <i className="ri-home-line" aria-hidden="true" />
           Logarithmic
@@ -50,9 +50,9 @@ export function TopBar({
         <span className="text-paper-edge font-normal">›</span>
         <Link
           to={`/${logbookSegment}`}
-          className="whitespace-nowrap text-muted no-underline hover:text-primary"
+          className="inline-flex items-center gap-2 text-muted no-underline hover:text-primary px-0.5 -mx-0.5"
         >
-          {logbookName}
+          <i className="ri-book-2-line" aria-hidden="true" /> {logbookName}
         </Link>
       </span>
 
