@@ -71,6 +71,7 @@ export default function EntryRoute() {
 
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [maximized, setMaximized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [savingFloor, setSavingFloor] = useState(false);
@@ -111,6 +112,15 @@ export default function EntryRoute() {
   // Title draft counts as unsaved if it differs from the persisted name.
   const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;
   const dirty = titleDirty || editorDirty || mutationPending;
+
+  // Mirror the browser's fullscreen state so the toggle button shows the right
+  // icon — including when the user drops fullscreen with Escape, which doesn't
+  // go through our handlers.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(document.fullscreenElement != null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -214,6 +224,33 @@ export default function EntryRoute() {
     );
   };
 
+  // Focus mode also takes the browser fullscreen, like a fullscreen video. The
+  // request must run inside the click's user gesture, so we do it here rather
+  // than in an effect. Leaving fullscreen via Escape only drops the browser
+  // chrome — focus mode (and thus our own X button) stays until explicitly
+  // exited, so we never tie `maximized` to `document.fullscreenElement`.
+  const enterFocus = () => {
+    setMaximized(true);
+    if (!document.fullscreenElement) {
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
+
+  const exitFocus = () => {
+    setMaximized(false);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {});
+    } else {
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
+
   const addChild = () => setPendingChild(true);
 
   const onSubmitPendingChild = (name: string) => {
@@ -268,24 +305,40 @@ export default function EntryRoute() {
   if (maximized) {
     return (
       <div className={cn(appShell, "bg-stark")}>
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
+        <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
+          <button
+            type="button"
+            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit full screen" : "Full screen"}
+            aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+          >
+            <i
+              className={cn(
+                isFullscreen ? "ri-fullscreen-exit-line" : "ri-fullscreen-line",
+                "text-xl",
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
+            onClick={exitFocus}
+            title="Exit focus"
+            aria-label="Exit focus"
+          >
+            <i className="ri-close-line text-xl" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2">
           <div className={cn("max-w-[680px] mx-auto min-h-full flex flex-col", pagePadding)}>
-            <div className="flex items-start gap-3 my-4">
+            <div className="my-4">
               <TitleEditor
                 value={titleValue}
                 isUntitled={isUntitled}
                 onChange={setTitleDraft}
                 onBlur={onTitleBlur}
               />
-              <button
-                type="button"
-                className={cn(btn, "mt-1.5 shrink-0")}
-                onClick={() => setMaximized(false)}
-                title="Exit focus"
-              >
-                <i className="ri-fullscreen-exit-line" />
-                Exit focus
-              </button>
             </div>
             <MarkdownEditor
               key={entry.id}
@@ -334,7 +387,7 @@ export default function EntryRoute() {
             <button
               type="button"
               className={cn(btn, "mt-1.5 shrink-0")}
-              onClick={() => setMaximized(true)}
+              onClick={enterFocus}
               title="Maximize editor"
             >
               <i className="ri-fullscreen-line" />

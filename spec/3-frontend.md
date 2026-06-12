@@ -68,7 +68,11 @@ When an entry is moved (including by giving it a new parent), all of its childre
 
 ### Content Interface
 
-The content interface should show the entry's title, show its metadata, list its children, and have a text editor for its rich text content. There should be a focus mode that can be activated to see just the title and rich text content editor.
+The content interface should show the entry's title, show its metadata, list its children, and have a text editor for its rich text content.
+
+There should be a focus mode that can be activated to see just the title and the rich text content editor. Activating focus mode takes the browser into full screen mode.
+
+While in focus mode, two unobtrusive controls sit in the top-right corner: a button that toggles full screen on and off, and an X that switches off focus mode completely. (Even if the user exits full screen (by using the toggle button or by pressing Escape), focus mode stays active — only the X switches away from it.)
 
 #### Metadata & Children
 
