@@ -18,6 +18,7 @@ import {
   useUpdateEntryMetadata,
 } from "~/data/hooks.ts";
 import { parseEntryId, parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
+import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
 /**
  * Minimum time the "Saving…" footer label stays visible after a save kicks
@@ -108,6 +109,8 @@ export default function EntryRoute() {
   useEffect(() => {
     if (entry) setSavedAt(entry.updatedAt);
   }, [entry?.id]);
+
+  useDocumentTitle(entry ? entry.name || "Untitled entry" : null);
 
   // Title draft counts as unsaved if it differs from the persisted name.
   const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;

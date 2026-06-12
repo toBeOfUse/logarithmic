@@ -17,6 +17,7 @@ import {
 import type { EntryNode } from "logarithmic-backend/api-types";
 import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
+import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
 export default function LogbookRoute() {
   const params = useParams();
@@ -47,6 +48,8 @@ export default function LogbookRoute() {
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  useDocumentTitle(data ? `${data.logbook.name} [Logbook]` : null);
 
   if (isLoading || !data) {
     return (

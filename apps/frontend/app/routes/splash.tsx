@@ -6,6 +6,7 @@ import { AppMark } from "~/components/AppMark.tsx";
 import { useCreateLogbook, useImportLogbook, useLogbooks } from "~/data/hooks.ts";
 import { buildBookmarkUrl } from "~/data/tokens.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
+import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
 import styles from "./splash.module.css";
 
@@ -42,6 +43,8 @@ export default function Splash() {
   // modal can surface it before we navigate away from the splash screen. The
   // route swap happens once the user dismisses the modal.
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
+
+  useDocumentTitle(null);
 
   const hasLogbooks = logbooks.length > 0;
   const hasDemos = demoLogbooks.length > 0;
