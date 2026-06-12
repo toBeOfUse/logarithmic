@@ -37,10 +37,10 @@ export function TopBar({
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
-      <span className="inline-flex items-center gap-1.5 font-semibold tracking-tight text-primary">
+      <span className="inline-flex items-center gap-1.5 tracking-tight font-semibold">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-muted no-underline rounded-[5px] px-0.5 -mx-0.5 hover:text-primary"
+          className="inline-flex items-center gap-2 text-primary no-underline rounded-[5px] px-0.5 -mx-0.5"
           aria-label="Close logbook — back to your logbooks"
           title="Close logbook"
         >
@@ -48,7 +48,10 @@ export function TopBar({
           Logarithmic
         </Link>
         <span className="text-paper-edge font-normal">›</span>
-        <Link to={`/${logbookSegment}`} className="text-primary no-underline font-semibold">
+        <Link
+          to={`/${logbookSegment}`}
+          className="whitespace-nowrap text-muted no-underline hover:text-primary"
+        >
           {logbookName}
         </Link>
       </span>
