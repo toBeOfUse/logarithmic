@@ -443,24 +443,25 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
         });
       }
       const prevOverviewByLogbookId = new Map<string, LogbookOverview | null | undefined>();
-      const overviewKey = prevEntry?.logbookId
-        ? keys.logbookOverview(demo, prevEntry.logbookId)
-        : null;
-      if (overviewKey && prevEntry?.logbookId) {
-        await qc.cancelQueries({ queryKey: overviewKey });
-        const prev = qc.getQueryData<LogbookOverview | null>(overviewKey);
-        prevOverviewByLogbookId.set(prevEntry.logbookId, prev);
-        if (prev) {
-          qc.setQueryData<LogbookOverview | null>(overviewKey, {
-            ...prev,
-            entries: mapNode(prev.entries, vars.id, (n) => ({
-              ...n,
-              name: vars.name,
-              slug,
-              updatedAt,
-            })),
-          });
-        }
+      // Key the optimistic overview patch off `vars.logbookId`, not
+      // `prevEntry?.logbookId`: an entry renamed from the org view may have no
+      // cached EntryDetail (it was never opened), and keying off that would
+      // skip this update and leave the card showing the old name until a
+      // refetch.
+      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
+      await qc.cancelQueries({ queryKey: overviewKey });
+      const prev = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      prevOverviewByLogbookId.set(vars.logbookId, prev);
+      if (prev) {
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...prev,
+          entries: mapNode(prev.entries, vars.id, (n) => ({
+            ...n,
+            name: vars.name,
+            slug,
+            updatedAt,
+          })),
+        });
       }
       return { prevEntry, prevOverviewByLogbookId };
     },
@@ -480,9 +481,7 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
       if (data?.parentId != null) {
         void qc.invalidateQueries({ queryKey: keys.entry(demo, data.parentId) });
       }
-      if (data?.logbookId) {
-        void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, data.logbookId) });
-      }
+      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
     },
   });
 }

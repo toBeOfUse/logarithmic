@@ -207,8 +207,12 @@ export default function EntryRoute() {
   const isUntitled = !titleValue;
 
   const onTitleBlur = () => {
-    if (titleDraft != null && titleDraft !== entry.name) {
-      renameEntry.mutate({ id: entry.id, name: titleDraft, logbookId });
+    // An empty/whitespace-only title is never committed: discarding the draft
+    // reverts the field to the persisted name. Otherwise commit the trimmed
+    // value if it actually changed.
+    const trimmed = titleDraft?.trim();
+    if (trimmed && trimmed !== entry.name) {
+      renameEntry.mutate({ id: entry.id, name: trimmed, logbookId });
     }
     setTitleDraft(null);
   };
