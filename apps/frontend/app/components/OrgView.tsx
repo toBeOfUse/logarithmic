@@ -56,6 +56,15 @@ import { RearrangeModal } from "./RearrangeModal.tsx";
 type AddInput = { col: number; parentId: number | null };
 
 /**
+ * Per-logbook scroll offset for the org view's inner scroll container. The chart
+ * scrolls inside this element rather than the window, so React Router's
+ * ScrollRestoration doesn't cover it; we stash the offset here so returning from
+ * an entry's page restores the position the user left from. Module-level so it
+ * survives the route unmount/remount that navigation causes.
+ */
+const orgScrollByLogbook = new Map<string, { top: number; left: number }>();
+
+/**
  * The single input cell that can be live in the org view at a time — either one
  * being added under a parent, or one in place of an existing entry being
  * renamed. Per spec, "input cells only exist while they're focused, and there
@@ -724,6 +733,27 @@ export function OrgView({
   // subtree bounds near either end. The cell (a sibling of the child column)
   // already stretches to the subtree's full height, so its rect is the span.
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Restore the scroll position the user left this logbook's chart at (e.g.
+  // after clicking into an entry and coming back), and keep it current as they
+  // scroll. Runs before the sticky-measurement effect below so that pass sees
+  // the restored offset. The forest is already present when OrgView mounts (the
+  // route gates on load), so the content is laid out and the offset applies.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = orgScrollByLogbook.get(logbookId);
+    if (saved) {
+      el.scrollTop = saved.top;
+      el.scrollLeft = saved.left;
+    }
+    const onScroll = () => {
+      orgScrollByLogbook.set(logbookId, { top: el.scrollTop, left: el.scrollLeft });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [logbookId]);
+
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
     const stickyClass = styles.sticky;
