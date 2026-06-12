@@ -478,6 +478,7 @@
   flex: 0 0 auto;
   width: 100%;
   padding: 0;
+  margin: 0;
   font: inherit;
   font-size: var(--org-title-size);
   font-weight: var(--card-title-weight);
@@ -486,6 +487,21 @@
   background: transparent;
   border: 0;
   outline: none;
+  resize: none;
+  overflow: hidden;
+  /* Fallback for browsers without field-sizing: stand the box at the maximum
+     number of lines the displayed title clamps to (3), so editing looks the
+     same as the static title. */
+  height: calc(var(--org-title-size) * var(--org-title-lh) * 3);
+  box-sizing: content-box;
+}
+
+/* Where supported, let the box grow and shrink with its content instead. */
+@supports (field-sizing: content) {
+  .cardInput {
+    field-sizing: content;
+    height: auto;
+  }
 }
 
 /* ── Empty state ─────────────────────────────────────────────── */

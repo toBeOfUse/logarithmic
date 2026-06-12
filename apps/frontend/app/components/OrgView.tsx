@@ -414,7 +414,7 @@ function InputCard({
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const settledRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -428,9 +428,10 @@ function InputCard({
   return (
     <div className={cn(styles.card, styles.cardEditing, sticky && styles.sticky)}>
       <div className={styles.cardBody}>
-        <input
+        <textarea
           ref={inputRef}
           className={styles.cardInput}
+          rows={1}
           defaultValue={initialValue}
           onBlur={(e) => {
             if (settledRef.current) return;
