@@ -33,12 +33,21 @@ export function TopBar({
   return (
     <div
       className={cn(
-        "flex items-center h-11 px-3.5 border-b flex-shrink-0 gap-3 text-sm",
+        "flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-sm",
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
-      <span className="inline-flex items-center gap-[7px] font-semibold tracking-tight text-primary">
-        <i className="ri-home-line text-muted" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1.5 font-semibold tracking-tight text-primary">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-muted no-underline rounded-[5px] px-0.5 -mx-0.5 hover:text-primary"
+          aria-label="Close logbook — back to your logbooks"
+          title="Close logbook"
+        >
+          <i className="ri-home-line" aria-hidden="true" />
+          Logarithmic
+        </Link>
+        <span className="text-paper-edge font-normal">›</span>
         <Link to={`/${logbookSegment}`} className="text-primary no-underline font-semibold">
           {logbookName}
         </Link>
@@ -52,7 +61,7 @@ export function TopBar({
               {p.href ? (
                 <Link
                   to={p.href}
-                  className="whitespace-nowrap text-[inherit] no-underline hover:text-primary"
+                  className="whitespace-nowrap text-inherit no-underline hover:text-primary"
                 >
                   {p.name}
                 </Link>
@@ -73,14 +82,6 @@ export function TopBar({
       {!(parents.length > 0 || currentName) && <span className="flex-1" />}
 
       <KebabMenu items={menuItems} />
-
-      <Link
-        to="/"
-        className="size-6 border-0 bg-transparent text-muted rounded-[5px] cursor-pointer inline-flex items-center justify-center no-underline text-base hover:bg-warn-soft hover:text-warn"
-        aria-label="Close logbook"
-      >
-        <i className="ri-close-line" />
-      </Link>
     </div>
   );
 }

@@ -14,7 +14,7 @@ The first version of Logarithmic will be accessible via a simple web app. This a
 
 ### Top Bar
 
-Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case), a "close" button that closes the current logbook and sends the user back to the initial splash screen, and a kebab menu.
+Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case) and a kebab menu. The breadcrumb trail is led by a link back to the initial splash screen.
 
 When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry.
 
