@@ -348,7 +348,7 @@
   display: none;
   flex: 1;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-around;
   height: var(--org-footer-row-h);
 }
 
