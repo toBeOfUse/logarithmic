@@ -573,16 +573,29 @@ function Subtree({
           ))}
           {/* Adding a sibling here is the hover "Add child" action's job, so
               the column holds only children plus the live add-input (if any),
-              then the loading placeholder once that input is submitted. */}
+              then the loading placeholder once that input is submitted. Both are
+              wrapped in a cell sized to the *child* column (like the real child
+              rows), so e.g. a column-0 input matches the wide body cards rather
+              than inheriting the parent column's narrower width. */}
           {addingHere && (
-            <InputCard
-              initialValue=""
-              sticky={false}
-              onSubmit={onSubmitPending}
-              onCancel={onCancelPending}
-            />
+            <div className={styles.subtree}>
+              <div className={styles.cell} style={widthVar(childCol)}>
+                <InputCard
+                  initialValue=""
+                  sticky={false}
+                  onSubmit={onSubmitPending}
+                  onCancel={onCancelPending}
+                />
+              </div>
+            </div>
           )}
-          {creatingHere && <LoadingCard name={pendingCreate.name} />}
+          {creatingHere && (
+            <div className={styles.subtree}>
+              <div className={styles.cell} style={widthVar(childCol)}>
+                <LoadingCard name={pendingCreate.name} />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
