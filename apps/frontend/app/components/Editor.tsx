@@ -75,7 +75,7 @@ export function MarkdownEditor({
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
         heading: { levels: [2, 3] },
         underline: false,
-        horizontalRule: false,
+        horizontalRule: {},
         hardBreak: false,
       }),
       Placeholder.configure({ placeholder }),

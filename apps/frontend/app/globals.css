@@ -128,6 +128,10 @@ body {
   margin-bottom: 0.8em;
 }
 
+.prose hr {
+  margin: 1.5em 0;
+}
+
 .editor {
   outline: none;
   min-height: 200px;
