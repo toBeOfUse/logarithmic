@@ -37,10 +37,10 @@ export function TopBar({
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
-      <span className="inline-flex items-center gap-1.5 tracking-tight font-semibold">
+      <span className="inline-flex items-center gap-1.5 tracking-tight mr-auto">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-primary no-underline px-0.5 -mx-0.5"
+          className="inline-flex items-center gap-2 text-primary font-semibold no-underline px-0.5 -mx-0.5"
           aria-label="Go to Logarithmic home"
           title="Go to Logarithmic home"
         >
@@ -54,17 +54,15 @@ export function TopBar({
         >
           <i className="ri-book-2-line" aria-hidden="true" /> {logbookName}
         </Link>
-      </span>
 
-      {(parents.length > 0 || currentName) && (
-        <span className="flex items-center gap-1.5 text-muted min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {parents.map((p) => (
+        {(parents.length > 0 || currentName) &&
+          parents.map((p) => (
             <span key={p.id} style={{ display: "contents" }}>
               <span className="text-paper-edge">›</span>
               {p.href ? (
                 <Link
                   to={p.href}
-                  className="whitespace-nowrap text-inherit no-underline hover:text-primary"
+                  className="whitespace-nowrap text-muted no-underline hover:text-primary"
                 >
                   {p.name}
                 </Link>
@@ -73,16 +71,14 @@ export function TopBar({
               )}
             </span>
           ))}
-          {currentName && (
-            <>
-              <span className="text-paper-edge">›</span>
-              <span className="whitespace-nowrap text-primary font-medium">{currentName}</span>
-            </>
-          )}
-        </span>
-      )}
 
-      {!(parents.length > 0 || currentName) && <span className="flex-1" />}
+        {currentName && (
+          <>
+            <span className="text-paper-edge">›</span>
+            <span className="whitespace-nowrap text-primary font-medium">{currentName}</span>
+          </>
+        )}
+      </span>
 
       <KebabMenu items={menuItems} />
     </div>
