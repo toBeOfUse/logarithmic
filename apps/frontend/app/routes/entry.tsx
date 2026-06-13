@@ -51,7 +51,7 @@ const btn =
 const titleField =
   "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full resize-none overflow-hidden field-sizing-content";
 
-const pagePadding = "px-4 pt-8 pb-14 sm:px-14 sm:pt-10";
+const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
 export default function EntryRoute() {
   const params = useParams();
@@ -315,6 +315,15 @@ export default function EntryRoute() {
         <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
           <button
             type="button"
+            className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
+            onClick={exitFocus}
+            title="Exit focus"
+            aria-label="Exit focus"
+          >
+            <i className="ri-arrow-go-back-line text-xl" />
+          </button>
+          <button
+            type="button"
             className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
             onClick={toggleFullscreen}
             title={isFullscreen ? "Exit full screen" : "Full screen"}
@@ -326,15 +335,6 @@ export default function EntryRoute() {
                 "text-xl",
               )}
             />
-          </button>
-          <button
-            type="button"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
-            onClick={exitFocus}
-            title="Exit focus"
-            aria-label="Exit focus"
-          >
-            <i className="ri-close-line text-xl" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2">
