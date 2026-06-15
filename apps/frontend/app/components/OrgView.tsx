@@ -23,9 +23,11 @@
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   rectIntersection,
+  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
@@ -37,6 +39,7 @@ import {
 import {
   type CSSProperties,
   Fragment,
+  type RefObject,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -658,6 +661,44 @@ function Subtree({
   );
 }
 
+// ── Drag-scroll re-measurement ─────────────────────────────────────────
+
+/**
+ * Keep droppable rects aligned with the chart as it auto-scrolls during a drag.
+ *
+ * dnd-kit measures each droppable once at drag start, then keeps its position
+ * "current" by offsetting that cached rect by the scroll container's scroll
+ * delta — which is correct only for content that scrolls with the container. A
+ * sticky card (and its "Add child" button) stays pinned on screen while the
+ * container auto-scrolls, so that offset pushes its droppable rect away from the
+ * real button by exactly the scrolled distance, leaving the drop zone above or
+ * below where the button actually is.
+ *
+ * Re-measuring all droppables on each scroll frame (only while a drag is active)
+ * re-reads their true on-screen rects, resetting that scroll delta to zero so
+ * the sticky drop zones track the buttons. Must live inside `DndContext` so it
+ * can reach `measureDroppableContainers`.
+ */
+function RemeasureOnScroll({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
+  const dnd = useDndContext();
+  const dragging = dnd.active !== null;
+  // The context object changes identity on every drag-over update; hold the
+  // latest in a ref so the scroll listener subscribes once per drag (keyed only
+  // on `dragging`) instead of resubscribing constantly mid-drag.
+  const dndRef = useRef(dnd);
+  dndRef.current = dnd;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !dragging) return;
+    // Empty id list re-measures every droppable. Called as a method (not a
+    // destructured reference) to keep its `this` binding.
+    const onScroll = () => dndRef.current.measureDroppableContainers([]);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [dragging, scrollRef]);
+  return null;
+}
+
 // ── Main component ─────────────────────────────────────────────────────
 
 export function OrgView({
@@ -703,7 +744,16 @@ export function OrgView({
   // dnd-kit auto-scrolls the scroll container when the cursor nears its top
   // or bottom edge (the spec's "drag near the edge to scroll") out of the box.
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Split mouse and touch activation. On a pointer device a 5px move starts a
+  // drag immediately; on touch that would hijack scrolling (the chart pans on
+  // both axes, and any scroll swipe travels well past 5px). So touch requires a
+  // short press-and-hold instead — a quick swipe still scrolls, a long-press
+  // starts the drag. `tolerance` lets the finger wobble during the press
+  // without cancelling it.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 5 } }),
+  );
 
   const draggedEntry = activeDragId !== null ? (byId.get(activeDragId) ?? null) : null;
   const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
@@ -900,6 +950,7 @@ export function OrgView({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
+        <RemeasureOnScroll scrollRef={scrollRef} />
         <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-paper")}>
           <div className={styles.colStrip}>
             <div className={styles.colStripInner}>

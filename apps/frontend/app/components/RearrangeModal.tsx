@@ -5,7 +5,8 @@
  */
 import {
   DndContext,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -76,7 +77,13 @@ export function RearrangeModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  // Mouse drags start on a small move; touch requires a short press-and-hold so
+  // a swipe can still scroll the list instead of grabbing a row. (See OrgView's
+  // sensors for the rationale.)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 5 } }),
+  );
 
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
