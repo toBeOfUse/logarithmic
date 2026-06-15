@@ -79,6 +79,14 @@
   top: 0;
   z-index: 10;
   flex-shrink: 0;
+  /* Span the full content width, not just the viewport. As a flex item this
+     would otherwise stretch only to the viewport (the flex cross size), so when
+     the chart is wider than the viewport and scrolled right, the strip's opaque
+     paper ran out and cards scrolling up showed through past its right edge.
+     max-content sizes it to .colStripInner; min-width keeps it filling the
+     viewport (so the inner still centers) when the content is narrower. */
+  width: max-content;
+  min-width: 100%;
   height: calc(var(--org-strip-h) + var(--org-sticky-gap));
   background: var(--color-paper);
 }
