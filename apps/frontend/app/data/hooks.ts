@@ -23,6 +23,7 @@
  * Logbook ids stay as strings (nanoid).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
 import slugify from "@sindresorhus/slugify";
 import type {
   CreatedLogbook,
@@ -45,6 +46,24 @@ const DEMO_READ_LATENCY_MS = 200;
 
 function delay<T>(ms: number, getValue: () => T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(getValue()), ms));
+}
+
+/** True when a rejected query is a 404 — i.e. the logbook/entry doesn't exist
+ *  or the caller's token doesn't grant access to it. */
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof TRPCClientError && error.data?.httpStatus === 404;
+}
+
+/**
+ * Retry policy for reads that address a specific logbook/entry. A 404 is a
+ * definitive answer (missing resource or unauthorized token), so retrying it
+ * just stretches the loading screen out across the default backoff before the
+ * route can show its "not found" state. Other failures (transient network /
+ * 5xx) still get React Query's usual three attempts.
+ */
+function retryUnlessNotFound(failureCount: number, error: unknown): boolean {
+  if (isNotFoundError(error)) return false;
+  return failureCount < 3;
 }
 
 export const isDemoLogbook = store.isDemoLogbookId;
@@ -202,6 +221,7 @@ export function useLogbookOverview(
       if (demo) return delay(DEMO_READ_LATENCY_MS, () => store.getLogbookOverview(logbookId));
       return trpc.logbook.overview.query({ logbookId });
     },
+    retry: retryUnlessNotFound,
   });
 }
 
@@ -218,6 +238,7 @@ export function useEntry(
       if (demo) return delay(DEMO_READ_LATENCY_MS, () => store.getEntry(entryId));
       return trpc.entry.get.query({ logbookId, id: entryId });
     },
+    retry: retryUnlessNotFound,
   });
 }
 
