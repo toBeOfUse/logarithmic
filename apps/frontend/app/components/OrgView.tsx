@@ -264,6 +264,8 @@ function EntryCard({
   onAddChild,
   onRename,
   onReorder,
+  onShiftLeft,
+  onShiftRight,
 }: {
   entry: EntryNode;
   logbookSegment: string;
@@ -276,7 +278,16 @@ function EntryCard({
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
+  /**
+   * Shift this card and its whole subtree one column left / right. Only roots
+   * can move freely between columns (a non-root's column is pinned to its
+   * parent's minus one), so these are passed for root cards only; when absent,
+   * the arrow buttons aren't rendered.
+   */
+  onShiftLeft?: () => void;
+  onShiftRight?: () => void;
 }) {
+  const canShift = onShiftLeft !== undefined && onShiftRight !== undefined;
   const isDragging = draggedId !== null;
   const isSource = entry.id === draggedId;
   const inDraggedSubtree = draggedSubtreeIds?.has(entry.id) ?? false;
@@ -354,6 +365,21 @@ function EntryCard({
           {/* Stop pointerdown so the drag sensor doesn't fire when a button is
               clicked. */}
           <div className={styles.cardActions} onPointerDown={(e) => e.stopPropagation()}>
+            {/* Root-only: move the whole subtree one column over. Higher column
+                numbers sit further LEFT, so the left arrow raises the column and
+                the right arrow lowers it. The left arrow is the first action and
+                the right arrow is the last, bracketing the rest. */}
+            {canShift && (
+              <button
+                type="button"
+                className={styles.cardAction}
+                aria-label="Move one column left"
+                title="Move one column left"
+                onClick={onShiftLeft}
+              >
+                <i className="ri-arrow-left-s-line" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               className={styles.cardAction}
@@ -386,6 +412,17 @@ function EntryCard({
             >
               <i className="ri-corner-down-right-line" aria-hidden="true" />
             </button>
+            {canShift && (
+              <button
+                type="button"
+                className={styles.cardAction}
+                aria-label="Move one column right"
+                title="Move one column right"
+                onClick={onShiftRight}
+              >
+                <i className="ri-arrow-right-s-line" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -498,6 +535,7 @@ function LoadingCard({ name }: { name: string }) {
 
 function Subtree({
   node,
+  isRoot,
   logbookSegment,
   stickySet,
   pendingInput,
@@ -508,10 +546,13 @@ function Subtree({
   onAdd,
   onRename,
   onReorder,
+  onShiftRoot,
   onSubmitPending,
   onCancelPending,
 }: {
   node: EntryNode;
+  /** True for a tree's root; only roots get the column-shift arrows. */
+  isRoot: boolean;
   logbookSegment: string;
   stickySet: Set<number>;
   pendingInput: PendingInput | null;
@@ -522,6 +563,8 @@ function Subtree({
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
+  /** Shift a root's subtree by `delta` columns (+1 = left, -1 = right). */
+  onShiftRoot: (id: number, delta: 1 | -1) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
 }) {
@@ -556,6 +599,8 @@ function Subtree({
             onAddChild={() => onAdd({ col: childCol, parentId: node.id })}
             onRename={() => onRename(node.id)}
             onReorder={() => onReorder(node.id)}
+            onShiftLeft={isRoot ? () => onShiftRoot(node.id, 1) : undefined}
+            onShiftRight={isRoot ? () => onShiftRoot(node.id, -1) : undefined}
           />
         )}
       </div>
@@ -566,6 +611,7 @@ function Subtree({
             <Subtree
               key={child.id}
               node={child}
+              isRoot={false}
               logbookSegment={logbookSegment}
               stickySet={stickySet}
               pendingInput={pendingInput}
@@ -576,6 +622,7 @@ function Subtree({
               onAdd={onAdd}
               onRename={onRename}
               onReorder={onReorder}
+              onShiftRoot={onShiftRoot}
               onSubmitPending={onSubmitPending}
               onCancelPending={onCancelPending}
             />
@@ -824,6 +871,19 @@ export function OrgView({
     return { parentId: targetParent, siblings };
   }, [rearrangeFor, byId, parentOf, forest]);
 
+  // Shift a root (and, via the col cascade, its whole subtree) one column over.
+  // This is just a move that keeps the root's parent (null) and position but
+  // changes its column: the existing move path re-derives every descendant's
+  // column (child.col == parent.col - 1), so no dedicated mutation is needed.
+  // Higher columns sit further left, so +1 moves left and -1 moves right.
+  const handleShiftRoot = (id: number, delta: 1 | -1) => {
+    const node = byId.get(id);
+    if (!node) return;
+    const position = forest.findIndex((r) => r.id === id);
+    if (position < 0) return;
+    onMove({ logbookId, id, parentId: null, col: node.col + delta, position });
+  };
+
   const addingRoot =
     pendingInput?.kind === "add" && pendingInput.parentId === null ? pendingInput : null;
   const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
@@ -883,6 +943,7 @@ export function OrgView({
                   <div className={styles.tree} style={colStyle(root.col, maxCol)}>
                     <Subtree
                       node={root}
+                      isRoot
                       logbookSegment={logbookSegment}
                       stickySet={stickySet}
                       pendingInput={pendingInput}
@@ -893,6 +954,7 @@ export function OrgView({
                       onAdd={onAdd}
                       onRename={onRename}
                       onReorder={(id) => setRearrangeFor(id)}
+                      onShiftRoot={handleShiftRoot}
                       onSubmitPending={onSubmitPending}
                       onCancelPending={onCancelPending}
                     />

@@ -327,7 +327,8 @@
   pointer-events: none;
 }
 
-.card:hover .cardFooter {
+.card:hover .cardFooter,
+.card:focus-within .cardFooter {
   border-top-color: var(--color-stark-border);
 }
 
@@ -340,7 +341,8 @@
   text-overflow: ellipsis;
 }
 
-.card:hover .cardMeta {
+.card:hover .cardMeta,
+.card:focus-within .cardMeta {
   display: none;
 }
 
@@ -352,7 +354,8 @@
   height: var(--org-footer-row-h);
 }
 
-.card:hover .cardActions {
+.card:hover .cardActions,
+.card:focus-within .cardActions {
   display: flex;
 }
 
