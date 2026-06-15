@@ -9,11 +9,18 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
+import Document from "@tiptap/extension-document";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Footnote, FootnoteReference, Footnotes } from "tiptap-footnotes";
 
 import { CommentMark } from "~/components/CommentMark.ts";
 import { cn } from "~/lib/cn";
-import { htmlToMarkdown, markdownToHtml } from "~/lib/markdown.ts";
+import { docToMarkdown, markdownToDoc } from "~/lib/markdown.ts";
+
+// Footnotes live in a `footnotes` section pinned at the end of the document, so
+// the top node must allow it after the body. `tiptap-footnotes` requires this
+// and that StarterKit's own document node be disabled (below).
+const FootnoteDocument = Document.extend({ content: "block+ footnotes?" });
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -61,7 +68,7 @@ export function MarkdownEditor({
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
-    const md = htmlToMarkdown(editor.getHTML());
+    const md = docToMarkdown(editor.getJSON());
     if (md !== lastSaved.current) {
       lastSaved.current = md;
       onSave(md);
@@ -72,16 +79,35 @@ export function MarkdownEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        // Replaced below with a document node that allows the footnotes section.
+        document: false,
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
         heading: { levels: [2, 3] },
         underline: false,
         horizontalRule: {},
         hardBreak: false,
       }),
-      Placeholder.configure({ placeholder }),
+      FootnoteDocument,
+      Placeholder.configure({
+        // Footnote bodies start empty; prompt the user there too. `includeChildren`
+        // lets the placeholder reach the paragraphs nested inside footnotes.
+        includeChildren: true,
+        placeholder: ({ editor, node, pos }) => {
+          if (node.type.name === "paragraph") {
+            const $pos = editor.state.doc.resolve(pos);
+            for (let d = $pos.depth; d >= 0; d--) {
+              if ($pos.node(d).type.name === "footnote") return "Footnote text…";
+            }
+          }
+          return placeholder;
+        },
+      }),
       CommentMark,
+      Footnotes,
+      Footnote,
+      FootnoteReference,
     ],
-    content: markdownToHtml(initialMarkdown),
+    content: markdownToDoc(initialMarkdown),
     autofocus: false,
     editorProps: {
       attributes: { class: "prose max-w-none editor" },
@@ -98,7 +124,15 @@ export function MarkdownEditor({
 
   const focusEnd = (insertText?: string) => {
     if (!editor) return;
-    const chain = editor.chain().focus("end");
+    // "End of content" means the end of the body, not the document — the
+    // footnotes section is pinned last, and typing should land in the prose, not
+    // inside a footnote. Target the end of the final non-footnotes block.
+    const { doc } = editor.state;
+    let target = doc.content.size;
+    doc.forEach((node, offset) => {
+      if (node.type.name !== "footnotes") target = offset + node.nodeSize - 1;
+    });
+    const chain = editor.chain().focus(target);
     // Insert as an explicit text node rather than a string so characters like
     // `<`, `>`, and `&` aren't reinterpreted as HTML by insertContent's parser.
     if (insertText) chain.insertContent({ type: "text", text: insertText });
@@ -128,13 +162,15 @@ export function MarkdownEditor({
   }, []);
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative flex flex-col", className)}>
       {/* Grow the prose element to fill the flex container so clicks in the
           space below the content still land inside the editable area (at the
-          nearest position) instead of missing it. `cursor-text` signals that. */}
+          nearest position) instead of missing it. `cursor-text` signals that.
+          The footnotes section, when present, renders as the last block inside
+          the editor — separated from the body by its own top border/margin. */}
       <EditorContent
         editor={editor}
-        className="flex-1 flex flex-col [&_.editor]:flex-1 cursor-text"
+        className="flex-1 flex flex-col [&_.editor]:flex-1 [&_.editor]:pb-12 cursor-text"
       />
       {editor && <SelectionBubble editor={editor} />}
     </div>
@@ -165,7 +201,11 @@ function SelectionBubble({ editor }: { editor: Editor }) {
 
   const applyLink = (raw: string) => {
     const href = normalizeHref(raw);
-    const chain = editor.chain().focus().extendMarkRange("link");
+    const chain = editor.chain().focus();
+    // A real selection operates on exactly that range — so a single word can be
+    // (re)linked independently of a larger link it sits inside. A collapsed
+    // cursor has no range, so extend to the whole link under it.
+    if (editor.state.selection.empty) chain.extendMarkRange("link");
     if (!href) {
       chain.unsetLink().run();
     } else {
@@ -175,16 +215,38 @@ function SelectionBubble({ editor }: { editor: Editor }) {
   };
 
   const removeLink = () => {
-    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    const chain = editor.chain().focus();
+    // Same range semantics as applyLink: with a selection, strip the link from
+    // just those characters (freeing a word from a link that over-covers it);
+    // with a collapsed cursor, remove the whole link under it.
+    if (editor.state.selection.empty) chain.extendMarkRange("link");
+    chain.unsetLink().run();
     setEditing(false);
   };
+
+  // Any change to the editor selection (clicking or arrowing elsewhere) closes
+  // an open link form. Without this the link editor would ride along with the
+  // caret and stay open over text that isn't a link at all. Opening the form
+  // doesn't move the selection, so this never fires on open.
+  useEffect(() => {
+    const close = () => setEditing(false);
+    editor.on("selectionUpdate", close);
+    return () => {
+      editor.off("selectionUpdate", close);
+    };
+  }, [editor]);
 
   return (
     <BubbleMenu
       editor={editor}
       options={{ placement: "top", offset: 8 }}
       shouldShow={({ editor, from, to }) => {
-        if (linkEditingRef.current) return true;
+        // While the link form is open, keep the bubble only as long as the
+        // selection still anchors to something editable (a live selection, or
+        // the caret sitting inside the link being edited). A click into
+        // unrelated text fails both and dismisses it — the selectionUpdate
+        // listener resets the editing state in the same beat.
+        if (linkEditingRef.current) return from !== to || editor.isActive("link");
         if (from !== to) return true;
         return editor.isActive("link");
       }}
@@ -314,6 +376,14 @@ function Toolbar({ editor, onOpenLink }: { editor: Editor; onOpenLink: () => voi
         onClick={() => editor.chain().focus().toggleMark("comment").run()}
       >
         <i className="ri-chat-1-line" />
+      </button>
+      <button
+        type="button"
+        title="Add footnote"
+        className={bubbleBtnBase}
+        onClick={() => editor.chain().focus().addFootnote().run()}
+      >
+        <i className="ri-superscript" />
       </button>
     </div>
   );

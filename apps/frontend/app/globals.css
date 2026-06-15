@@ -155,3 +155,57 @@ body {
   padding: 0 0.25em;
   font-style: italic;
 }
+
+/* Footnote references — `<sup><a class="footnote-ref">N</a></sup>` rendered by
+   tiptap-footnotes; the number is real text the extension keeps in step with the
+   list below. Stored as `[^n]` markers in markdown; see lib/markdown.ts. */
+.prose a.footnote-ref {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Footnotes section — the `<ol class="footnotes">` pinned at the end of the
+   document holds one `<li>` per reference, numbered by the list itself and kept
+   in reference order by the extension. See `tiptap-footnotes`. */
+.prose ol.footnotes {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  padding-left: 1.9rem;
+  border-top: 1px solid var(--color-stark-border);
+  list-style: decimal;
+  font-size: 0.9rem;
+}
+
+.prose ol.footnotes::before {
+  content: "Footnotes";
+  display: block;
+  margin-bottom: 0.75rem;
+  margin-left: -1.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.prose ol.footnotes > li {
+  margin: 0.4rem 0;
+  line-height: 1.6;
+}
+
+.prose ol.footnotes > li::marker {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Placeholder for an empty footnote body. The Placeholder extension tags the
+   empty paragraph with `is-empty` and a `data-placeholder` attribute. */
+.prose ol.footnotes p.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
