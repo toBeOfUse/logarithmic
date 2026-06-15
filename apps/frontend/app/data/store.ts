@@ -14,7 +14,6 @@
  * nanoid for `Logbook.id`).
  */
 import slugify from "@sindresorhus/slugify";
-import { customAlphabet } from "nanoid";
 import type {
   EntryDetail,
   EntryNode,
@@ -27,11 +26,6 @@ import type {
 import { countWords } from "logarithmic-backend/word-count";
 
 import { DEMO_LOGBOOKS } from "./demo-tree.ts";
-
-const newLogbookId = customAlphabet(
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
-  10,
-);
 
 type EntryRecord = {
   id: number;
@@ -75,7 +69,7 @@ function seed() {
   const now = new Date("2026-04-28T12:00:00Z");
   for (const demo of DEMO_LOGBOOKS) {
     const lb: LogbookRecord = {
-      id: newLogbookId(),
+      id: demo.id,
       slug: slugify(demo.name),
       name: demo.name,
       createdAt: now,
@@ -233,20 +227,6 @@ export function getEntry(entryId: number): EntryDetail | null {
 }
 
 // ── writes ─────────────────────────────────────────────────────────────
-
-export function createLogbook(input: { name: string }): LogbookDetail {
-  const now = new Date();
-  const name = input.name.trim() || "Untitled logbook";
-  const lb: LogbookRecord = {
-    id: newLogbookId(),
-    slug: slugify(name),
-    name,
-    createdAt: now,
-    updatedAt: now,
-  };
-  store.logbooks.set(lb.id, lb);
-  return recToDetail(lb);
-}
 
 export function renameLogbook(input: { logbookId: string; name: string }): LogbookDetail | null {
   const lb = store.logbooks.get(input.logbookId);

@@ -244,11 +244,13 @@ export function useEntry(
 
 // ── Mutations ──────────────────────────────────────────────────────────
 
-export function useCreateLogbook({ demo = false }: { demo?: boolean } = {}) {
+// Logbooks are only ever created for real (token-backed) accounts — the demo
+// logbooks are a fixed, in-memory set seeded from `demo-tree.ts` with no UI to
+// add more — so this hook has no `demo` branch.
+export function useCreateLogbook() {
   const qc = useQueryClient();
   return useMutation<CreatedLogbook, Error, { name: string }>({
     mutationFn: async (input) => {
-      if (demo) return { logbook: store.createLogbook(input), token: "" };
       const result = await trpc.logbook.create.mutate(input);
       // Persist the fresh token immediately so the bookmarkable link the modal
       // surfaces matches what's already authoritative in localStorage.
@@ -256,7 +258,7 @@ export function useCreateLogbook({ demo = false }: { demo?: boolean } = {}) {
       return result;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
+      void qc.invalidateQueries({ queryKey: keys.logbooks(false) });
     },
   });
 }

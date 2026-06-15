@@ -35,7 +35,7 @@ export default function Splash() {
   const [name, setName] = useState("");
   const { data: logbooks = [], isLoading } = useLogbooks({ demo: false });
   const { data: demoLogbooks = [] } = useLogbooks({ demo: true });
-  const createLogbook = useCreateLogbook({ demo: false });
+  const createLogbook = useCreateLogbook();
   const importLogbook = useImportLogbook();
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
