@@ -461,7 +461,7 @@
   box-sizing: border-box;
   width: var(--col-width, var(--org-card-width));
   padding: var(--org-card-pad-y) var(--org-card-pad-x);
-  background: oklch(from var(--color-paper) l c h / 0.95);
+  background: oklch(from var(--color-paper) l c h / 0.3);
   border: 1px solid var(--color-muted);
   box-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
   font-size: var(--org-title-size);
