@@ -36,6 +36,7 @@ import type {
 } from "logarithmic-backend/api-types";
 import { countWords } from "logarithmic-backend/word-count";
 
+import { readCachedLogbooks, saveCachedLogbooks } from "./logbook-cache.ts";
 import * as store from "./store.ts";
 import { getAllTokens, saveToken } from "./tokens.ts";
 import { trpc } from "./trpc.ts";
@@ -173,10 +174,19 @@ function reorderForestChildren(
 export function useLogbooks({ demo = false }: { demo?: boolean } = {}) {
   return useQuery({
     queryKey: keys.logbooks(demo),
-    queryFn: () =>
-      demo
-        ? delay(DEMO_READ_LATENCY_MS, () => store.listLogbooks())
-        : trpc.logbook.listByTokens.query({ tokens: getAllTokens() }),
+    queryFn: async () => {
+      if (demo) return delay(DEMO_READ_LATENCY_MS, () => store.listLogbooks());
+      const logbooks = await trpc.logbook.listByTokens.query({ tokens: getAllTokens() });
+      // Refresh the optimistic cache so the next cold load paints this list.
+      saveCachedLogbooks(logbooks);
+      return logbooks;
+    },
+    // Seed the real list from localStorage so the splash screen renders the
+    // user's logbooks immediately instead of flashing empty during the network
+    // round-trip. `initialDataUpdatedAt: 0` marks the seed as already stale so a
+    // background refetch still reconciles with the server. The demo list is
+    // rebuilt from the in-memory store and needs no persistence.
+    ...(demo ? {} : { initialData: readCachedLogbooks, initialDataUpdatedAt: 0 }),
   });
 }
 
