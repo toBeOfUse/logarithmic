@@ -37,7 +37,7 @@ export function TopBar({
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
-      <span className="inline-flex items-center gap-1.5 tracking-tight mr-auto">
+      <span className="inline-flex items-center gap-1.5 tracking-tight mr-auto whitespace-nowrap overflow-x-auto scrollbar-none">
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-primary font-semibold no-underline px-0.5 -mx-0.5"
@@ -60,14 +60,11 @@ export function TopBar({
             <span key={p.id} style={{ display: "contents" }}>
               <span className="text-paper-edge">›</span>
               {p.href ? (
-                <Link
-                  to={p.href}
-                  className="whitespace-nowrap text-muted no-underline hover:text-primary"
-                >
+                <Link to={p.href} className="text-muted no-underline hover:text-primary">
                   {p.name}
                 </Link>
               ) : (
-                <span className="whitespace-nowrap">{p.name}</span>
+                <span>{p.name}</span>
               )}
             </span>
           ))}
