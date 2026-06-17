@@ -115,7 +115,7 @@ export type PendingCreate = { col: number; parentId: number | null; name: string
  * What a drop zone means, attached to each dnd-kit droppable. "before"/"after"
  * are relative to an existing entry (drop above it → preceding sibling, below
  * → following sibling); "child" reparents the dragged entry as the last child
- * of `parentId` (the entry's "add child" button).
+ * of `parentId` (a childless entry's pseudo-card child drop zone).
  */
 type DropData = { kind: "before" | "after"; refId: number } | { kind: "child"; parentId: number };
 
@@ -448,7 +448,6 @@ const EntryCard = memo(function EntryCard({
   foldable,
   folded,
   draggedId,
-  draggedParentId,
   draggedSubtreeIds,
   onAddChild,
   onRename,
@@ -473,7 +472,6 @@ const EntryCard = memo(function EntryCard({
   folded: boolean;
   /** The entry currently being dragged, or null if no drag is in progress. */
   draggedId: number | null;
-  draggedParentId: number | null;
   /** Ids in the dragged entry's subtree (incl. itself); null when idle. */
   draggedSubtreeIds: Set<number> | null;
   onAddChild: () => void;
@@ -492,13 +490,8 @@ const EntryCard = memo(function EntryCard({
   onShiftRight?: () => void;
 }) {
   const canShift = onShiftLeft !== undefined && onShiftRight !== undefined;
-  const isDragging = draggedId !== null;
   const isSource = entry.id === draggedId;
   const inDraggedSubtree = draggedSubtreeIds?.has(entry.id) ?? false;
-  // Per spec: while dragging, emphasize "add child" buttons as drop targets —
-  // except the dragged entry's own subtree (can't reparent under itself) and
-  // its current parent (it's already a child of that).
-  const emphasizeAddChild = isDragging && !inDraggedSubtree && entry.id !== draggedParentId;
 
   // On touch devices there's no hover to reveal the action row, so a "more"
   // (⋯) button toggles it open instead. Tapping anywhere outside the card
@@ -529,8 +522,9 @@ const EntryCard = memo(function EntryCard({
   };
 
   // Drop targets. before/after are disabled across the dragged subtree (a node
-  // can't become a sibling of itself or its own descendant); the child target
-  // is only live where the add-child button is emphasized.
+  // can't become a sibling of itself or its own descendant). The "become last
+  // child" target now lives on a separate pseudo-card drop zone (ChildDropzone)
+  // rendered beside childless entries, not on this card's add-child button.
   const beforeDrop = useDroppable({
     id: `before:${entry.id}`,
     disabled: inDraggedSubtree,
@@ -540,11 +534,6 @@ const EntryCard = memo(function EntryCard({
     id: `after:${entry.id}`,
     disabled: inDraggedSubtree,
     data: { kind: "after", refId: entry.id } satisfies DropData,
-  });
-  const childDrop = useDroppable({
-    id: `child:${entry.id}`,
-    disabled: !emphasizeAddChild,
-    data: { kind: "child", parentId: entry.id } satisfies DropData,
   });
 
   // After a drag, pointerup fires a click that would otherwise follow the
@@ -668,12 +657,7 @@ const EntryCard = memo(function EntryCard({
           </button>
           <button
             type="button"
-            ref={childDrop.setNodeRef}
-            className={cn(
-              styles.cardAction,
-              styles.cardActionChild,
-              childDrop.isOver && styles.isOver,
-            )}
+            className={styles.cardAction}
             aria-label="Add child"
             title="Add child"
             onClick={onAddChild}
@@ -725,7 +709,6 @@ const EntryCard = memo(function EntryCard({
           menuOpen && styles.menuOpen,
           titleColClass(entry.col),
           isSource && styles.isSource,
-          emphasizeAddChild && styles.childDroppable,
         )}
         onClickCapture={swallowClick}
         {...draggable.attributes}
@@ -766,7 +749,6 @@ const EntryCard = memo(function EntryCard({
           foldable && styles.foldable,
           menuOpen && styles.menuOpen,
           titleColClass(entry.col),
-          emphasizeAddChild && styles.childDroppable,
         )}
         onClickCapture={swallowClick}
         {...draggable.attributes}
@@ -913,18 +895,60 @@ const FoldedPlaceholder = memo(function FoldedPlaceholder({
   );
 });
 
+/**
+ * A dashed pseudo-card shown to the right of a childless entry while a drag is
+ * in progress: dropping the dragged entry here makes it that entry's (first)
+ * child. It replaces the old "drop on the add-child button" affordance, giving
+ * childless entries — which otherwise have no child column to drop into — a
+ * visible target.
+ *
+ * It occupies the would-be child column (`col`), so it's the full width of that
+ * column, one column-gap to the right of the entry — except when the entry sits
+ * in the lowest visible column, in which case its child column falls past the
+ * right edge of the chart; that one is rendered `narrow` (a sixth of a column,
+ * closer to its card) so it doesn't blow out the page gutter. See
+ * `.childDropzone` in the stylesheet.
+ */
+const ChildDropzone = memo(function ChildDropzone({
+  parentId,
+  col,
+  narrow,
+}: {
+  parentId: number;
+  /** The would-be child column, used to size a full-width drop zone. */
+  col: number;
+  /** Whether this drop zone sits past the lowest visible column (rendered as a
+   *  narrow stub instead of a full column-width box). */
+  narrow: boolean;
+}) {
+  const drop = useDroppable({
+    id: `child:${parentId}`,
+    data: { kind: "child", parentId } satisfies DropData,
+  });
+  return (
+    <div
+      ref={drop.setNodeRef}
+      className={cn(styles.childDropzone, narrow && styles.narrow, drop.isOver && styles.isOver)}
+      style={narrow ? undefined : widthVar(col)}
+      aria-hidden="true"
+    >
+      <i className={cn(styles.childDropzoneIcon, "ri-drag-drop-line")} aria-hidden="true" />
+    </div>
+  );
+});
+
 // ── Subtree ────────────────────────────────────────────────────────────
 
 function SubtreeImpl({
   node,
   isRoot,
+  minCol,
   logbookSegment,
   stickySet,
   foldedSet,
   pendingInput,
   pendingCreate,
   draggedId,
-  draggedParentId,
   draggedSubtreeIds,
   onAdd,
   onRename,
@@ -938,13 +962,15 @@ function SubtreeImpl({
   node: EntryNode;
   /** True for a tree's root; only roots get the column-shift arrows. */
   isRoot: boolean;
+  /** The lowest visible column. An entry here has its child drop zone fall past
+   *  the right edge of the chart, so that zone is rendered narrow. */
+  minCol: number;
   logbookSegment: string;
   stickySet: Set<number>;
   foldedSet: Set<number>;
   pendingInput: PendingInput | null;
   pendingCreate: PendingCreate | null;
   draggedId: number | null;
-  draggedParentId: number | null;
   draggedSubtreeIds: Set<number> | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
@@ -975,6 +1001,13 @@ function SubtreeImpl({
   // just-submitted child is being confirmed by the server.
   const hasChildCol =
     (!folded && node.children.length > 0) || showFoldedPlaceholder || addingHere || creatingHere;
+  // While a drag is in progress, a childless entry shows a dashed pseudo-card to
+  // its right as a "drop here to make this entry's first child" target — the
+  // affordance childless entries lack, having no child column to drop into.
+  // Excluded for the dragged entry's own subtree (an entry can't be reparented
+  // under itself or a descendant); that also covers the dragged leaf itself.
+  const showChildDropzone =
+    draggedId !== null && node.children.length === 0 && !(draggedSubtreeIds?.has(node.id) ?? false);
 
   // Per-node handlers, memoized so the (memoized) card / input children skip
   // re-rendering when only an unrelated part of the chart changes. They stay
@@ -1017,7 +1050,6 @@ function SubtreeImpl({
             foldable={sticky}
             folded={folded}
             draggedId={draggedId}
-            draggedParentId={draggedParentId}
             draggedSubtreeIds={draggedSubtreeIds}
             onAddChild={handleAddChild}
             onRename={handleRename}
@@ -1044,13 +1076,13 @@ function SubtreeImpl({
                 key={child.id}
                 node={child}
                 isRoot={false}
+                minCol={minCol}
                 logbookSegment={logbookSegment}
                 stickySet={stickySet}
                 foldedSet={foldedSet}
                 pendingInput={pendingInput}
                 pendingCreate={pendingCreate}
                 draggedId={draggedId}
-                draggedParentId={draggedParentId}
                 draggedSubtreeIds={draggedSubtreeIds}
                 onAdd={onAdd}
                 onRename={onRename}
@@ -1089,6 +1121,10 @@ function SubtreeImpl({
           )}
         </div>
       )}
+
+      {showChildDropzone && (
+        <ChildDropzone parentId={node.id} col={childCol} narrow={node.col === minCol} />
+      )}
     </div>
   );
 }
@@ -1103,14 +1139,14 @@ const Subtree = memo(SubtreeImpl);
  * dnd-kit measures each droppable once at drag start, then keeps its position
  * "current" by offsetting that cached rect by the scroll container's scroll
  * delta — which is correct only for content that scrolls with the container. A
- * sticky card (and its "Add child" button) stays pinned on screen while the
- * container auto-scrolls, so that offset pushes its droppable rect away from the
- * real button by exactly the scrolled distance, leaving the drop zone above or
- * below where the button actually is.
+ * sticky card's drop halves stay pinned on screen while the container
+ * auto-scrolls, so that offset pushes their droppable rects away from the real
+ * card by exactly the scrolled distance, leaving the drop zones above or below
+ * where the card actually is.
  *
  * Re-measuring all droppables on each scroll frame (only while a drag is active)
  * re-reads their true on-screen rects, resetting that scroll delta to zero so
- * the sticky drop zones track the buttons. Must live inside `DndContext` so it
+ * the sticky drop zones track their cards. Must live inside `DndContext` so it
  * can reach `measureDroppableContainers`.
  */
 function RemeasureOnScroll({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
@@ -1234,14 +1270,14 @@ export function OrgView({
   );
 
   const draggedEntry = activeDragId !== null ? (byId.get(activeDragId) ?? null) : null;
-  const draggedParentId = activeDragId !== null ? (parentOf.get(activeDragId) ?? null) : null;
   const draggedSubtreeIds = useMemo(
     () => (draggedEntry ? subtreeIds(draggedEntry) : null),
     [draggedEntry],
   );
 
-  // pointerWithin resolves card vs add-child drops; prefer the small add-child
-  // button when the cursor is inside it. Fall back to rectIntersection so a
+  // pointerWithin resolves overlapping zones; when the cursor is inside a child
+  // drop zone (the pseudo-card beside a childless entry), prefer it over any
+  // sibling before/after zone it overlaps. Fall back to rectIntersection so a
   // drag hovering just outside every zone still lands somewhere sensible.
   const collisionDetection = useCallback<CollisionDetection>((args) => {
     const within = pointerWithin(args);
@@ -1381,9 +1417,11 @@ export function OrgView({
       // Phase 1 — read every rect up front. Writing a box's height dirties
       // layout (the var feeds its height), so interleaving reads and writes
       // forced a reflow per box; reading everything first collapses that to a
-      // single reflow. A box's height never affects its extent's rect (the box
-      // is height-bounded and overflow-hidden; the extent's height comes from
-      // the sibling child column), so the reads are independent of the writes.
+      // single reflow. Within a pass the writes can't disturb the reads because
+      // every box stays no taller than its own subtree — a box at or below its
+      // child column's height doesn't feed back into the extent (the column is
+      // the taller, stretching sibling). A box left STALE-tall would feed back,
+      // which is what the pre-measure reset below guards against.
       const vpBottom = scrollEl.clientHeight - gap;
       const originTop = scrollEl.getBoundingClientRect().top;
       for (const t of targets) {
@@ -1409,6 +1447,17 @@ export function OrgView({
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(apply);
     };
+    // Clear any stale heights before the first (structural) measurement. A box
+    // left taller than its subtree — e.g. a former parent that just lost
+    // descendants to a move — props up its OWN extent through the subtree's
+    // `align-items: stretch` (the span is in flow, being `position: sticky`), so
+    // the read phase would keep measuring that inflated extent and latch the box
+    // tall. Zeroing first (the span's min-height still floors it, and a sticky
+    // box's subtree is always taller than that floor) makes the read see the
+    // true subtree height. Only needed here: scroll/resize frames never shrink a
+    // subtree below its box, and this pass's targets carry `last: NaN` so the
+    // write phase still flushes the real heights over these zeros.
+    for (const t of targets) t.box.style.setProperty("--org-sticky-h", "0px");
     apply();
     scrollEl.addEventListener("scroll", schedule, { passive: true });
     const ro = new ResizeObserver(schedule);
@@ -1527,13 +1576,13 @@ export function OrgView({
                     <Subtree
                       node={root}
                       isRoot
+                      minCol={minCol}
                       logbookSegment={logbookSegment}
                       stickySet={stickySet}
                       foldedSet={foldedSet}
                       pendingInput={pendingInput}
                       pendingCreate={pendingCreate}
                       draggedId={activeDragId}
-                      draggedParentId={draggedParentId}
                       draggedSubtreeIds={draggedSubtreeIds}
                       onAdd={handleAdd}
                       onRename={onRename}

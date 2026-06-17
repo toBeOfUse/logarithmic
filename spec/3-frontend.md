@@ -58,9 +58,13 @@ With regard to adding and editing entries: note that input cells only exist whil
 
 #### Moving Entries
 
-At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped above another entry, it's moved to be the sibling directly preceding that entry; if it's dropped below another entry, it's moved to be the sibling directly after that entry; and if it's dropped on the "add child" button for an entry, it is moved to be the (last) child of that entry. (This is mainly useful if its new parent has no children currently, and thus the entry being moved can't be dropped among them.)
+At any point, an entry can be dragged and dropped in order to change its position or parent. If an entry is dropped above another entry, it's moved to be the sibling directly preceding that entry; if it's dropped below another entry, it's moved to be the sibling directly after that entry; and if it's dropped into the "leaf dropzone" for an entry (described below), it is moved to become the new first child of that entry.
 
-While an entry is being dragged, the "add child" buttons should be emphasized to indicate that they're interactable. (Except: the "add child" button for the entry being dragged and the "add child" button for its current parent, if any, should _not_ be emphasized, because it doesn't really make sense to drag it onto either of them.)
+While an entry is being dragged, every entry that does not already have children renders a "leaf dropzone" directly to its right (where its children would appear if it had any.) A leaf dropzone takes up the whole width of the next column, except for the ones rendered for entries in the last (right-most, lowest-numbered) visible column; those leaf dropzones are rendered as a narrower stub, so they don't push far into the page's right gutter.
+
+No leaf dropzone is shown for the entry currently being dragged, nor for any entry that is a descendant of the entry currently being dragged, since an entry can't become the child of itself or one of its own descendants.
+
+![](org_view_v3_drag_and_drop_wireframe.png)
 
 Also, one of the secondary buttons that shows up when an entry is hovered over is the "Reorder" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
 

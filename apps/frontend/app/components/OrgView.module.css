@@ -31,9 +31,22 @@
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
   --org-sticky-gap: 14px;
+  /* The dashed pseudo-card drop zone shown to the right of a childless entry
+     during a drag normally fills its would-be child column. The exception is an
+     entry in the lowest visible column, whose child column falls past the right
+     edge of the chart; that drop zone is a narrow stub instead, sitting closer
+     to its card so it doesn't blow out the page gutter. */
+  --org-child-dropzone-narrow-w: calc(var(--org-card-width) / 6);
+  --org-child-dropzone-narrow-gap: 9px;
   /* Horizontal gutter between the viewport edges and the chart, so content is
-     never flush against the left/right edges. */
-  --org-page-pad-x: 28px;
+     never flush against the left/right edges. Wide enough that the narrow drop
+     zone past the lowest visible column can flash into the gutter (its gap, then
+     its width) without being clipped; kept symmetric so the centered chart stays
+     centered. The full-width drop zones occupy in-chart child columns, so they
+     don't overflow and don't factor in here. */
+  --org-page-pad-x: calc(
+    28px + var(--org-child-dropzone-narrow-gap) + var(--org-child-dropzone-narrow-w)
+  );
   /* Vertical space around the rule that separates trees in the forest. */
   --org-tree-gap: 20px;
   --org-transition: 120ms ease;
@@ -58,7 +71,9 @@
     --org-card-width-0: 250px;
     --org-card-width: 200px;
     --org-col-gap: 12px;
-    --org-page-pad-x: 12px;
+    --org-page-pad-x: calc(
+      12px + var(--org-child-dropzone-narrow-gap) + var(--org-child-dropzone-narrow-w)
+    );
   }
 }
 
@@ -810,34 +825,51 @@
   box-shadow: inset 0 -2px 0 0 var(--color-accent);
 }
 
-/* While a drag is in progress, valid "add child" targets reveal just their
-   add-child button (emphasized) in place of the meta line, so an entry can be
-   dropped onto it to become that card's last child. */
-.card.childDroppable .cardMeta {
-  display: none;
-}
-
-.card.childDroppable .cardActions {
+/* The dashed pseudo-card drop zone rendered (in JS) to the right of a childless
+   entry while a drag is in progress: dropping the dragged entry here makes it
+   that entry's first child. It's a flex sibling of the entry's cell within
+   `.subtree`, so the column-gap between them matches the gap between columns.
+   It fills its would-be child column (--col-width, set inline) and stretches to
+   the cell's height, so it reads as a ghost card occupying that child slot. */
+.childDropzone {
+  flex: 0 0 var(--col-width, var(--org-card-width));
+  align-self: stretch;
+  box-sizing: border-box;
+  min-height: var(--org-card-min-h);
   display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--org-card-edge);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-muted);
+  transition:
+    background-color var(--org-transition),
+    border-color var(--org-transition),
+    color var(--org-transition);
 }
 
-/* Keep all three action slots laid out (so the button holds its rightmost
-   position) but show only the add-child one. */
-.card.childDroppable .cardAction {
-  visibility: hidden;
+/* The stub shown past the lowest visible column: a sixth of a column, pulled
+   closer to its card (a negative margin trims the subtree's column-gap down to
+   --org-child-dropzone-narrow-gap) so it doesn't push far into the page gutter. */
+.childDropzone.narrow {
+  flex-basis: var(--org-child-dropzone-narrow-w);
+  margin-left: calc(var(--org-child-dropzone-narrow-gap) - var(--org-col-gap));
 }
 
-.card.childDroppable .cardActionChild {
-  visibility: visible;
+.childDropzone.isOver {
+  border-color: var(--color-accent);
   background: var(--color-accent-soft);
   color: var(--color-accent-text);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 1px var(--color-accent);
 }
 
-.card.childDroppable .cardActionChild.isOver {
-  background: var(--color-accent);
-  color: var(--color-paper);
+/* The drag-drop hint glyph centered in the zone. Dim at rest (subtle), lifting
+   to the zone's color on hover-over via the inherited `color` above. */
+.childDropzoneIcon {
+  font-size: 1.4rem;
+  line-height: 1;
+  font-style: normal;
+  opacity: 0.55;
 }
 
 /* Floating ghost that follows the cursor during a drag. */
