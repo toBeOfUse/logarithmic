@@ -86,6 +86,8 @@ export const logbookRouter = router({
         createdAt: e.createdAt,
         updatedAt: e.updatedAt,
         wordCount: e.wordCount,
+        iconName: e.iconName ?? null,
+        iconFamily: e.iconFamily ?? null,
         metadataKeys: e.metadata ? Object.keys(e.metadata) : [],
         children: build(e.id),
       }));

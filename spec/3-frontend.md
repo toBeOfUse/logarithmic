@@ -10,7 +10,7 @@ Font sizes should use rem (and have a base size of 1rem.) 1rem should be defined
 
 ## User Interface
 
-The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook, import a previously exported logbook, or open a logbook that you've previously created. (All routes except the splash screen should start with a parameter that is the logbook's slug hyphenated with its ID.) There are two main routes in the logbook view: the organizational route and the content route. The Organizational route is open first, and you can click into it to open an entry's content route.
+The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook, import a previously exported logbook, or open a logbook that you've previously created. There are two main routes in the logbook view: the organizational route and the content route. The Organizational route is open first, and you can click into it to open an entry's content route.
 
 ### Top Bar
 
@@ -20,21 +20,25 @@ When you're in the organizational interface, the kebab menu allows you to rename
 
 ### Organizational Interface
 
-The organizational view shows a spreadsheet/chart of all of the entries. Each entry is represented by a simple card in a column. The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport. Only the necessary columns for the cards on screen are shown. Cards' children are present in the column to their right. Cards visually extend downwards to occupy the space taken up by their descendants. There is a horizontal line and a small gap between trees in the forest.
+The organizational view shows a spreadsheet/chart of all of the entries. Each entry is represented by a simple card in a column. The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport. Only the necessary columns for the cards on screen are shown. Cards' children are present in the column to their right. Cards visually extend downwards to occupy the space taken up by their descendants. There is a horizontal line and a small gap between trees in the forest. (Note that the card designs are slightly simplified in some of these wireframes.)
 
 ![](org_view_v3_wireframe.png)
 
-Column 0 (body text) is rendered wider than the other columns, which all share a single narrower width. The chart and the column-number strip are centered horizontally only when there are an equal number of columns greater than 0 and less than 0. When there are more columns greater than 0 that columns less than 0, the content is aligned to the left edge instead; when there are more columns less than 0, it is aligned to the right edge. (This is not shown in the wireframe.)
-
-Cards in columns greater than 0 have bold titles. (Their font size does not change.) Cards in columns less than 0 have a secondary font color. Hovering over an entry's card reveals three secondary buttons, positioned on the right side of the entry's cell: "Rename", "Reorder", and "Add Child" (in that order.) Their functionality is described down below.
-
-![](org_view_v3_card_wireframe.png)
+Column 0 (body text) is rendered wider than the other columns. The chart and the column-number strip are centered horizontally only when there are an equal number of columns greater than 0 and less than 0. When there are more columns greater than 0 that columns less than 0, the content is aligned to the left edge instead; when there are more columns less than 0, it is aligned to the right edge. (This is not shown in the wireframe.)
 
 Entries with more than one child or a descendant with more than one child are "sticky." As you scroll down, their top edge moves down and their content stays on screen as long as any of their descendants are on screen. Also, their bottom edge stays on screen, and is fixed in the same place visually until the last descendant in a column to the right has its bottom edge move above the bottom of the viewport. Here is a mock up with a (very short) viewport:
 
 ![](org_view_v3_viewport_wireframe.png)
 
 Note that there is a visible vertical gap between the top of the viewport and the top of the sticky card, and between the bottom of the viewport and the bottom of the sticky card.
+
+Cards in columns greater than 0 have bold titles. (Their font size does not change.) Cards in columns less than 0 have a secondary font color. Cards have sharp, non-rounded corners. Here is the full card design:
+
+![](org_view_v3_card_wireframe.png)
+
+All entries that are sticky can also be "folded," which lets you temporarily hide their descendants to free up some space in the viewport.
+
+![](org_view_v3_folding_wireframe.png)
 
 #### Adding Entries
 
@@ -48,7 +52,7 @@ One of the buttons on each entry is the "add child" button. Its icon is a mirror
 
 #### Editing Entries
 
-Entries can be renamed from the organizational interface using the "Rename" button, which has a pencil as its icon. Clicking it makes an input cell show up. The entry's name can be edited using the same pattern as when the entry is being created; however, if the input cell is empty when the user hits enter or clicks away from it, the edit is simply cancelled and the entry's name is left unchanged.
+Entries can be renamed from the organizational interface using the "Rename" button, which has a pencil as its icon. Clicking it makes an input cell show up. The entry's name can be edited using the same pattern as when the entry is being created; however, if the input cell is empty when the user hits enter or clicks away from it, the edit is simply cancelled and the entry's name is left unchanged. The icon for an entry is also editable from the input cell.
 
 With regard to adding and editing entries: note that input cells only exist while they're focused, and there should never be a need to render two at once.
 

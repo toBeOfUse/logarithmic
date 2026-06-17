@@ -24,6 +24,9 @@ import type { EntryNode, Metadata } from "logarithmic-backend/api-types";
 type Seed = Pick<EntryNode, "id" | "name" | "col"> & {
   content?: string;
   metadata?: Metadata;
+  /** Optional seeded icon (see Entry entity). Both parts go together. */
+  iconName?: string;
+  iconFamily?: string;
   children?: Seed[];
 };
 
@@ -46,8 +49,17 @@ const cookbookTree: Seed[] = [
     name: "Mains",
     col: 1,
     metadata: { Tags: ["dinner"] },
+    iconName: "fire-line",
+    iconFamily: "remix",
     children: [
-      { id: 30, name: "Carbonara", col: 0, metadata: { Time: "25 min" } },
+      {
+        id: 30,
+        name: "Carbonara",
+        col: 0,
+        metadata: { Time: "25 min" },
+        iconName: "heart-line",
+        iconFamily: "remix",
+      },
       {
         id: 31,
         name: "Cacio e pepe",

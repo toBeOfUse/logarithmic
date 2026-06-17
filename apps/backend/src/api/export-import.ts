@@ -54,11 +54,15 @@ function orderPrefix(index: number, siblingCount: number): string {
 type EntryFrontmatter = {
   name: string;
   col: number;
+  icon?: { name: string; family: string };
   metadata?: Metadata;
 };
 
 function buildFrontmatter(entry: Entry): EntryFrontmatter {
   const fm: EntryFrontmatter = { name: entry.name, col: entry.col };
+  if (entry.iconName && entry.iconFamily) {
+    fm.icon = { name: entry.iconName, family: entry.iconFamily };
+  }
   if (entry.metadata && Object.keys(entry.metadata).length > 0) {
     fm.metadata = entry.metadata;
   }
@@ -176,6 +180,8 @@ function coerceMetadataValue(v: unknown): MetadataValue {
 type ParsedNode = {
   name: string;
   col: number | null;
+  iconName: string | null;
+  iconFamily: string | null;
   content: string;
   metadata: Metadata | null;
   /** Order derived from the numeric filename prefix when present. */
@@ -183,14 +189,28 @@ type ParsedNode = {
   children: ParsedNode[];
 };
 
+/** Read the optional `{ name, family }` icon object from frontmatter, dropping
+ *  anything that isn't a well-formed string pair. */
+function coerceIcon(value: unknown): { name: string; family: string } | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.name === "string" && typeof obj.family === "string") {
+    return { name: obj.name, family: obj.family };
+  }
+  return null;
+}
+
 function parseEntryFromDocument(filename: string, text: string): ParsedNode {
   const { fm, body } = parseDocument(text);
   const name = typeof fm.name === "string" ? fm.name : displayNameFromFilename(filename);
   const col = typeof fm.col === "number" ? Math.trunc(fm.col) : null;
+  const icon = coerceIcon(fm.icon);
   const metadata = coerceMetadata(fm.metadata);
   return {
     name,
     col,
+    iconName: icon?.name ?? null,
+    iconFamily: icon?.family ?? null,
     content: body.trim(),
     metadata,
     order: extractOrderFromName(filename),
@@ -265,7 +285,16 @@ async function readForestFromZip(zip: JSZip): Promise<ParsedNode[]> {
       if (filename.toLowerCase() === "index.md" && parentPath !== "") {
         // Attached to the parent folder itself in the next pass.
         parent.selfDoc = {
-          node: { name: "", col: null, content: "", metadata: null, order: 0, children: [] },
+          node: {
+            name: "",
+            col: null,
+            iconName: null,
+            iconFamily: null,
+            content: "",
+            metadata: null,
+            order: 0,
+            children: [],
+          },
         };
         parent.selfDoc.node.order = extractOrderFromName(
           parentPath.replace(/\/$/, "").split("/").pop() ?? "",
@@ -305,6 +334,8 @@ async function readForestFromZip(zip: JSZip): Promise<ParsedNode[]> {
       node = {
         name: displayNameFromFilename(folderName),
         col: null,
+        iconName: null,
+        iconFamily: null,
         content: "",
         metadata: null,
         order,
@@ -379,6 +410,8 @@ async function persistForest(
         order: i,
         content: node.content || null,
         metadata: node.metadata,
+        iconName: node.iconName,
+        iconFamily: node.iconFamily,
         logbook,
         parent: parent ?? null,
       });

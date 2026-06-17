@@ -65,6 +65,8 @@ export async function buildEntryDetail(em: EntityManager, entry: Entry): Promise
     col: entry.col,
     content: entry.content ?? null,
     metadata: entry.metadata ?? null,
+    iconName: entry.iconName ?? null,
+    iconFamily: entry.iconFamily ?? null,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     wordCount: entry.wordCount,

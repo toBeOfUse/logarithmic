@@ -17,8 +17,16 @@
  * tall, so they don't stick.
  *
  * Hovering a card swaps its meta line for three actions: rename (pencil),
- * reorder siblings (↑↓, opens the rearrange modal), and add child (↳). Layout
- * and sizing live in OrgView.module.css under custom properties.
+ * reorder siblings (↑↓, opens the rearrange modal), and add child (↳). On touch
+ * devices (no hover) a "⋯" button on the meta line reveals that same row.
+ *
+ * Branching cards additionally show a fold button in place of their icon on
+ * hover: folding hides the entry's descendants (a client-only view state),
+ * collapsing a big subtree to a single "N collapsed entries" placeholder; the
+ * same button (now an expand) unfolds it. The card icon is therefore only
+ * editable while the card is in its editing state (see InputCard), not from the
+ * resting card. Layout and sizing live in OrgView.module.css under custom
+ * properties.
  */
 import {
   DndContext,
@@ -39,24 +47,33 @@ import {
 import {
   type CSSProperties,
   Fragment,
+  memo,
   type RefObject,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
 import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
 import { cn } from "~/lib/cn.ts";
+import {
+  ENTRY_ICONS,
+  REMIX_FAMILY,
+  entryIconClass,
+  isDefaultEntryIcon,
+} from "~/lib/entry-icons.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 
 import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
 
-type AddInput = { col: number; parentId: number | null };
+export type AddInput = { col: number; parentId: number | null };
 
 /**
  * Per-logbook scroll offset for the org view's inner scroll container. The chart
@@ -68,12 +85,21 @@ type AddInput = { col: number; parentId: number | null };
 const orgScrollByLogbook = new Map<string, { top: number; left: number }>();
 
 /**
+ * Per-logbook set of folded entry ids. Folding is a view concern — it hides an
+ * entry's descendants in the chart without touching the data — so it lives only
+ * on the client, and is stashed module-level (keyed by logbook, like the scroll
+ * offset above) so a fold survives the route unmount/remount that navigating
+ * into an entry and back causes.
+ */
+const orgFoldedByLogbook = new Map<string, Set<number>>();
+
+/**
  * The single input cell that can be live in the org view at a time — either one
  * being added under a parent, or one in place of an existing entry being
  * renamed. Per spec, "input cells only exist while they're focused, and there
  * should never be a need to render two at once."
  */
-type PendingInput =
+export type PendingInput =
   | { kind: "add"; col: number; parentId: number | null }
   | { kind: "rename"; entryId: number };
 
@@ -82,7 +108,7 @@ type PendingInput =
  * real id, so during the round trip we render a loading placeholder in the new
  * entry's slot (a new last child of `parentId`, or a new last root when null).
  */
-type PendingCreate = { col: number; parentId: number | null; name: string };
+export type PendingCreate = { col: number; parentId: number | null; name: string };
 
 /**
  * What a drop zone means, attached to each dnd-kit droppable. "before"/"after"
@@ -145,6 +171,13 @@ function computeStickySet(forest: EntryNode[]): Set<number> {
   };
   forest.forEach(visit);
   return sticky;
+}
+
+/** How many entries sit under `node` (all descendants, excluding `node`). */
+function countDescendants(node: EntryNode): number {
+  let n = 0;
+  for (const c of node.children) n += 1 + countDescendants(c);
+  return n;
 }
 
 /** The ids in `node`'s subtree, including `node` itself. */
@@ -257,22 +290,186 @@ function titleColClass(col: number): string | undefined {
 
 // ── Cards ──────────────────────────────────────────────────────────────
 
-function EntryCard({
+/**
+ * The icon shown at the left of a card's title. When `onSelect` is given,
+ * clicking it opens a small popover of icon choices (per the card design); the
+ * popover is rendered through a portal so the card's `overflow: hidden` doesn't
+ * clip it, and is positioned against the button's on-screen rect. When
+ * `onSelect` is omitted the icon is static (e.g. a not-yet-saved new entry that
+ * has no id to set an icon on).
+ */
+const EntryIcon = memo(function EntryIcon({
+  iconName,
+  iconFamily,
+  onSelect,
+}: {
+  iconName: string | null;
+  iconFamily: string | null;
+  onSelect?: (iconName: string, iconFamily: string) => void;
+}) {
+  const interactive = onSelect !== undefined;
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const openPicker = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ top: r.bottom + 6, left: r.left });
+    setOpen(true);
+  };
+
+  // Dismiss the popover on Escape, and on any scroll/resize (rather than trying
+  // to keep its fixed position glued to a button that's moving with the chart).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onMove = () => setOpen(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onMove);
+    document.addEventListener("scroll", onMove, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onMove);
+      document.removeEventListener("scroll", onMove, true);
+    };
+  }, [open]);
+
+  // Keep the popover from spilling off the right (or left) edge of the viewport:
+  // once it's measured, clamp its left so it stays fully on screen. Runs in a
+  // layout effect (before paint) so the clamp is applied without a visible jump.
+  useLayoutEffect(() => {
+    if (!open || !pos) return;
+    const el = pickerRef.current;
+    if (!el) return;
+    const margin = 8;
+    const maxLeft = window.innerWidth - el.offsetWidth - margin;
+    const left = Math.max(margin, Math.min(pos.left, maxLeft));
+    if (left !== pos.left) setPos((p) => (p ? { ...p, left } : p));
+  }, [open, pos]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={cn(styles.cardIcon, interactive && styles.cardIconInteractive)}
+        aria-label={interactive ? "Change icon" : undefined}
+        aria-hidden={interactive ? undefined : true}
+        title={interactive ? "Change icon" : undefined}
+        disabled={!interactive}
+        // Keep a click on the icon from starting a drag or following the card link.
+        onPointerDown={(e) => e.stopPropagation()}
+        // The interactive icon only appears while renaming (in InputCard), atop
+        // a focused textarea. Suppressing the mousedown's default keeps that
+        // textarea focused, so clicking the icon doesn't blur it — which would
+        // otherwise commit the rename and unmount the input before the picker
+        // could be used.
+        onMouseDown={(e) => {
+          if (interactive) e.preventDefault();
+        }}
+        onClick={(e) => {
+          if (!interactive) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (open) setOpen(false);
+          else openPicker();
+        }}
+      >
+        <i
+          className={cn(
+            entryIconClass(iconName, iconFamily),
+            isDefaultEntryIcon(iconName, iconFamily) && styles.cardIconDefault,
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {interactive &&
+        open &&
+        pos &&
+        createPortal(
+          <>
+            {/* mousedown (not pointerdown) so preventDefault keeps the rename
+                textarea focused while dismissing — clicking away here closes the
+                picker without committing the edit. */}
+            <div
+              className={styles.iconPickerBackdrop}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setOpen(false);
+              }}
+            />
+            <div
+              ref={pickerRef}
+              className={styles.iconPicker}
+              style={{ top: pos.top, left: pos.left }}
+              role="menu"
+              aria-label="Choose an icon"
+              // Keep focus on the rename textarea so picking an icon doesn't
+              // blur-commit the edit; the choice's onClick still fires.
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {ENTRY_ICONS.map((opt) => {
+                const selected = iconName === opt.name && iconFamily === REMIX_FAMILY;
+                return (
+                  <button
+                    key={opt.name}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selected}
+                    aria-label={opt.label}
+                    title={opt.label}
+                    className={cn(styles.iconChoice, selected && styles.isSelected)}
+                    onClick={() => {
+                      onSelect?.(opt.name, REMIX_FAMILY);
+                      setOpen(false);
+                    }}
+                  >
+                    <i className={`ri-${opt.name}`} aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
+  );
+});
+
+const EntryCard = memo(function EntryCard({
   entry,
   logbookSegment,
   sticky,
+  foldable,
+  folded,
   draggedId,
   draggedParentId,
   draggedSubtreeIds,
   onAddChild,
   onRename,
   onReorder,
+  onToggleFold,
   onShiftLeft,
   onShiftRight,
 }: {
   entry: EntryNode;
   logbookSegment: string;
+  /** Whether this card sticks/pins while scrolling. True only for an unfolded
+   *  branching subtree — folding turns it off (a folded card no longer spans
+   *  descendants), which also avoids its pinned height feeding back into the
+   *  now-short cell. Distinct from `foldable` so a folded card still folds. */
   sticky: boolean;
+  /** Whether this entry's subtree branches (so it can be folded). Drives the
+   *  fold button, shown in place of the icon on hover — independent of `sticky`
+   *  so the button stays available while folded. */
+  foldable: boolean;
+  /** Whether this entry is currently folded (descendants hidden). Selects the
+   *  fold button's direction: expand (unfold) when folded, contract otherwise. */
+  folded: boolean;
   /** The entry currently being dragged, or null if no drag is in progress. */
   draggedId: number | null;
   draggedParentId: number | null;
@@ -281,6 +478,9 @@ function EntryCard({
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
+  /** Fold this entry — hide its descendants behind a placeholder. Wired to the
+   *  fold button, which shows only on sticky (unfolded, branching) cards. */
+  onToggleFold: () => void;
   /**
    * Shift this card and its whole subtree one column left / right. Only roots
    * can move freely between columns (a non-root's column is pinned to its
@@ -299,6 +499,21 @@ function EntryCard({
   // its current parent (it's already a child of that).
   const emphasizeAddChild = isDragging && !inDraggedSubtree && entry.id !== draggedParentId;
 
+  // On touch devices there's no hover to reveal the action row, so a "more"
+  // (⋯) button toggles it open instead. Tapping anywhere outside the card
+  // dismisses it. Hover-capable devices hide the button entirely (see CSS) and
+  // keep using hover.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!cardRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [menuOpen]);
+
   // After a drag, pointerup fires a click that would otherwise follow the
   // card's <Link>. Swallow that one click.
   const justDraggedRef = useRef(false);
@@ -306,6 +521,11 @@ function EntryCard({
   useEffect(() => {
     if (draggable.isDragging) justDraggedRef.current = true;
   }, [draggable.isDragging]);
+  // The draggable node ref doubles as our DOM handle for the outside-click test.
+  const setCardRef = (el: HTMLDivElement | null) => {
+    cardRef.current = el;
+    draggable.setNodeRef(el);
+  };
 
   // Drop targets. before/after are disabled across the dragged subtree (a node
   // can't become a sibling of itself or its own descendant); the child target
@@ -328,11 +548,13 @@ function EntryCard({
 
   return (
     <div
-      ref={draggable.setNodeRef}
+      ref={setCardRef}
       data-entry-anchor={entry.id}
       className={cn(
         styles.card,
         sticky && styles.sticky,
+        foldable && styles.foldable,
+        menuOpen && styles.menuOpen,
         titleColClass(entry.col),
         isSource && styles.isSource,
         emphasizeAddChild && styles.childDroppable,
@@ -348,15 +570,47 @@ function EntryCard({
       {...draggable.listeners}
     >
       <div className={styles.cardBody}>
-        <Link
-          to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
-          className={styles.cardLink}
-          draggable={false}
-        >
-          <span className={cn(styles.cardTitle, !entry.name && styles.isUntitled)}>
-            {entry.name || "Unnamed entry"}
-          </span>
-        </Link>
+        <div className={styles.cardHeader}>
+          {/* The icon is static here — it's only editable while the card is in
+              its editing state (see InputCard). On branching (foldable) cards the
+              fold button takes the icon's place on hover, in whichever direction
+              applies: contract to fold, expand to unfold while folded. */}
+          <EntryIcon iconName={entry.iconName} iconFamily={entry.iconFamily} />
+          {foldable && (
+            <button
+              type="button"
+              className={styles.cardFold}
+              aria-label={folded ? "Unfold descendants" : "Fold descendants"}
+              title={folded ? "Unfold descendants" : "Fold descendants"}
+              aria-expanded={!folded}
+              // Keep a click on the fold button from starting a drag or
+              // following the card link.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleFold();
+              }}
+            >
+              <i
+                // this seems to be the closest you can get to what i would see as
+                // a "standard" accordion expand/collapse icon with remix icons
+                className={folded ? "ri-arrow-down-s-line" : "ri-arrow-up-s-line"}
+                style={{ transform: "scale(1.5)" }}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+          <Link
+            to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
+            className={styles.cardLink}
+            draggable={false}
+          >
+            <span className={cn(styles.cardTitle, !entry.name && styles.isUntitled)}>
+              {entry.name || "Unnamed entry"}
+            </span>
+          </Link>
+        </div>
 
         <div className={styles.cardFooter}>
           <span className={styles.cardMeta}>
@@ -365,6 +619,28 @@ function EntryCard({
                 shown only for entries that have content. */}
             {entry.wordCount > 0 && ` · ${entry.wordCount} words`}
           </span>
+          {/* Touch-only: reveals the action row (which hover would otherwise
+              show). Hidden on hover-capable devices via CSS. Stop pointerdown
+              AND touchstart so neither drag sensor engages on the tap — the
+              TouchSensor would otherwise consume the gesture and swallow the
+              click, leaving the menu un-toggled while the tap still focuses the
+              button (which alone reveals the actions). */}
+          <button
+            type="button"
+            className={styles.cardMore}
+            aria-label="Show actions"
+            title="Show actions"
+            aria-expanded={menuOpen}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((o) => !o);
+            }}
+          >
+            <i className="ri-more-line" aria-hidden="true" />
+          </button>
           {/* Stop pointerdown so the drag sensor doesn't fire when a button is
               clicked. */}
           <div className={styles.cardActions} onPointerDown={(e) => e.stopPropagation()}>
@@ -443,7 +719,7 @@ function EntryCard({
       />
     </div>
   );
-}
+});
 
 /**
  * The shared input card. Used both for adding a new entry (initialValue="") and
@@ -452,14 +728,23 @@ function EntryCard({
  * caller decides whether an empty submission creates/renames or is a no-op (per
  * spec, both flows treat an all-whitespace value as "no change").
  */
-function InputCard({
+const InputCard = memo(function InputCard({
   initialValue,
   sticky,
+  iconName = null,
+  iconFamily = null,
+  onSelectIcon,
   onSubmit,
   onCancel,
 }: {
   initialValue: string;
   sticky: boolean;
+  /** The edited entry's icon. Defaults to none (a brand-new add input). */
+  iconName?: string | null;
+  iconFamily?: string | null;
+  /** When given, the icon is pickable while editing (rename of an existing
+   *  entry); omitted for a new entry that has no id to set an icon on yet. */
+  onSelectIcon?: (iconName: string, iconFamily: string) => void;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
@@ -477,34 +762,37 @@ function InputCard({
   return (
     <div className={cn(styles.card, styles.cardEditing, sticky && styles.sticky)}>
       <div className={styles.cardBody}>
-        <textarea
-          ref={inputRef}
-          className={styles.cardInput}
-          rows={1}
-          defaultValue={initialValue}
-          onBlur={(e) => {
-            if (settledRef.current) return;
-            settledRef.current = true;
-            onSubmit(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
+        <div className={styles.cardHeader}>
+          <EntryIcon iconName={iconName} iconFamily={iconFamily} onSelect={onSelectIcon} />
+          <textarea
+            ref={inputRef}
+            className={styles.cardInput}
+            rows={1}
+            defaultValue={initialValue}
+            onBlur={(e) => {
               if (settledRef.current) return;
               settledRef.current = true;
-              onSubmit(e.currentTarget.value);
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              if (settledRef.current) return;
-              settledRef.current = true;
-              onCancel();
-            }
-          }}
-        />
+              onSubmit(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (settledRef.current) return;
+                settledRef.current = true;
+                onSubmit(e.currentTarget.value);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                if (settledRef.current) return;
+                settledRef.current = true;
+                onCancel();
+              }
+            }}
+          />
+        </div>
       </div>
     </div>
   );
-}
+});
 
 /**
  * Placeholder shown in a new entry's slot while its creation is in flight.
@@ -512,7 +800,7 @@ function InputCard({
  * so we render the typed name with a spinner here until the server confirms,
  * at which point the real, focusable card replaces it.
  */
-function LoadingCard({ name }: { name: string }) {
+const LoadingCard = memo(function LoadingCard({ name }: { name: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -520,9 +808,12 @@ function LoadingCard({ name }: { name: string }) {
   return (
     <div ref={ref} className={cn(styles.card, "opacity-65")} aria-busy="true">
       <div className={styles.cardBody}>
-        <span className={cn(styles.cardTitle, !name && styles.isUntitled)}>
-          {name || "Unnamed entry"}
-        </span>
+        <div className={styles.cardHeader}>
+          <EntryIcon iconName={null} iconFamily={null} />
+          <span className={cn(styles.cardTitle, !name && styles.isUntitled)}>
+            {name || "Unnamed entry"}
+          </span>
+        </div>
         <div className={styles.cardFooter}>
           <span className={cn(styles.cardMeta, "inline-flex items-center gap-1")}>
             <i className="ri-loader-4-line animate-spin" aria-hidden="true" />
@@ -532,15 +823,44 @@ function LoadingCard({ name }: { name: string }) {
       </div>
     </div>
   );
-}
+});
+
+/**
+ * Stand-in shown in place of a folded entry's descendants: a single card in the
+ * child column reading "N collapsed entries…", so the parent collapses back to
+ * its natural height. Clicking it unfolds the subtree again.
+ */
+const FoldedPlaceholder = memo(function FoldedPlaceholder({
+  count,
+  onUnfold,
+}: {
+  count: number;
+  onUnfold: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.foldedCard}
+      onClick={onUnfold}
+      aria-label={`Unfold ${count} ${count === 1 ? "entry" : "entries"}`}
+      title="Unfold"
+    >
+      <i className={cn(styles.foldedCardIcon, "ri-expand-up-down-fill")} aria-hidden="true" />
+      <span className={styles.foldedCardText}>
+        {count} collapsed {count === 1 ? "entry" : "entries"}…
+      </span>
+    </button>
+  );
+});
 
 // ── Subtree ────────────────────────────────────────────────────────────
 
-function Subtree({
+function SubtreeImpl({
   node,
   isRoot,
   logbookSegment,
   stickySet,
+  foldedSet,
   pendingInput,
   pendingCreate,
   draggedId,
@@ -549,6 +869,8 @@ function Subtree({
   onAdd,
   onRename,
   onReorder,
+  onSetIcon,
+  onToggleFold,
   onShiftRoot,
   onSubmitPending,
   onCancelPending,
@@ -558,6 +880,7 @@ function Subtree({
   isRoot: boolean;
   logbookSegment: string;
   stickySet: Set<number>;
+  foldedSet: Set<number>;
   pendingInput: PendingInput | null;
   pendingCreate: PendingCreate | null;
   draggedId: number | null;
@@ -566,6 +889,10 @@ function Subtree({
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
+  /** Set an entry's icon (from the card's icon popover). */
+  onSetIcon: (id: number, iconName: string, iconFamily: string) => void;
+  /** Toggle an entry's folded state. */
+  onToggleFold: (id: number) => void;
   /** Shift a root's subtree by `delta` columns (+1 = left, -1 = right). */
   onShiftRoot: (id: number, delta: 1 | -1) => void;
   onSubmitPending: (name: string) => void;
@@ -575,11 +902,36 @@ function Subtree({
   const addingHere = pendingInput?.kind === "add" && pendingInput.parentId === node.id;
   const creatingHere = pendingCreate?.parentId === node.id;
   const sticky = stickySet.has(node.id);
+  // Only sticky cards can fold; ignore any stale fold on a now-non-sticky entry.
+  const folded = sticky && foldedSet.has(node.id);
   const childCol = node.col - 1;
-  // The child column exists when there are children, when a child is being
-  // added under this node (so the first child's input has somewhere to live),
-  // or while a just-submitted child is being confirmed by the server.
-  const hasChildCol = node.children.length > 0 || addingHere || creatingHere;
+  // When folded, the entry's descendants are replaced by a single "N collapsed
+  // entries" placeholder (so the subtree stops taking vertical space) — shown
+  // only when there's actually something to collapse.
+  const showFoldedPlaceholder = folded && node.children.length > 0;
+  // The child column exists when there are unfolded children to show, when the
+  // folded placeholder stands in for them, when a child is being added under
+  // this node (so the first child's input has somewhere to live), or while a
+  // just-submitted child is being confirmed by the server.
+  const hasChildCol =
+    (!folded && node.children.length > 0) || showFoldedPlaceholder || addingHere || creatingHere;
+
+  // Per-node handlers, memoized so the (memoized) card / input children skip
+  // re-rendering when only an unrelated part of the chart changes. They stay
+  // stable as long as the upstream callbacks and this node's id / column do.
+  const handleAddChild = useCallback(
+    () => onAdd({ col: childCol, parentId: node.id }),
+    [onAdd, childCol, node.id],
+  );
+  const handleRename = useCallback(() => onRename(node.id), [onRename, node.id]);
+  const handleReorder = useCallback(() => onReorder(node.id), [onReorder, node.id]);
+  const handleToggleFold = useCallback(() => onToggleFold(node.id), [onToggleFold, node.id]);
+  const handleShiftLeft = useCallback(() => onShiftRoot(node.id, 1), [onShiftRoot, node.id]);
+  const handleShiftRight = useCallback(() => onShiftRoot(node.id, -1), [onShiftRoot, node.id]);
+  const handleSelectIcon = useCallback(
+    (iconName: string, iconFamily: string) => onSetIcon(node.id, iconName, iconFamily),
+    [onSetIcon, node.id],
+  );
 
   return (
     <div className={styles.subtree}>
@@ -587,7 +939,10 @@ function Subtree({
         {isRenaming ? (
           <InputCard
             initialValue={node.name}
-            sticky={sticky}
+            sticky={sticky && !folded}
+            iconName={node.iconName}
+            iconFamily={node.iconFamily}
+            onSelectIcon={handleSelectIcon}
             onSubmit={onSubmitPending}
             onCancel={onCancelPending}
           />
@@ -595,41 +950,58 @@ function Subtree({
           <EntryCard
             entry={node}
             logbookSegment={logbookSegment}
-            sticky={sticky}
+            // A folded entry no longer spans descendants, so it stops pinning;
+            // but it stays foldable so its hover button (now "expand") can
+            // unfold it again.
+            sticky={sticky && !folded}
+            foldable={sticky}
+            folded={folded}
             draggedId={draggedId}
             draggedParentId={draggedParentId}
             draggedSubtreeIds={draggedSubtreeIds}
-            onAddChild={() => onAdd({ col: childCol, parentId: node.id })}
-            onRename={() => onRename(node.id)}
-            onReorder={() => onReorder(node.id)}
-            onShiftLeft={isRoot ? () => onShiftRoot(node.id, 1) : undefined}
-            onShiftRight={isRoot ? () => onShiftRoot(node.id, -1) : undefined}
+            onAddChild={handleAddChild}
+            onRename={handleRename}
+            onReorder={handleReorder}
+            onToggleFold={handleToggleFold}
+            onShiftLeft={isRoot ? handleShiftLeft : undefined}
+            onShiftRight={isRoot ? handleShiftRight : undefined}
           />
         )}
       </div>
 
       {hasChildCol && (
         <div className={styles.childCol}>
-          {node.children.map((child) => (
-            <Subtree
-              key={child.id}
-              node={child}
-              isRoot={false}
-              logbookSegment={logbookSegment}
-              stickySet={stickySet}
-              pendingInput={pendingInput}
-              pendingCreate={pendingCreate}
-              draggedId={draggedId}
-              draggedParentId={draggedParentId}
-              draggedSubtreeIds={draggedSubtreeIds}
-              onAdd={onAdd}
-              onRename={onRename}
-              onReorder={onReorder}
-              onShiftRoot={onShiftRoot}
-              onSubmitPending={onSubmitPending}
-              onCancelPending={onCancelPending}
-            />
-          ))}
+          {showFoldedPlaceholder && (
+            <div className={styles.subtree}>
+              <div className={styles.cell} style={widthVar(childCol)}>
+                <FoldedPlaceholder count={countDescendants(node)} onUnfold={handleToggleFold} />
+              </div>
+            </div>
+          )}
+          {!showFoldedPlaceholder &&
+            node.children.map((child) => (
+              <Subtree
+                key={child.id}
+                node={child}
+                isRoot={false}
+                logbookSegment={logbookSegment}
+                stickySet={stickySet}
+                foldedSet={foldedSet}
+                pendingInput={pendingInput}
+                pendingCreate={pendingCreate}
+                draggedId={draggedId}
+                draggedParentId={draggedParentId}
+                draggedSubtreeIds={draggedSubtreeIds}
+                onAdd={onAdd}
+                onRename={onRename}
+                onReorder={onReorder}
+                onSetIcon={onSetIcon}
+                onToggleFold={onToggleFold}
+                onShiftRoot={onShiftRoot}
+                onSubmitPending={onSubmitPending}
+                onCancelPending={onCancelPending}
+              />
+            ))}
           {/* Adding a sibling here is the hover "Add child" action's job, so
               the column holds only children plus the live add-input (if any),
               then the loading placeholder once that input is submitted. Both are
@@ -660,6 +1032,8 @@ function Subtree({
     </div>
   );
 }
+
+const Subtree = memo(SubtreeImpl);
 
 // ── Drag-scroll re-measurement ─────────────────────────────────────────
 
@@ -710,6 +1084,7 @@ export function OrgView({
   focusEntryId,
   onAdd,
   onRename,
+  onSetIcon,
   onSubmitPending,
   onCancelPending,
   onMove,
@@ -727,6 +1102,8 @@ export function OrgView({
   focusEntryId: number | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
+  /** Set an entry's icon (from the card's icon popover). */
+  onSetIcon: (id: number, iconName: string, iconFamily: string) => void;
   onSubmitPending: (name: string) => void;
   onCancelPending: () => void;
   /** Commit a drag-and-drop move (re-parent and/or reposition an entry). */
@@ -739,6 +1116,47 @@ export function OrgView({
   const { byId, parentOf } = useMemo(() => indexForest(forest), [forest]);
   const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
   const stickySet = useMemo(() => computeStickySet(forest), [forest]);
+
+  // Folded entries (descendants hidden). Seeded from and written back to the
+  // module-level store so a fold survives navigating away and back. Resynced
+  // when the logbook changes in case the component is reused across routes.
+  const [foldedSet, setFoldedSet] = useState<Set<number>>(
+    () => orgFoldedByLogbook.get(logbookId) ?? new Set(),
+  );
+  useEffect(() => {
+    setFoldedSet(orgFoldedByLogbook.get(logbookId) ?? new Set());
+  }, [logbookId]);
+  const toggleFold = useCallback(
+    (id: number) => {
+      setFoldedSet((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        orgFoldedByLogbook.set(logbookId, next);
+        return next;
+      });
+    },
+    [logbookId],
+  );
+
+  // Adding a child to a folded entry first unfolds it, so the new input cell is
+  // visible instead of hidden behind the "N collapsed entries" placeholder.
+  const handleAdd = useCallback(
+    (input: AddInput) => {
+      const { parentId } = input;
+      if (parentId !== null) {
+        setFoldedSet((prev) => {
+          if (!prev.has(parentId)) return prev;
+          const next = new Set(prev);
+          next.delete(parentId);
+          orgFoldedByLogbook.set(logbookId, next);
+          return next;
+        });
+      }
+      onAdd(input);
+    },
+    [onAdd, logbookId],
+  );
 
   // ── Drag & drop ──────────────────────────────────────────────────────
   // dnd-kit auto-scrolls the scroll container when the cursor nears its top
@@ -765,7 +1183,7 @@ export function OrgView({
   // pointerWithin resolves card vs add-child drops; prefer the small add-child
   // button when the cursor is inside it. Fall back to rectIntersection so a
   // drag hovering just outside every zone still lands somewhere sensible.
-  const collisionDetection: CollisionDetection = (args) => {
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
     const within = pointerWithin(args);
     if (within.length > 0) {
       const child = within.find((c) => {
@@ -776,36 +1194,42 @@ export function OrgView({
       return child ? [child] : within;
     }
     return rectIntersection(args);
-  };
+  }, []);
 
-  const onDragStart = (e: DragStartEvent) => {
+  const onDragStart = useCallback((e: DragStartEvent) => {
     const id = String(e.active.id);
     if (id.startsWith("entry:")) {
       const n = Number(id.slice("entry:".length));
       if (Number.isFinite(n)) setActiveDragId(n);
     }
-  };
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveDragId(null);
-    const { active, over } = e;
-    if (!over) return;
-    const data = over.data.current as DropData | undefined;
-    if (!data) return;
-    const id = Number(String(active.id).replace(/^entry:/, ""));
-    if (!Number.isFinite(id)) return;
-    const move = dropToMoveInput(id, data, byId, parentOf, forest, logbookId);
-    if (move) onMove(move);
-  };
-  const onDragCancel = () => setActiveDragId(null);
+  }, []);
+  const onDragEnd = useCallback(
+    (e: DragEndEvent) => {
+      setActiveDragId(null);
+      const { active, over } = e;
+      if (!over) return;
+      const data = over.data.current as DropData | undefined;
+      if (!data) return;
+      const id = Number(String(active.id).replace(/^entry:/, ""));
+      if (!Number.isFinite(id)) return;
+      const move = dropToMoveInput(id, data, byId, parentOf, forest, logbookId);
+      if (move) onMove(move);
+    },
+    [byId, parentOf, forest, logbookId, onMove],
+  );
+  const onDragCancel = useCallback(() => setActiveDragId(null), []);
 
   // Header columns: the data range, unioned with the default working set
   // [1, 0, -1] (heading / body / aside) so there's always somewhere to add a
   // root even in a sparse or empty logbook. For balanced data this collapses
   // to exactly the columns in use — only the necessary columns are shown.
-  const maxCol = Math.max(dataMax, 1);
-  const minCol = Math.min(dataMin, -1);
-  const cols: number[] = [];
-  for (let c = maxCol; c >= minCol; c--) cols.push(c);
+  const { maxCol, minCol, cols } = useMemo(() => {
+    const maxCol = Math.max(dataMax, 1);
+    const minCol = Math.min(dataMin, -1);
+    const cols: number[] = [];
+    for (let c = maxCol; c >= minCol; c--) cols.push(c);
+    return { maxCol, minCol, cols };
+  }, [dataMax, dataMin]);
 
   // The chart is centered only when the heading columns (>0, of which there are
   // `maxCol`) and the aside columns (<0, of which there are `-minCol`) balance.
@@ -813,12 +1237,15 @@ export function OrgView({
   // the chart hugs that edge instead of drifting off-center: more headings →
   // pin left, more asides → pin right. Set as CSS vars consumed by
   // .colStripInner / .canvas; the unset side keeps its `auto` default.
-  const alignVars: CSSProperties =
-    maxCol > -minCol
-      ? ({ "--org-align-left": "0" } as CSSProperties)
-      : maxCol < -minCol
-        ? ({ "--org-align-right": "0" } as CSSProperties)
-        : {};
+  const alignVars: CSSProperties = useMemo(
+    () =>
+      maxCol > -minCol
+        ? ({ "--org-align-left": "0" } as CSSProperties)
+        : maxCol < -minCol
+          ? ({ "--org-align-right": "0" } as CSSProperties)
+          : {},
+    [maxCol, minCol],
+  );
 
   // Drive the height of sticky cards imperatively. A sticky card has to both
   // span its subtree (so the box stretches down past its descendants) and be
@@ -860,23 +1287,57 @@ export function OrgView({
     const gap = parseFloat(rootStyle.getPropertyValue("--org-sticky-gap")) || 14;
     const pinTop = stripH + gap;
 
+    // Snapshot the sticky cards once. The set only changes when the forest /
+    // pending input does, which re-runs this effect — so there's no need to
+    // re-query the DOM on every scroll frame. `last` caches the height we wrote
+    // so steady-state frames can skip redundant writes (see below).
+    type Target = {
+      card: HTMLElement;
+      cell: HTMLElement;
+      body: HTMLElement;
+      /** Height computed this frame (read phase) then flushed (write phase). */
+      next: number;
+      /** Last height written, so a no-op frame skips the write. */
+      last: number;
+    };
+    const targets: Target[] = [];
+    for (const card of scrollEl.querySelectorAll<HTMLElement>(`.${stickyClass}`)) {
+      const cell = card.parentElement;
+      const body = card.firstElementChild;
+      if (!cell || !(body instanceof HTMLElement)) continue;
+      targets.push({ card, cell, body, next: NaN, last: NaN });
+    }
+
     let raf = 0;
     const apply = () => {
       raf = 0;
+      // Phase 1 — read every rect up front. Writing a card's height dirties
+      // layout (the var feeds .card.sticky's height), so interleaving reads and
+      // writes forced a reflow per card; reading everything first collapses
+      // that to a single reflow. A sticky card's height never affects a cell's
+      // rect (the card is height-bounded and overflow-hidden; the cell's height
+      // comes from its sibling child column), so the reads are independent of
+      // the pending writes.
       const vpBottom = scrollEl.clientHeight - gap;
       const originTop = scrollEl.getBoundingClientRect().top;
-      for (const card of scrollEl.querySelectorAll<HTMLElement>(`.${stickyClass}`)) {
-        const cell = card.parentElement;
-        const body = card.firstElementChild;
-        if (!cell || !(body instanceof HTMLElement)) continue;
-        const r = cell.getBoundingClientRect();
+      for (const t of targets) {
+        const r = t.cell.getBoundingClientRect();
         const top = Math.max(r.top - originTop, pinTop);
         const bottom = Math.min(r.bottom - originTop, vpBottom);
         // Never shrink below the content; once the box would, the card keeps
         // its content height and `position: sticky` scrolls it up off the top
         // (its bottom held to the cell) so nothing is clipped.
-        const contentH = body.offsetHeight + (card.offsetHeight - card.clientHeight);
-        card.style.setProperty("--org-sticky-h", `${Math.max(bottom - top, contentH)}px`);
+        const contentH = t.body.offsetHeight + (t.card.offsetHeight - t.card.clientHeight);
+        t.next = Math.max(bottom - top, contentH);
+      }
+      // Phase 2 — write only the heights that changed. A card pinned in its
+      // middle range keeps a constant height (vpBottom − pinTop) frame to
+      // frame, so most scroll frames touch few (often zero) cards and leave
+      // layout clean — which also keeps the next frame's reads reflow-free.
+      for (const t of targets) {
+        if (t.next === t.last) continue;
+        t.last = t.next;
+        t.card.style.setProperty("--org-sticky-h", `${t.next}px`);
       }
     };
     const schedule = () => {
@@ -891,9 +1352,9 @@ export function OrgView({
       ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
-    // Re-measure whenever the rendered cards change (tree edits, or an input
-    // cell swapping in for a renamed entry).
-  }, [forest, pendingInput]);
+    // Re-measure whenever the rendered cards change (tree edits, an input cell
+    // swapping in for a renamed entry, or a fold hiding/showing descendants).
+  }, [forest, pendingInput, foldedSet]);
 
   // Focus the freshly-created entry's link (and scroll it into view) once it
   // shows up in the forest. The focus is what lets a second Enter follow the
@@ -926,13 +1387,18 @@ export function OrgView({
   // changes its column: the existing move path re-derives every descendant's
   // column (child.col == parent.col - 1), so no dedicated mutation is needed.
   // Higher columns sit further left, so +1 moves left and -1 moves right.
-  const handleShiftRoot = (id: number, delta: 1 | -1) => {
-    const node = byId.get(id);
-    if (!node) return;
-    const position = forest.findIndex((r) => r.id === id);
-    if (position < 0) return;
-    onMove({ logbookId, id, parentId: null, col: node.col + delta, position });
-  };
+  const handleShiftRoot = useCallback(
+    (id: number, delta: 1 | -1) => {
+      const node = byId.get(id);
+      if (!node) return;
+      const position = forest.findIndex((r) => r.id === id);
+      if (position < 0) return;
+      onMove({ logbookId, id, parentId: null, col: node.col + delta, position });
+    },
+    [byId, forest, logbookId, onMove],
+  );
+
+  const handleReorder = useCallback((id: number) => setRearrangeFor(id), []);
 
   const addingRoot =
     pendingInput?.kind === "add" && pendingInput.parentId === null ? pendingInput : null;
@@ -966,7 +1432,7 @@ export function OrgView({
                     className={styles.colAdd}
                     aria-label={`Add entry in column ${c}`}
                     title={`Add entry in column ${c}`}
-                    onClick={() => onAdd({ col: c, parentId: null })}
+                    onClick={() => handleAdd({ col: c, parentId: null })}
                   >
                     <i className="ri-add-line" aria-hidden="true" />
                   </button>
@@ -997,14 +1463,17 @@ export function OrgView({
                       isRoot
                       logbookSegment={logbookSegment}
                       stickySet={stickySet}
+                      foldedSet={foldedSet}
                       pendingInput={pendingInput}
                       pendingCreate={pendingCreate}
                       draggedId={activeDragId}
                       draggedParentId={draggedParentId}
                       draggedSubtreeIds={draggedSubtreeIds}
-                      onAdd={onAdd}
+                      onAdd={handleAdd}
                       onRename={onRename}
-                      onReorder={(id) => setRearrangeFor(id)}
+                      onReorder={handleReorder}
+                      onSetIcon={onSetIcon}
+                      onToggleFold={toggleFold}
                       onShiftRoot={handleShiftRoot}
                       onSubmitPending={onSubmitPending}
                       onCancelPending={onCancelPending}
@@ -1051,6 +1520,15 @@ export function OrgView({
               className={cn(styles.cardOverlay, !draggedEntry.name && styles.isUntitled)}
               style={widthVar(draggedEntry.col)}
             >
+              <i
+                className={cn(
+                  styles.cardOverlayIcon,
+                  entryIconClass(draggedEntry.iconName, draggedEntry.iconFamily),
+                  isDefaultEntryIcon(draggedEntry.iconName, draggedEntry.iconFamily) &&
+                    styles.cardIconDefault,
+                )}
+                aria-hidden="true"
+              />
               {draggedEntry.name || "Unnamed entry"}
             </div>
           ) : null}

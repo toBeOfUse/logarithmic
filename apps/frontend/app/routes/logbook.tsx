@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { AccessLinkModal } from "~/components/AccessLinkModal";
 
 import { OrgView } from "~/components/OrgView.tsx";
+import type { AddInput, PendingCreate, PendingInput } from "~/components/OrgView.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import {
   exportLogbookToFile,
@@ -13,8 +14,9 @@ import {
   useRenameEntry,
   useRenameLogbook,
   useReorderSiblings,
+  useSetEntryIcon,
 } from "~/data/hooks.ts";
-import type { EntryNode } from "logarithmic-backend/api-types";
+import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
@@ -30,19 +32,13 @@ export default function LogbookRoute() {
   const renameLogbook = useRenameLogbook({ demo });
   const reorderSiblings = useReorderSiblings({ demo });
   const moveEntry = useMoveEntry({ demo });
+  const setEntryIcon = useSetEntryIcon({ demo });
 
-  type PendingInput =
-    | { kind: "add"; col: number; parentId: number | null }
-    | { kind: "rename"; entryId: number };
   const [pendingInput, setPendingInput] = useState<PendingInput | null>(null);
   // A submitted new entry awaiting the server's id. Entry creation isn't
   // optimistic, so we hold the typed name here to render a loading placeholder
   // in its slot until the server confirms and we can focus its real link.
-  const [pendingCreate, setPendingCreate] = useState<{
-    col: number;
-    parentId: number | null;
-    name: string;
-  } | null>(null);
+  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [focusEntryId, setFocusEntryId] = useState<number | null>(null);
   const [renamingLogbook, setRenamingLogbook] = useState(false);
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
@@ -50,6 +46,68 @@ export default function LogbookRoute() {
   const [exporting, setExporting] = useState(false);
 
   useDocumentTitle(data ? data.logbook.name : null);
+
+  // Stable handlers so the memoized OrgView subtree can skip re-rendering on
+  // route renders that don't touch the chart (export state, modals, focus).
+  const handleAdd = useCallback(
+    (input: AddInput) => setPendingInput({ kind: "add", ...input }),
+    [],
+  );
+  const handleRename = useCallback(
+    (id: number) => setPendingInput({ kind: "rename", entryId: id }),
+    [],
+  );
+  const handleSetIcon = useCallback(
+    (id: number, iconName: string, iconFamily: string) => {
+      if (!data) return;
+      setEntryIcon.mutate({ id, iconName, iconFamily, logbookId: data.logbook.id });
+    },
+    [data, setEntryIcon],
+  );
+  const handleSubmitPending = useCallback(
+    (name: string) => {
+      const input = pendingInput;
+      setPendingInput(null);
+      if (!input || !data) return;
+      const trimmed = name.trim();
+      if (input.kind === "add") {
+        if (!trimmed) return;
+        setPendingCreate({ col: input.col, parentId: input.parentId, name: trimmed });
+        createEntry.mutate(
+          { logbookId: data.logbook.id, name: trimmed, col: input.col, parentId: input.parentId },
+          {
+            // The id only exists now; focus the new entry's real link, which
+            // also lets a second Enter follow it through to its page.
+            onSuccess: (entry) => {
+              if (entry) setFocusEntryId(entry.id);
+            },
+            onSettled: () => setPendingCreate(null),
+          },
+        );
+        return;
+      }
+      // Rename: empty input (or same name) cancels; otherwise commit.
+      const current = findInForest(data.entries, input.entryId);
+      if (trimmed && current && trimmed !== current.name) {
+        renameEntry.mutate({ id: input.entryId, name: trimmed, logbookId: data.logbook.id });
+      }
+      setFocusEntryId(input.entryId);
+    },
+    [pendingInput, data, createEntry, renameEntry],
+  );
+  const handleCancelPending = useCallback(() => {
+    if (pendingInput?.kind === "rename") setFocusEntryId(pendingInput.entryId);
+    setPendingInput(null);
+  }, [pendingInput]);
+  const handleMove = useCallback((input: MoveEntryInput) => moveEntry.mutate(input), [moveEntry]);
+  const handleReorderSiblings = useCallback(
+    (parentId: number | null, ids: number[]) => {
+      if (!data) return;
+      reorderSiblings.mutate({ logbookId: data.logbook.id, parentId, ids });
+    },
+    [data, reorderSiblings],
+  );
+  const handleFocused = useCallback(() => setFocusEntryId(null), []);
 
   if (isLoading || !data) {
     return (
@@ -154,45 +212,14 @@ export default function LogbookRoute() {
         pendingInput={pendingInput}
         pendingCreate={pendingCreate}
         focusEntryId={focusEntryId}
-        onAdd={(input) => setPendingInput({ kind: "add", ...input })}
-        onRename={(id) => setPendingInput({ kind: "rename", entryId: id })}
-        onSubmitPending={(name) => {
-          const input = pendingInput;
-          setPendingInput(null);
-          if (!input) return;
-          const trimmed = name.trim();
-          if (input.kind === "add") {
-            if (!trimmed) return;
-            setPendingCreate({ col: input.col, parentId: input.parentId, name: trimmed });
-            createEntry.mutate(
-              { logbookId: logbook.id, name: trimmed, col: input.col, parentId: input.parentId },
-              {
-                // The id only exists now; focus the new entry's real link, which
-                // also lets a second Enter follow it through to its page.
-                onSuccess: (entry) => {
-                  if (entry) setFocusEntryId(entry.id);
-                },
-                onSettled: () => setPendingCreate(null),
-              },
-            );
-            return;
-          }
-          // Rename: empty input (or same name) cancels; otherwise commit.
-          const current = findInForest(entries, input.entryId);
-          if (trimmed && current && trimmed !== current.name) {
-            renameEntry.mutate({ id: input.entryId, name: trimmed, logbookId: logbook.id });
-          }
-          setFocusEntryId(input.entryId);
-        }}
-        onCancelPending={() => {
-          if (pendingInput?.kind === "rename") setFocusEntryId(pendingInput.entryId);
-          setPendingInput(null);
-        }}
-        onMove={(input) => moveEntry.mutate(input)}
-        onReorderSiblings={(parentId, ids) => {
-          reorderSiblings.mutate({ logbookId: logbook.id, parentId, ids });
-        }}
-        onFocused={() => setFocusEntryId(null)}
+        onAdd={handleAdd}
+        onRename={handleRename}
+        onSetIcon={handleSetIcon}
+        onSubmitPending={handleSubmitPending}
+        onCancelPending={handleCancelPending}
+        onMove={handleMove}
+        onReorderSiblings={handleReorderSiblings}
+        onFocused={handleFocused}
       />
     </div>
   );

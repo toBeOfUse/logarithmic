@@ -38,6 +38,8 @@ type EntryRecord = {
   order: number;
   content: string | null;
   metadata: Metadata | null;
+  iconName: string | null;
+  iconFamily: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -112,6 +114,8 @@ function seed() {
         order,
         content: entry.content ?? null,
         metadata: entry.metadata ?? null,
+        iconName: entry.iconName ?? null,
+        iconFamily: entry.iconFamily ?? null,
         createdAt: now,
         updatedAt: now,
       };
@@ -173,6 +177,8 @@ function buildTree(logbookId: string): EntryNode[] {
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
       wordCount: countWords(e.content),
+      iconName: e.iconName,
+      iconFamily: e.iconFamily,
       metadataKeys: e.metadata ? Object.keys(e.metadata) : [],
       children: build(e.id),
     }));
@@ -216,6 +222,8 @@ export function getEntry(entryId: number): EntryDetail | null {
     col: e.col,
     content: e.content,
     metadata: e.metadata,
+    iconName: e.iconName,
+    iconFamily: e.iconFamily,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
     wordCount: countWords(e.content),
@@ -260,6 +268,8 @@ export function createEntry(input: {
     order,
     content: null,
     metadata: null,
+    iconName: null,
+    iconFamily: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -388,6 +398,23 @@ export function updateEntryMetadata(input: { id: number; metadata: Metadata }): 
   const e = store.entries.get(input.id);
   if (!e) return null;
   e.metadata = { ...input.metadata };
+  e.updatedAt = new Date();
+  touchLogbook(e.logbookId, e.updatedAt);
+  return getEntry(e.id);
+}
+
+export function setEntryIcon(input: {
+  id: number;
+  iconName: string | null;
+  iconFamily: string | null;
+}): EntryDetail | null {
+  const e = store.entries.get(input.id);
+  if (!e) return null;
+  // Mirror the server: an icon and its family are stored as a pair, so a
+  // half-set request clears the icon.
+  const hasBoth = input.iconName !== null && input.iconFamily !== null;
+  e.iconName = hasBoth ? input.iconName : null;
+  e.iconFamily = hasBoth ? input.iconFamily : null;
   e.updatedAt = new Date();
   touchLogbook(e.logbookId, e.updatedAt);
   return getEntry(e.id);

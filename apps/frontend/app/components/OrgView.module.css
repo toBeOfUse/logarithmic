@@ -23,6 +23,10 @@
   --org-card-pad-x: 12px;
   --org-card-pad-y: 9px;
   --org-card-min-h: 58px;
+  /* The icon column at the left of the title row. The footer (meta / actions)
+     is indented by this so it lines up under the title, not the icon. */
+  --org-card-icon-w: 1.4rem;
+  --org-card-icon-gap: 7px;
 
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
@@ -51,8 +55,8 @@
 
 @media (max-width: 640px) {
   :root {
-    --org-card-width-0: 210px;
-    --org-card-width: 158px;
+    --org-card-width-0: 250px;
+    --org-card-width: 200px;
     --org-col-gap: 12px;
     --org-page-pad-x: 12px;
   }
@@ -303,6 +307,227 @@
   background: var(--color-accent-soft);
 }
 
+/* Title row: the entry icon, then the title (link / textarea / loading span).
+   The second child flexes to fill so the title wraps across the card width.
+   --org-card-icon-w/-gap define the icon column so the footer below can be
+   indented to line up under the title rather than the icon. */
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--org-card-icon-gap, 7px);
+}
+
+.cardHeader > .cardLink,
+.cardHeader > .cardTitle,
+.cardHeader > .cardInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The icon sits above the stretched-link ::after (which has z-index 0) so it
+   stays clickable; the card link covers everything else. */
+.cardIcon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--org-card-icon-w);
+  /* Match one title line so the icon aligns with the title's first line. */
+  height: calc(var(--org-title-size) * var(--org-title-lh));
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--card-title-color);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: default;
+}
+
+.cardIcon > i {
+  font-style: normal;
+}
+
+/* The default icon (whether unset or picked on purpose) shows dimmed, to read
+   as the neutral "no distinct icon" marker. */
+.cardIconDefault {
+  opacity: 0.5;
+}
+
+.cardIconInteractive {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--org-transition),
+    color var(--org-transition);
+}
+
+.cardIconInteractive:hover {
+  background: var(--color-paper-soft);
+  color: var(--color-accent);
+}
+
+/* ── Fold button ─────────────────────────────────────────────── */
+
+/* Sticky cards (branching subtrees) can fold their descendants away. The fold
+   button shares the icon's slot: it's hidden at rest and revealed on hover in
+   place of the icon, and stays shown while the card is folded (its persistent
+   "unfold" affordance, since a folded card hides its descendants). */
+.cardFold {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--org-card-icon-w);
+  height: calc(var(--org-title-size) * var(--org-title-lh));
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--org-transition),
+    color var(--org-transition);
+}
+
+.cardFold > i {
+  font-style: normal;
+}
+
+.cardFold:hover {
+  background: var(--color-paper-soft);
+  color: var(--color-accent);
+}
+
+/* Swap the icon out for the fold button when hovering a branching (foldable)
+   card — whether unfolded (button contracts/folds) or folded (button expands/
+   unfolds). A folded card at rest still shows its icon; its other unfold
+   affordance is the "N collapsed entries" placeholder. */
+.card.foldable:hover .cardIcon {
+  display: none;
+}
+
+.card.foldable:hover .cardFold {
+  display: inline-flex;
+}
+
+/* ── Folded placeholder ──────────────────────────────────────── */
+
+/* Stands in for a folded entry's descendants: a single card in the child
+   column, so the parent collapses to its natural height. Clicking it unfolds. */
+.foldedCard {
+  display: flex;
+  align-items: center;
+  gap: var(--org-card-icon-gap, 7px);
+  box-sizing: border-box;
+  width: var(--col-width, var(--org-card-width));
+  min-height: var(--org-card-min-h);
+  padding: var(--org-card-pad-y) var(--org-card-pad-x);
+  background: var(--color-paper);
+  border: 1px dashed var(--org-card-edge);
+  border-radius: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--org-transition),
+    border-color var(--org-transition);
+}
+
+.foldedCard:hover {
+  background: var(--color-paper-soft);
+  border-color: var(--color-muted);
+}
+
+.foldedCardIcon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--org-card-icon-w);
+  height: calc(var(--org-title-size) * var(--org-title-lh));
+  color: var(--color-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  font-style: normal;
+}
+
+.foldedCardText {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--org-title-size);
+  line-height: var(--org-title-lh);
+  font-style: italic;
+  color: var(--color-muted);
+  word-break: break-word;
+}
+
+/* ── Icon picker popover ─────────────────────────────────────── */
+
+/* Click-away layer behind the popover. Both are portalled to <body> (fixed
+   positioning) so the card's `overflow: hidden` can't clip them. */
+.iconPickerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.iconPicker {
+  position: fixed;
+  z-index: 1001;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 6px;
+  background: var(--color-stark);
+  border: 1px solid var(--color-stark-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.iconChoice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--org-transition),
+    color var(--org-transition);
+}
+
+.iconChoice > i {
+  font-style: normal;
+}
+
+.iconChoice:hover {
+  background: var(--color-paper-soft);
+  color: var(--color-accent);
+}
+
+.iconChoice.isSelected {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
 .cardTitle {
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -329,15 +554,13 @@
   z-index: 1;
   display: flex;
   align-items: center;
+  /* Indent past the icon column so the meta line and action buttons line up
+     under the title rather than under the icon. */
+  margin-left: calc(var(--org-card-icon-w) + var(--org-card-icon-gap));
   margin-top: 5px;
   padding-top: 5px;
   border-top: 1px solid transparent;
   pointer-events: none;
-}
-
-.card:hover .cardFooter,
-.card:focus-within .cardFooter {
-  border-top-color: var(--color-stark-border);
 }
 
 .cardMeta {
@@ -349,22 +572,39 @@
   text-overflow: ellipsis;
 }
 
-.card:hover .cardMeta,
-.card:focus-within .cardMeta {
-  display: none;
+/* Reveal the action row in place of the meta line — but ONLY on hover-capable
+   devices. On touch there's no real hover; the device's sticky :hover would
+   fire on tap and reflow this footer mid-tap, shifting the "⋯" button out from
+   under the touch so the synthesized click lands on the card's stretched link
+   (navigating away) instead. On touch the reveal is driven solely by .menuOpen
+   (the explicit tap), handled below. */
+@media (hover: hover) {
+  .card:hover .cardMeta,
+  .card:focus-within .cardMeta {
+    display: none;
+  }
+
+  .card:hover .cardActions,
+  .card:focus-within .cardActions {
+    display: flex;
+  }
 }
 
 .cardActions {
   display: none;
   flex: 1;
   align-items: center;
-  justify-content: space-around;
+  justify-content: flex-start;
   height: var(--org-footer-row-h);
 }
 
-.card:hover .cardActions,
-.card:focus-within .cardActions {
-  display: flex;
+@media (max-width: 640px) {
+  /* space out the action buttons more on small screens; this looks better with
+  the narrower columns than it would on desktop, and it makes accidentally
+  tapping the wrong button harder */
+  .cardActions {
+    justify-content: space-between;
+  }
 }
 
 .cardAction {
@@ -372,7 +612,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
   height: var(--org-footer-row-h);
   padding: 0;
   border: 0;
@@ -382,10 +621,71 @@
   font-size: 14px;
   line-height: 1;
   transition: color var(--org-transition);
+  margin-right: 8px;
 }
 
 .cardAction:hover {
   color: var(--color-primary);
+}
+
+/* The "⋯" button: a touch-only handle that toggles the action row open, since
+   touch devices have no hover to reveal it. Pushed to the right of the meta
+   line. Hidden on hover-capable devices, which keep using hover. */
+.cardMore {
+  position: relative;
+  pointer-events: auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  height: var(--org-footer-row-h);
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  /* Skip the synthetic-click delay and avoid the gesture being treated as a
+     pan/zoom on touch. */
+  touch-action: manipulation;
+  transition: color var(--org-transition);
+}
+
+/* The glyph is small; expand the tap target well past it (without affecting
+   layout) so an imprecise touch lands on the button rather than falling through
+   to the card's stretched link and navigating. */
+.cardMore::before {
+  content: "";
+  position: absolute;
+  inset: -11px -10px -11px -16px;
+}
+
+.cardMore > i {
+  font-style: normal;
+}
+
+.cardMore:hover {
+  color: var(--color-primary);
+}
+
+@media (hover: none) {
+  .cardMore {
+    display: inline-flex;
+  }
+}
+
+/* Touch "more" menu open: show the action row in place of the meta line, and
+   drop the button itself — it has nothing left to do. (Hiding it here, not via
+   :focus-within, is deliberate: a touch that focuses the button mustn't hide it
+   mid-press, which would swallow the click that opens the menu.) */
+.card.menuOpen .cardMeta,
+.card.menuOpen .cardMore {
+  display: none;
+}
+
+.card.menuOpen .cardActions {
+  display: flex;
 }
 
 /* ── Drag & drop ─────────────────────────────────────────────── */
@@ -474,6 +774,12 @@
 .cardOverlay.isUntitled {
   color: var(--color-muted);
   font-style: italic;
+}
+
+.cardOverlayIcon {
+  margin-right: 6px;
+  font-style: normal;
+  font-weight: 400;
 }
 
 /* ── Input card (add / rename) ───────────────────────────────── */

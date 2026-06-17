@@ -65,6 +65,9 @@ export type EntryNode = Pick<
   IEntry,
   "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt" | "wordCount"
 > & {
+  // The entry's icon, or nulls when none has been chosen (see Entry entity).
+  iconName: string | null;
+  iconFamily: string | null;
   metadataKeys: string[];
   children: EntryNode[];
 };
@@ -89,6 +92,8 @@ export type EntryDetail = Pick<
   // Override nullable fields so the API type is exact-shape (non-optional).
   content: string | null;
   metadata: Metadata | null;
+  iconName: string | null;
+  iconFamily: string | null;
   logbookId: ILogbook["id"];
   parentId: IEntry["id"] | null;
   ancestors: ReadonlyArray<Pick<IEntry, "id" | "slug" | "name">>;
@@ -125,6 +130,18 @@ export type UpdateEntryMetadataInput = {
   logbookId: ILogbook["id"];
   id: IEntry["id"];
   metadata: Metadata;
+};
+
+/**
+ * Set (or clear) an entry's icon. Both parts are sent together so the stored
+ * pair is always consistent: a non-null `iconName` is paired with the family it
+ * belongs to, and clearing the icon nulls both.
+ */
+export type SetEntryIconInput = {
+  logbookId: ILogbook["id"];
+  id: IEntry["id"];
+  iconName: string | null;
+  iconFamily: string | null;
 };
 
 /**

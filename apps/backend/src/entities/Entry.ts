@@ -49,6 +49,16 @@ const EntrySchema = defineEntity({
       .onCreate((e) => countWords(e.content))
       .onUpdate((e) => countWords(e.content)),
     metadata: p.json<Metadata>().nullable(),
+    /**
+     * User-selectable icon for the entry, stored as two parts so the icon
+     * library is explicit rather than baked into the stored string: `iconName`
+     * is the icon's identifier within its family (e.g. "star-line") and
+     * `iconFamily` names the library it comes from (currently always "remix").
+     * Both are null until the user picks an icon; the frontend renders a
+     * default icon in that case.
+     */
+    iconName: p.string().nullable(),
+    iconFamily: p.string().nullable(),
     logbook: () => p.manyToOne(Logbook),
     parent: () => p.manyToOne(Entry).nullable(),
     children: () => p.oneToMany(Entry).mappedBy("parent"),

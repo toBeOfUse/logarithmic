@@ -1,6 +1,6 @@
 # Content
 
-Logarithmic is built around a tree data structure, where each node in the tree has a name, a numerical column number, the ID of a logbook that owns it, and any or none of the following:
+Logarithmic is built around a tree data structure, where each node in the tree has a name, an icon, a numerical column number, the ID of a logbook that owns it, and any or none of the following:
 
 - rich text content
 - a set of key-value pairs called "metadata"
@@ -10,7 +10,7 @@ In more detail:
 
 ## Nodes
 
-The nodes in the tree are called "entries." Their names are simple strings. They have unique IDs. They have slugs based on their names (which are not guaranteed to be unique; they should only be used alongside IDs, and serve as decoration in things like route parameters.) They also have timestamps for when they were created and last updated.
+The nodes in the tree are called "entries." Their names are simple strings. They have unique IDs. An icon can be set for each of them; the icon family (i.e. `remix` for [Remix Icons](https://remixicon.com/)) and name (i.e. `check-double-line`) are both stored. They have slugs based on their names (which are not guaranteed to be unique; they should only be used alongside IDs, and serve as decoration in things like route parameters.) They also have timestamps for when they were created and last updated.
 
 ## Rich Text Content
 

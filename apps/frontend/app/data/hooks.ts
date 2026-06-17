@@ -398,6 +398,8 @@ export function useCreateEntry({ demo = false }: { demo?: boolean } = {}) {
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
           wordCount: data.wordCount,
+          iconName: data.iconName,
+          iconFamily: data.iconFamily,
           metadataKeys: data.metadata ? Object.keys(data.metadata) : [],
           children: [],
         };
@@ -649,6 +651,81 @@ export function useUpdateEntryMetadata({ demo = false }: { demo?: boolean } = {}
       if (data?.logbookId) {
         void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, data.logbookId) });
       }
+    },
+  });
+}
+
+type SetIconCtx = {
+  prevEntry: EntryDetail | null | undefined;
+  prevOverview: LogbookOverview | null | undefined;
+};
+
+/**
+ * Set (or clear) an entry's icon. Optimistic, like rename: the org-view card is
+ * where the icon is picked and shown, so the overview node is patched
+ * immediately. We key the overview patch off `vars.logbookId` (not a cached
+ * EntryDetail, which may not exist for an entry never opened) so the card
+ * updates without waiting for a refetch.
+ */
+export function useSetEntryIcon({ demo = false }: { demo?: boolean } = {}) {
+  const qc = useQueryClient();
+  return useMutation<
+    EntryDetail | null,
+    Error,
+    { id: number; iconName: string | null; iconFamily: string | null; logbookId: string },
+    SetIconCtx
+  >({
+    mutationFn: (input) =>
+      demo
+        ? Promise.resolve(
+            store.setEntryIcon({
+              id: input.id,
+              iconName: input.iconName,
+              iconFamily: input.iconFamily,
+            }),
+          )
+        : trpc.entry.setIcon.mutate(input),
+    onMutate: async (vars) => {
+      const entryKey = keys.entry(demo, vars.id);
+      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
+      await Promise.all([
+        qc.cancelQueries({ queryKey: entryKey }),
+        qc.cancelQueries({ queryKey: overviewKey }),
+      ]);
+      const updatedAt = new Date();
+      const prevEntry = qc.getQueryData<EntryDetail | null>(entryKey);
+      if (prevEntry) {
+        qc.setQueryData<EntryDetail | null>(entryKey, {
+          ...prevEntry,
+          iconName: vars.iconName,
+          iconFamily: vars.iconFamily,
+          updatedAt,
+        });
+      }
+      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      if (prevOverview) {
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...prevOverview,
+          entries: mapNode(prevOverview.entries, vars.id, (n) => ({
+            ...n,
+            iconName: vars.iconName,
+            iconFamily: vars.iconFamily,
+            updatedAt,
+          })),
+        });
+      }
+      return { prevEntry, prevOverview };
+    },
+    onError: (_err, vars, ctx) => {
+      if (!ctx) return;
+      if (ctx.prevEntry !== undefined) qc.setQueryData(keys.entry(demo, vars.id), ctx.prevEntry);
+      if (ctx.prevOverview !== undefined) {
+        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
+      }
+    },
+    onSettled: (_data, _err, vars) => {
+      void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
+      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
     },
   });
 }

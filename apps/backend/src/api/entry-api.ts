@@ -111,6 +111,25 @@ export const entryRouter = router({
       return buildEntryDetail(ctx.em, entry);
     }),
 
+  setIcon: entryProcedure
+    .input(
+      z.object({
+        iconName: z.string().max(64).nullable(),
+        iconFamily: z.string().max(32).nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
+      const entry = ctx.entry;
+      // Keep the pair consistent: an icon without a family (or vice versa) has
+      // no well-defined meaning, so a half-set request clears the icon.
+      const hasBoth = input.iconName !== null && input.iconFamily !== null;
+      entry.iconName = hasBoth ? input.iconName : null;
+      entry.iconFamily = hasBoth ? input.iconFamily : null;
+      entry.logbook.updatedAt = new Date();
+      await ctx.em.flush();
+      return buildEntryDetail(ctx.em, entry);
+    }),
+
   updateMetadata: entryProcedure
     .input(z.object({ metadata: metadataSchema }))
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
