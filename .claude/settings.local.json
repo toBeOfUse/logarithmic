@@ -28,7 +28,8 @@
       "Bash(curl -s -m 3 http://localhost:3001/health)",
       "PowerShell(vp fmt *)",
       "PowerShell(vp check *)",
-      "PowerShell(vp test *)"
+      "PowerShell(vp test *)",
+      "PowerShell(npx playwright-cli *)"
     ]
   }
 }

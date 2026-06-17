@@ -265,16 +265,100 @@
   --card-title-color: var(--color-secondary);
 }
 
-/* Branching entries stick: the card pins below the header (with a gap) and is
+/* ── Sticky split ──────────────────────────────────────────────
+   Branching entries stick: the card pins below the header (with a gap) and is
    capped to the viewport height (leaving a matching gap at the bottom), so its
-   content rides along while any descendant is on screen. The cap is what
-   produces the bottom gap; `--org-vp-h` is measured from the scroll viewport. */
-.card.sticky {
+   content rides along while any descendant is on screen.
+
+   The readable content must NOT live on the element the scroll effect resizes:
+   mutating a sticky element's height every frame knocks it off the compositor
+   fast-path on mobile, so its pinned text lags the scroll. So a sticky card is
+   two stacked layers in its cell:
+     • .cardSpan — the spanning box (side + bottom borders, fill). The ONLY
+       element whose height is driven imperatively (--org-sticky-h). No text.
+     • .stickyHeader — the content + top border, natively pinned and never
+       resized, so it stays glued frame-perfectly.
+   Both pin to the same line in the same containing block (.cardStack), so their
+   top edges and side borders coincide and they ride up together at the tail. */
+
+.cardStack {
+  position: relative;
+  /* Float the whole card above non-sticky neighbours while pinned, as the old
+     single sticky card did. */
+  z-index: 3;
+  flex: 1 1 auto;
+  /* Stack both layers in one area so they overlap exactly. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  width: var(--col-width, var(--org-card-width));
+}
+
+.cardStack > * {
+  grid-area: 1 / 1;
+}
+
+.cardStack.isSource {
+  opacity: 0.4;
+}
+
+/* The resized spanning box: side + bottom borders and the paper fill. No top
+   border (the header draws it) and no text. Its height is driven imperatively
+   so it can span the subtree yet clamp to the viewport — a plain sticky element
+   can't do both. align-self:start keeps its top at the pin line, not stretched. */
+.cardSpan {
   position: sticky;
   top: calc(var(--org-strip-h) + var(--org-sticky-gap));
-  /* Height is driven imperatively (see OrgView's sticky effect) so the box can
-     both span its subtree and travel/clamp within the viewport — something a
-     plain sticky element can't do on its own. */
+  align-self: start;
+  box-sizing: border-box;
+  width: var(--col-width, var(--org-card-width));
+  height: var(--org-sticky-h, 100%);
+  min-height: var(--org-card-min-h);
+  background: var(--color-paper);
+  border: 1px solid var(--org-card-edge);
+  border-top: 0;
+  overflow: hidden;
+  transition:
+    background-color var(--org-transition),
+    border-color var(--org-transition);
+}
+
+/* The glued header: top + side borders (from .card) and the content, pinned
+   natively and never resized. No bottom border, so the box stays open below the
+   title. Its background is TRANSPARENT so it never paints over the span's bottom
+   border when the span collapses to header height at the tail — the span's paper
+   fill (and everything behind it) is the same --color-paper, so there's nothing
+   for an opaque header to hide anyway. */
+.stickyHeader {
+  position: sticky;
+  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  align-self: start;
+  z-index: 1;
+  height: auto;
+  min-height: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* Hover lights both layers at once, matching a single card's hover. The header
+   stays transparent (so it still can't cover the span's bottom border); only its
+   borders pick up the hover colour, while the span paints the soft fill behind. */
+.cardStack:hover .cardSpan {
+  background: var(--color-paper-soft);
+  border-color: var(--color-muted);
+}
+
+.cardStack:hover .stickyHeader {
+  background: transparent;
+  border-color: var(--color-muted);
+}
+
+/* The editing input keeps spanning as one element — you don't scroll-read an
+   input, so it needs no header split, just native pinning and imperative
+   sizing (full border comes from .card / .cardEditing). */
+.cardSticky {
+  position: sticky;
+  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
   flex: 0 0 auto;
   height: var(--org-sticky-h, auto);
   min-height: 0;

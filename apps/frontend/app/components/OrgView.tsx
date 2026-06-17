@@ -48,6 +48,7 @@ import {
   type CSSProperties,
   Fragment,
   memo,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
   useCallback,
   useEffect,
@@ -546,166 +547,157 @@ const EntryCard = memo(function EntryCard({
     data: { kind: "child", parentId: entry.id } satisfies DropData,
   });
 
-  return (
-    <div
-      ref={setCardRef}
-      data-entry-anchor={entry.id}
-      className={cn(
-        styles.card,
-        sticky && styles.sticky,
-        foldable && styles.foldable,
-        menuOpen && styles.menuOpen,
-        titleColClass(entry.col),
-        isSource && styles.isSource,
-        emphasizeAddChild && styles.childDroppable,
-      )}
-      onClickCapture={(e) => {
-        if (justDraggedRef.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          justDraggedRef.current = false;
-        }
-      }}
-      {...draggable.attributes}
-      {...draggable.listeners}
-    >
-      <div className={styles.cardBody}>
-        <div className={styles.cardHeader}>
-          {/* The icon is static here — it's only editable while the card is in
+  // After a drag, pointerup fires a click that would otherwise follow the
+  // card's <Link>. Swallow that one click.
+  const swallowClick = (e: ReactMouseEvent) => {
+    if (justDraggedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      justDraggedRef.current = false;
+    }
+  };
+
+  const cardBody = (
+    <div className={styles.cardBody}>
+      <div className={styles.cardHeader}>
+        {/* The icon is static here — it's only editable while the card is in
               its editing state (see InputCard). On branching (foldable) cards the
               fold button takes the icon's place on hover, in whichever direction
               applies: contract to fold, expand to unfold while folded. */}
-          <EntryIcon iconName={entry.iconName} iconFamily={entry.iconFamily} />
-          {foldable && (
-            <button
-              type="button"
-              className={styles.cardFold}
-              aria-label={folded ? "Unfold descendants" : "Fold descendants"}
-              title={folded ? "Unfold descendants" : "Fold descendants"}
-              aria-expanded={!folded}
-              // Keep a click on the fold button from starting a drag or
-              // following the card link.
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleFold();
-              }}
-            >
-              <i
-                // this seems to be the closest you can get to what i would see as
-                // a "standard" accordion expand/collapse icon with remix icons
-                className={folded ? "ri-arrow-down-s-line" : "ri-arrow-up-s-line"}
-                style={{ transform: "scale(1.5)" }}
-                aria-hidden="true"
-              />
-            </button>
-          )}
-          <Link
-            to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
-            className={styles.cardLink}
-            draggable={false}
+        <EntryIcon iconName={entry.iconName} iconFamily={entry.iconFamily} />
+        {foldable && (
+          <button
+            type="button"
+            className={styles.cardFold}
+            aria-label={folded ? "Unfold descendants" : "Fold descendants"}
+            title={folded ? "Unfold descendants" : "Fold descendants"}
+            aria-expanded={!folded}
+            // Keep a click on the fold button from starting a drag or
+            // following the card link.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFold();
+            }}
           >
-            <span className={cn(styles.cardTitle, !entry.name && styles.isUntitled)}>
-              {entry.name || "Unnamed entry"}
-            </span>
-          </Link>
-        </div>
-
-        <div className={styles.cardFooter}>
-          <span className={styles.cardMeta}>
-            {formatCardDate(entry.updatedAt)}
-            {/* Word count is only meaningful once there's prose to count, so it's
-                shown only for entries that have content. */}
-            {entry.wordCount > 0 && ` · ${entry.wordCount} words`}
+            <i
+              // this seems to be the closest you can get to what i would see as
+              // a "standard" accordion expand/collapse icon with remix icons
+              className={folded ? "ri-arrow-down-s-line" : "ri-arrow-up-s-line"}
+              style={{ transform: "scale(1.5)" }}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+        <Link
+          to={`/${logbookSegment}/${routeSegment(entry.slug, entry.id)}`}
+          className={styles.cardLink}
+          draggable={false}
+        >
+          <span className={cn(styles.cardTitle, !entry.name && styles.isUntitled)}>
+            {entry.name || "Unnamed entry"}
           </span>
-          {/* Touch-only: reveals the action row (which hover would otherwise
+        </Link>
+      </div>
+
+      <div className={styles.cardFooter}>
+        <span className={styles.cardMeta}>
+          {formatCardDate(entry.updatedAt)}
+          {/* Word count is only meaningful once there's prose to count, so it's
+                shown only for entries that have content. */}
+          {entry.wordCount > 0 && ` · ${entry.wordCount} words`}
+        </span>
+        {/* Touch-only: reveals the action row (which hover would otherwise
               show). Hidden on hover-capable devices via CSS. Stop pointerdown
               AND touchstart so neither drag sensor engages on the tap — the
               TouchSensor would otherwise consume the gesture and swallow the
               click, leaving the menu un-toggled while the tap still focuses the
               button (which alone reveals the actions). */}
-          <button
-            type="button"
-            className={styles.cardMore}
-            aria-label="Show actions"
-            title="Show actions"
-            aria-expanded={menuOpen}
-            onPointerDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setMenuOpen((o) => !o);
-            }}
-          >
-            <i className="ri-more-line" aria-hidden="true" />
-          </button>
-          {/* Stop pointerdown so the drag sensor doesn't fire when a button is
+        <button
+          type="button"
+          className={styles.cardMore}
+          aria-label="Show actions"
+          title="Show actions"
+          aria-expanded={menuOpen}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((o) => !o);
+          }}
+        >
+          <i className="ri-more-line" aria-hidden="true" />
+        </button>
+        {/* Stop pointerdown so the drag sensor doesn't fire when a button is
               clicked. */}
-          <div className={styles.cardActions} onPointerDown={(e) => e.stopPropagation()}>
-            {/* Root-only: move the whole subtree one column over. Higher column
+        <div className={styles.cardActions} onPointerDown={(e) => e.stopPropagation()}>
+          {/* Root-only: move the whole subtree one column over. Higher column
                 numbers sit further LEFT, so the left arrow raises the column and
                 the right arrow lowers it. The left arrow is the first action and
                 the right arrow is the last, bracketing the rest. */}
-            {canShift && (
-              <button
-                type="button"
-                className={styles.cardAction}
-                aria-label="Move one column left"
-                title="Move one column left"
-                onClick={onShiftLeft}
-              >
-                <i className="ri-arrow-left-s-line" aria-hidden="true" />
-              </button>
-            )}
+          {canShift && (
             <button
               type="button"
               className={styles.cardAction}
-              aria-label="Rename"
-              title="Rename"
-              onClick={onRename}
+              aria-label="Move one column left"
+              title="Move one column left"
+              onClick={onShiftLeft}
             >
-              <i className="ri-pencil-line" aria-hidden="true" />
+              <i className="ri-arrow-left-s-line" aria-hidden="true" />
             </button>
+          )}
+          <button
+            type="button"
+            className={styles.cardAction}
+            aria-label="Rename"
+            title="Rename"
+            onClick={onRename}
+          >
+            <i className="ri-pencil-line" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={styles.cardAction}
+            aria-label="Reorder siblings"
+            title="Reorder siblings"
+            onClick={onReorder}
+          >
+            <i className="ri-arrow-up-down-line" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            ref={childDrop.setNodeRef}
+            className={cn(
+              styles.cardAction,
+              styles.cardActionChild,
+              childDrop.isOver && styles.isOver,
+            )}
+            aria-label="Add child"
+            title="Add child"
+            onClick={onAddChild}
+          >
+            <i className="ri-corner-down-right-line" aria-hidden="true" />
+          </button>
+          {canShift && (
             <button
               type="button"
               className={styles.cardAction}
-              aria-label="Reorder siblings"
-              title="Reorder siblings"
-              onClick={onReorder}
+              aria-label="Move one column right"
+              title="Move one column right"
+              onClick={onShiftRight}
             >
-              <i className="ri-arrow-up-down-line" aria-hidden="true" />
+              <i className="ri-arrow-right-s-line" aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              ref={childDrop.setNodeRef}
-              className={cn(
-                styles.cardAction,
-                styles.cardActionChild,
-                childDrop.isOver && styles.isOver,
-              )}
-              aria-label="Add child"
-              title="Add child"
-              onClick={onAddChild}
-            >
-              <i className="ri-corner-down-right-line" aria-hidden="true" />
-            </button>
-            {canShift && (
-              <button
-                type="button"
-                className={styles.cardAction}
-                aria-label="Move one column right"
-                title="Move one column right"
-                onClick={onShiftRight}
-              >
-                <i className="ri-arrow-right-s-line" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
+    </div>
+  );
 
+  const dropHalves = (
+    <>
       {/* Drop halves: top → sibling-before, bottom → sibling-after. */}
       <div
         ref={beforeDrop.setNodeRef}
@@ -717,6 +709,71 @@ const EntryCard = memo(function EntryCard({
         className={cn(styles.cardDrop, styles.bottom, afterDrop.isOver && styles.isOver)}
         aria-hidden="true"
       />
+    </>
+  );
+
+  // Non-sticky cards stay a single element: content at the top, the box filling
+  // the (content-height) cell, the drop halves over the whole card.
+  if (!sticky) {
+    return (
+      <div
+        ref={setCardRef}
+        data-entry-anchor={entry.id}
+        className={cn(
+          styles.card,
+          foldable && styles.foldable,
+          menuOpen && styles.menuOpen,
+          titleColClass(entry.col),
+          isSource && styles.isSource,
+          emphasizeAddChild && styles.childDroppable,
+        )}
+        onClickCapture={swallowClick}
+        {...draggable.attributes}
+        {...draggable.listeners}
+      >
+        {cardBody}
+        {dropHalves}
+      </div>
+    );
+  }
+
+  // Sticky cards split into two stacked layers so the readable content never
+  // rides on the element the scroll effect resizes:
+  //   • .cardSpan — side + bottom borders and fill; the ONLY resized element,
+  //     and the host for the full-height drop zones.
+  //   • .stickyHeader — top border + content, natively `position: sticky` and
+  //     never resized, so it stays glued to the compositor (no scroll lag).
+  // Both pin to the same line in the same containing block (.cardStack), so
+  // their top edges and side borders coincide and they ride up together at the
+  // tail — no seams.
+  return (
+    <div
+      ref={(el) => {
+        cardRef.current = el;
+      }}
+      className={cn(styles.cardStack, isSource && styles.isSource)}
+    >
+      <div className={styles.cardSpan} data-sticky-box="">
+        {dropHalves}
+      </div>
+      <div
+        ref={draggable.setNodeRef}
+        data-entry-anchor={entry.id}
+        data-sticky-floor=""
+        className={cn(
+          styles.card,
+          styles.stickyHeader,
+          foldable && styles.foldable,
+          menuOpen && styles.menuOpen,
+          titleColClass(entry.col),
+          emphasizeAddChild && styles.childDroppable,
+        )}
+        onClickCapture={swallowClick}
+        {...draggable.attributes}
+        {...draggable.listeners}
+      >
+        {cardBody}
+      </div>
     </div>
   );
 });
@@ -760,8 +817,11 @@ const InputCard = memo(function InputCard({
   }, []);
 
   return (
-    <div className={cn(styles.card, styles.cardEditing, sticky && styles.sticky)}>
-      <div className={styles.cardBody}>
+    <div
+      className={cn(styles.card, styles.cardEditing, sticky && styles.cardSticky)}
+      data-sticky-box={sticky ? "" : undefined}
+    >
+      <div className={styles.cardBody} data-sticky-floor="">
         <div className={styles.cardHeader}>
           <EntryIcon iconName={iconName} iconFamily={iconFamily} onSelect={onSelectIcon} />
           <textarea
@@ -1247,15 +1307,18 @@ export function OrgView({
     [maxCol, minCol],
   );
 
-  // Drive the height of sticky cards imperatively. A sticky card has to both
-  // span its subtree (so the box stretches down past its descendants) and be
-  // shorter than its cell (so it has room to travel and pin) — a plain sticky
-  // element can't do both. So each frame we set a sticky card's box to span
-  // [max(cellTop, pinLine) .. min(cellBottom, viewportBottom − gap)]: its top
-  // pins under the header with a gap, its bottom holds a gap above the viewport
-  // floor while the subtree runs past it, and it shrinks back to the true
-  // subtree bounds near either end. The cell (a sibling of the child column)
-  // already stretches to the subtree's full height, so its rect is the span.
+  // Drive the height of each sticky box imperatively. A sticky box has to both
+  // span its subtree (stretch down past its descendants) and be shorter than its
+  // cell (so it has room to travel and pin) — a plain sticky element can't do
+  // both. So each frame we set the box to span [max(extentTop, pinLine) ..
+  // min(extentBottom, viewportBottom − gap)]: its top pins under the header with
+  // a gap, its bottom holds a gap above the viewport floor while the subtree runs
+  // past it, and it shrinks back to the true subtree bounds near either end. The
+  // "box" is the only resized element of a sticky card — for an EntryCard that's
+  // the `.cardSpan` (borders + fill; its glued `.stickyHeader` sibling is never
+  // touched, which is the whole point of the split), for a renaming InputCard
+  // it's the editing box itself. The box's `extent` (its parent: the stack /
+  // cell) already stretches to the subtree height, so its rect is the span.
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Restore the scroll position the user left this logbook's chart at (e.g.
@@ -1280,64 +1343,67 @@ export function OrgView({
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
-    const stickyClass = styles.sticky;
-    if (!scrollEl || !stickyClass) return;
+    if (!scrollEl) return;
     const rootStyle = getComputedStyle(document.documentElement);
     const stripH = parseFloat(rootStyle.getPropertyValue("--org-strip-h")) || 50;
     const gap = parseFloat(rootStyle.getPropertyValue("--org-sticky-gap")) || 14;
     const pinTop = stripH + gap;
 
-    // Snapshot the sticky cards once. The set only changes when the forest /
-    // pending input does, which re-runs this effect — so there's no need to
-    // re-query the DOM on every scroll frame. `last` caches the height we wrote
-    // so steady-state frames can skip redundant writes (see below).
+    // Snapshot the sticky boxes once. The set only changes when the forest /
+    // pending input / fold state does, which re-runs this effect — so there's no
+    // need to re-query the DOM on every scroll frame. `last` caches the height we
+    // wrote so steady-state frames can skip redundant writes (see below).
     type Target = {
-      card: HTMLElement;
-      cell: HTMLElement;
-      body: HTMLElement;
+      /** The resized element (a `.cardSpan`, or a sticky editing box). */
+      box: HTMLElement;
+      /** The box's parent — the stack / cell — which stretches to the subtree's
+       *  full height, so its rect is the span the box clamps within. */
+      extent: HTMLElement;
+      /** The content the box must never shrink below (the glued header / input
+       *  body). A sibling for an EntryCard, a child for the editing box. */
+      floor: HTMLElement;
       /** Height computed this frame (read phase) then flushed (write phase). */
       next: number;
       /** Last height written, so a no-op frame skips the write. */
       last: number;
     };
     const targets: Target[] = [];
-    for (const card of scrollEl.querySelectorAll<HTMLElement>(`.${stickyClass}`)) {
-      const cell = card.parentElement;
-      const body = card.firstElementChild;
-      if (!cell || !(body instanceof HTMLElement)) continue;
-      targets.push({ card, cell, body, next: NaN, last: NaN });
+    for (const box of scrollEl.querySelectorAll<HTMLElement>("[data-sticky-box]")) {
+      const extent = box.parentElement;
+      const floor = extent?.querySelector<HTMLElement>("[data-sticky-floor]");
+      if (!extent || !floor) continue;
+      targets.push({ box, extent, floor, next: NaN, last: NaN });
     }
 
     let raf = 0;
     const apply = () => {
       raf = 0;
-      // Phase 1 — read every rect up front. Writing a card's height dirties
-      // layout (the var feeds .card.sticky's height), so interleaving reads and
-      // writes forced a reflow per card; reading everything first collapses
-      // that to a single reflow. A sticky card's height never affects a cell's
-      // rect (the card is height-bounded and overflow-hidden; the cell's height
-      // comes from its sibling child column), so the reads are independent of
-      // the pending writes.
+      // Phase 1 — read every rect up front. Writing a box's height dirties
+      // layout (the var feeds its height), so interleaving reads and writes
+      // forced a reflow per box; reading everything first collapses that to a
+      // single reflow. A box's height never affects its extent's rect (the box
+      // is height-bounded and overflow-hidden; the extent's height comes from
+      // the sibling child column), so the reads are independent of the writes.
       const vpBottom = scrollEl.clientHeight - gap;
       const originTop = scrollEl.getBoundingClientRect().top;
       for (const t of targets) {
-        const r = t.cell.getBoundingClientRect();
+        const r = t.extent.getBoundingClientRect();
         const top = Math.max(r.top - originTop, pinTop);
         const bottom = Math.min(r.bottom - originTop, vpBottom);
-        // Never shrink below the content; once the box would, the card keeps
-        // its content height and `position: sticky` scrolls it up off the top
-        // (its bottom held to the cell) so nothing is clipped.
-        const contentH = t.body.offsetHeight + (t.card.offsetHeight - t.card.clientHeight);
+        // Never shrink below the content; once the box would, it keeps its
+        // content height and `position: sticky` scrolls it up off the top (its
+        // bottom held to the extent) so nothing is clipped.
+        const contentH = t.floor.offsetHeight + (t.box.offsetHeight - t.box.clientHeight);
         t.next = Math.max(bottom - top, contentH);
       }
-      // Phase 2 — write only the heights that changed. A card pinned in its
+      // Phase 2 — write only the heights that changed. A box pinned in its
       // middle range keeps a constant height (vpBottom − pinTop) frame to
-      // frame, so most scroll frames touch few (often zero) cards and leave
+      // frame, so most scroll frames touch few (often zero) boxes and leave
       // layout clean — which also keeps the next frame's reads reflow-free.
       for (const t of targets) {
         if (t.next === t.last) continue;
         t.last = t.next;
-        t.card.style.setProperty("--org-sticky-h", `${t.next}px`);
+        t.box.style.setProperty("--org-sticky-h", `${t.next}px`);
       }
     };
     const schedule = () => {
