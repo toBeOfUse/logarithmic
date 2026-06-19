@@ -9,6 +9,9 @@ export type KebabMenuItem = {
   id: string;
   label: string;
   icon?: string;
+  /** Tooltip text for action buttons; falls back to `label`. Unused for items
+   *  shown inside the kebab menu, which already render their label inline. */
+  title?: string;
   destructive?: boolean;
   onSelect: () => void;
 };
@@ -20,6 +23,7 @@ export function TopBar({
   parents = [],
   currentName,
   menuItems = [],
+  actions = [],
 }: {
   variant?: "stark" | "paper";
   /** Route segment for the current logbook (slug-id). */
@@ -27,7 +31,11 @@ export function TopBar({
   logbookName: string;
   parents?: Crumb[];
   currentName?: string;
+  /** Items tucked inside the kebab (⋯) menu. */
   menuItems?: KebabMenuItem[];
+  /** Items shown as buttons beside the kebab, so they're a single click away.
+   *  Use for the most reached-for actions on a route (e.g. "Focus"). */
+  actions?: KebabMenuItem[];
 }) {
   const isPaper = variant === "paper";
   return (
@@ -77,7 +85,26 @@ export function TopBar({
         )}
       </span>
 
-      <KebabMenu items={menuItems} />
+      <div className="flex items-center gap-1.5 shrink-0">
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            title={action.title ?? action.label}
+            className={cn(
+              "[font:inherit] text-sm font-medium border rounded-[6px] px-[11px] py-[6px] inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap",
+              action.destructive
+                ? "border-warn text-warn bg-stark hover:bg-warn-soft"
+                : "border-stark-border text-primary bg-stark hover:bg-stark-soft",
+            )}
+            onClick={action.onSelect}
+          >
+            {action.icon && <i className={action.icon} aria-hidden="true" />}
+            {action.label}
+          </button>
+        ))}
+        <KebabMenu items={menuItems} />
+      </div>
     </div>
   );
 }

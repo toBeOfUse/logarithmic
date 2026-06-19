@@ -365,6 +365,8 @@ type CreateEntryVars = {
   name?: string;
   col?: number;
   parentId?: number | null;
+  iconName?: string | null;
+  iconFamily?: string | null;
 };
 
 /**

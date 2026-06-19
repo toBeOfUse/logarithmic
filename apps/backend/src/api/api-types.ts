@@ -111,6 +111,13 @@ export type CreateEntryInput = {
   name: string;
   col?: number;
   parentId?: IEntry["id"] | null;
+  /**
+   * Optional icon to give the new entry. Sent as a pair, like `SetEntryIcon`:
+   * both parts together name the icon and its family, and a half-set pair (or
+   * omitting them) leaves the new entry iconless.
+   */
+  iconName?: string | null;
+  iconFamily?: string | null;
 };
 
 export type RenameEntryInput = {

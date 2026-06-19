@@ -65,16 +65,31 @@ export default function LogbookRoute() {
     [data, setEntryIcon],
   );
   const handleSubmitPending = useCallback(
-    (name: string) => {
+    (name: string, icon: { iconName: string; iconFamily: string } | null) => {
       const input = pendingInput;
       setPendingInput(null);
       if (!input || !data) return;
       const trimmed = name.trim();
       if (input.kind === "add") {
         if (!trimmed) return;
-        setPendingCreate({ col: input.col, parentId: input.parentId, name: trimmed });
+        const iconName = icon?.iconName ?? null;
+        const iconFamily = icon?.iconFamily ?? null;
+        setPendingCreate({
+          col: input.col,
+          parentId: input.parentId,
+          name: trimmed,
+          iconName,
+          iconFamily,
+        });
         createEntry.mutate(
-          { logbookId: data.logbook.id, name: trimmed, col: input.col, parentId: input.parentId },
+          {
+            logbookId: data.logbook.id,
+            name: trimmed,
+            col: input.col,
+            parentId: input.parentId,
+            iconName,
+            iconFamily,
+          },
           {
             // The id only exists now; focus the new entry's real link, which
             // also lets a second Enter follow it through to its page.

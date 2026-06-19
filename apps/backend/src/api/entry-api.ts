@@ -48,6 +48,8 @@ export const entryRouter = router({
         name: z.string().max(ENTRY_NAME_MAX).optional(),
         col: z.number().int().optional(),
         parentId: entryIdSchema.nullable().optional(),
+        iconName: z.string().max(64).nullable().optional(),
+        iconFamily: z.string().max(32).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
@@ -73,6 +75,9 @@ export const entryRouter = router({
       const order = siblings.length === 0 ? 0 : Math.max(...siblings.map((s) => s.order)) + 1;
 
       const name = input.name ?? "";
+      // Keep the icon pair consistent, like `setIcon`: store both parts or
+      // neither, so a half-set request just leaves the entry iconless.
+      const hasIcon = input.iconName != null && input.iconFamily != null;
       const entry = ctx.em.create(Entry, {
         name,
         slug: slugify(name),
@@ -80,6 +85,8 @@ export const entryRouter = router({
         order,
         content: null,
         metadata: null,
+        iconName: hasIcon ? input.iconName! : null,
+        iconFamily: hasIcon ? input.iconFamily! : null,
         logbook: ctx.em.getReference(Logbook, lb.id),
         parent: parent ? ctx.em.getReference(Entry, parent.id) : null,
       });

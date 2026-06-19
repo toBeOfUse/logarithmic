@@ -5,6 +5,7 @@ import type { Metadata } from "logarithmic-backend/api-types";
 
 import { Attributes } from "~/components/Attributes.tsx";
 import { MarkdownEditor, type MarkdownEditorHandle } from "~/components/Editor.tsx";
+import { IconPicker } from "~/components/IconPicker.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import { cn } from "~/lib/cn.ts";
 import {
@@ -14,6 +15,7 @@ import {
   useEntry,
   useLogbookOverview,
   useRenameEntry,
+  useSetEntryIcon,
   useUpdateEntryContent,
   useUpdateEntryMetadata,
 } from "~/data/hooks.ts";
@@ -45,12 +47,6 @@ function formatRelative(d: Date): string {
 const appShell =
   "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden";
 
-const btn =
-  "[font:inherit] text-sm font-medium border border-stark-border bg-stark text-primary px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors no-underline hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
-
-const titleField =
-  "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full resize-none overflow-hidden field-sizing-content";
-
 const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
 export default function EntryRoute() {
@@ -67,6 +63,7 @@ export default function EntryRoute() {
   const updateMetadata = useUpdateEntryMetadata({ demo });
   const renameEntry = useRenameEntry({ demo });
   const createEntry = useCreateEntry({ demo });
+  const setEntryIcon = useSetEntryIcon({ demo });
   const deleteEntry = useDeleteEntry({ demo });
   const navigate = useNavigate();
 
@@ -87,7 +84,10 @@ export default function EntryRoute() {
 
   // Real-saving = any mutation that affects this entry is in flight.
   const mutationPending =
-    updateContent.isPending || updateMetadata.isPending || renameEntry.isPending;
+    updateContent.isPending ||
+    updateMetadata.isPending ||
+    renameEntry.isPending ||
+    setEntryIcon.isPending;
 
   // Combine with a minimum-display floor so brief in-memory mutations still
   // produce a perceptible "Saving…" tick.
@@ -227,6 +227,13 @@ export default function EntryRoute() {
   const onMetadataChange = (next: Metadata) => {
     updateMetadata.mutate(
       { id: entry.id, metadata: next, logbookId },
+      { onSuccess: () => setSavedAt(new Date()) },
+    );
+  };
+
+  const onSelectIcon = (iconName: string, iconFamily: string) => {
+    setEntryIcon.mutate(
+      { id: entry.id, iconName, iconFamily, logbookId },
       { onSuccess: () => setSavedAt(new Date()) },
     );
   };
@@ -373,6 +380,15 @@ export default function EntryRoute() {
         }))}
         currentName={entry.name || "Untitled entry"}
         menuItems={menuItems}
+        actions={[
+          {
+            id: "focus",
+            label: "Focus",
+            icon: "ri-fullscreen-line",
+            title: "Maximize editor",
+            onSelect: enterFocus,
+          },
+        ]}
       />
       {confirmingDelete && (
         <DeleteConfirmModal
@@ -385,21 +401,19 @@ export default function EntryRoute() {
       <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
         <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
           <div className="flex items-start gap-3">
+            <IconPicker
+              iconName={entry.iconName}
+              iconFamily={entry.iconFamily}
+              onSelect={onSelectIcon}
+              buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-stark-soft hover:text-accent"
+              defaultIconClassName="opacity-50"
+            />
             <TitleEditor
               value={titleValue}
               isUntitled={isUntitled}
               onChange={setTitleDraft}
               onBlur={onTitleBlur}
             />
-            <button
-              type="button"
-              className={cn(btn, "mt-1.5 shrink-0")}
-              onClick={enterFocus}
-              title="Maximize editor"
-            >
-              <i className="ri-fullscreen-line" />
-              Focus
-            </button>
           </div>
 
           {(() => {
@@ -409,10 +423,9 @@ export default function EntryRoute() {
             const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
             if (!showHeadings) {
               return (
-                <div className="flex flex-wrap gap-2 items-center my-5">
-                  <WithTrailingSep>
-                    <AddChildPill onClick={addChild} label="Add subsection..." />
-                  </WithTrailingSep>
+                <div className="text-base leading-relaxed my-5">
+                  <AddChildPill onClick={addChild} label="Add subsection..." />
+                  <ChildSep />
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
                 </div>
               );
@@ -427,36 +440,43 @@ export default function EntryRoute() {
                   {(hasChildren || pendingChild || creatingChild) && (
                     <SectionHeading>Subsections</SectionHeading>
                   )}
-                  <div className="flex flex-wrap gap-2 items-center">
+                  {/* Children list as bullets. The pending input and loading
+                      placeholder slot in as bullets too (a new child taking
+                      shape), while the trailing "Add" control sits as a
+                      marker-less item — same add semantics as before: typing
+                      swaps the Add control for the input, submitting shows the
+                      loading placeholder until the real child link replaces it. */}
+                  <ul className="list-disc pl-4 space-y-2 marker:text-paper-edge text-base text-primary">
                     {entry.children.map((c) => (
-                      <WithTrailingSep key={c.id}>
+                      <li key={c.id}>
                         <ChildItem
                           href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
                           id={c.id}
                           name={c.name}
                         />
-                      </WithTrailingSep>
+                      </li>
                     ))}
-                    {creatingChild && (
-                      <WithTrailingSep>
+                    {pendingChildName != null && (
+                      <li>
                         <PendingChildItem name={pendingChildName} />
-                      </WithTrailingSep>
+                      </li>
                     )}
-                    {pendingChild && (
-                      <WithTrailingSep>
+                    {pendingChild ? (
+                      <li>
                         <PendingChildInput
                           onSubmit={onSubmitPendingChild}
                           onCancel={() => setPendingChild(false)}
                         />
-                      </WithTrailingSep>
+                      </li>
+                    ) : (
+                      <li className="list-none">
+                        <AddChildPill
+                          onClick={addChild}
+                          label={hasChildren ? "Add..." : "Add subsection..."}
+                        />
+                      </li>
                     )}
-                    {!pendingChild && (
-                      <AddChildPill
-                        onClick={addChild}
-                        label={hasChildren ? "Add..." : "Add subsection..."}
-                      />
-                    )}
-                  </div>
+                  </ul>
                 </section>
               </div>
             );
@@ -485,23 +505,18 @@ export default function EntryRoute() {
   );
 }
 
-const childLink = "inline-flex items-center text-base text-primary";
+const childLink = "text-base text-primary";
 
+/**
+ * Separator between inline subsection items. The leading non-breaking space
+ * binds the pipe to the preceding item, and the trailing regular space is the
+ * only break opportunity — so the run wraps like text and a pipe never starts a
+ * wrapped line.
+ */
 function ChildSep() {
   return (
     <span aria-hidden className="text-paper-edge select-none">
-      |
-    </span>
-  );
-}
-
-/** Glues a trailing pipe to the item before it so they wrap together — the
- *  pipe stays at the end of the line rather than starting a wrapped one. */
-function WithTrailingSep({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-baseline gap-2">
-      {children}
-      <ChildSep />
+      {" | "}
     </span>
   );
 }
@@ -517,7 +532,7 @@ function ChildItem({ href, id, name }: { href: string; id: number; name: string 
       // navigates away, so there's no downside to showing it on plain focus.
       className={cn(
         childLink,
-        "rounded-sm focus:outline-none focus:ring-2 focus:ring-accent",
+        "ml-1 rounded-sm focus:outline-none focus:ring-2 focus:ring-accent",
         isUntitled && "text-muted italic",
       )}
     >
@@ -533,8 +548,11 @@ function ChildItem({ href, id, name }: { href: string; id: number; name: string 
  */
 function PendingChildItem({ name }: { name: string }) {
   return (
-    <span className={cn(childLink, "text-muted gap-1")} aria-busy="true">
-      <i className="ri-loader-4-line animate-spin" aria-hidden="true" />
+    <span
+      className="inline-flex items-baseline gap-1 text-base text-muted align-baseline"
+      aria-busy="true"
+    >
+      <i className="ri-loader-4-line animate-spin self-center" aria-hidden="true" />
       {name || "Untitled entry"}
     </span>
   );
@@ -634,7 +652,11 @@ function TitleEditor({
     <textarea
       ref={ref}
       rows={1}
-      className={cn(titleField, isUntitled && "text-muted")}
+      className={cn(
+        "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary " +
+          "flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full resize-none overflow-hidden field-sizing-content",
+        isUntitled && "text-muted",
+      )}
       value={value}
       placeholder="Untitled entry"
       onChange={(e) => onChange(e.target.value)}

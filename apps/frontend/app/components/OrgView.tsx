@@ -57,19 +57,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
 import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
 import { cn } from "~/lib/cn.ts";
-import {
-  ENTRY_ICONS,
-  REMIX_FAMILY,
-  entryIconClass,
-  isDefaultEntryIcon,
-} from "~/lib/entry-icons.ts";
+import { entryIconClass, isDefaultEntryIcon } from "~/lib/entry-icons.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
+
+import { IconPicker } from "./IconPicker.tsx";
 
 import styles from "./OrgView.module.css";
 import { RearrangeModal } from "./RearrangeModal.tsx";
@@ -109,7 +105,15 @@ export type PendingInput =
  * real id, so during the round trip we render a loading placeholder in the new
  * entry's slot (a new last child of `parentId`, or a new last root when null).
  */
-export type PendingCreate = { col: number; parentId: number | null; name: string };
+export type PendingCreate = {
+  col: number;
+  parentId: number | null;
+  name: string;
+  /** The icon chosen in the input cell, shown on the loading placeholder so the
+   *  pick is visible during the create round trip. */
+  iconName: string | null;
+  iconFamily: string | null;
+};
 
 /**
  * What a drop zone means, attached to each dnd-kit droppable. "before"/"after"
@@ -292,12 +296,13 @@ function titleColClass(col: number): string | undefined {
 // ── Cards ──────────────────────────────────────────────────────────────
 
 /**
- * The icon shown at the left of a card's title. When `onSelect` is given,
- * clicking it opens a small popover of icon choices (per the card design); the
- * popover is rendered through a portal so the card's `overflow: hidden` doesn't
- * clip it, and is positioned against the button's on-screen rect. When
- * `onSelect` is omitted the icon is static (e.g. a not-yet-saved new entry that
- * has no id to set an icon on).
+ * The icon shown at the left of a card's title. A thin wrapper over the shared
+ * `IconPicker`, supplying the card-specific button styling. When `onSelect` is
+ * given the icon is clickable and opens the icon-choice popover; when omitted
+ * the icon is static (e.g. a not-yet-saved new entry that has no id to set an
+ * icon on, or a foldable card whose icon slot is given to the fold button on
+ * hover). The mousedown default is suppressed so clicking the icon while
+ * renaming doesn't blur-commit the focused textarea.
  */
 const EntryIcon = memo(function EntryIcon({
   iconName,
@@ -309,135 +314,15 @@ const EntryIcon = memo(function EntryIcon({
   onSelect?: (iconName: string, iconFamily: string) => void;
 }) {
   const interactive = onSelect !== undefined;
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
-
-  const openPicker = () => {
-    const r = btnRef.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ top: r.bottom + 6, left: r.left });
-    setOpen(true);
-  };
-
-  // Dismiss the popover on Escape, and on any scroll/resize (rather than trying
-  // to keep its fixed position glued to a button that's moving with the chart).
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    const onMove = () => setOpen(false);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("resize", onMove);
-    document.addEventListener("scroll", onMove, true);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", onMove);
-      document.removeEventListener("scroll", onMove, true);
-    };
-  }, [open]);
-
-  // Keep the popover from spilling off the right (or left) edge of the viewport:
-  // once it's measured, clamp its left so it stays fully on screen. Runs in a
-  // layout effect (before paint) so the clamp is applied without a visible jump.
-  useLayoutEffect(() => {
-    if (!open || !pos) return;
-    const el = pickerRef.current;
-    if (!el) return;
-    const margin = 8;
-    const maxLeft = window.innerWidth - el.offsetWidth - margin;
-    const left = Math.max(margin, Math.min(pos.left, maxLeft));
-    if (left !== pos.left) setPos((p) => (p ? { ...p, left } : p));
-  }, [open, pos]);
-
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className={cn(styles.cardIcon, interactive && styles.cardIconInteractive)}
-        aria-label={interactive ? "Change icon" : undefined}
-        aria-hidden={interactive ? undefined : true}
-        title={interactive ? "Change icon" : undefined}
-        disabled={!interactive}
-        // Keep a click on the icon from starting a drag or following the card link.
-        onPointerDown={(e) => e.stopPropagation()}
-        // The interactive icon only appears while renaming (in InputCard), atop
-        // a focused textarea. Suppressing the mousedown's default keeps that
-        // textarea focused, so clicking the icon doesn't blur it — which would
-        // otherwise commit the rename and unmount the input before the picker
-        // could be used.
-        onMouseDown={(e) => {
-          if (interactive) e.preventDefault();
-        }}
-        onClick={(e) => {
-          if (!interactive) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (open) setOpen(false);
-          else openPicker();
-        }}
-      >
-        <i
-          className={cn(
-            entryIconClass(iconName, iconFamily),
-            isDefaultEntryIcon(iconName, iconFamily) && styles.cardIconDefault,
-          )}
-          aria-hidden="true"
-        />
-      </button>
-      {interactive &&
-        open &&
-        pos &&
-        createPortal(
-          <>
-            {/* mousedown (not pointerdown) so preventDefault keeps the rename
-                textarea focused while dismissing — clicking away here closes the
-                picker without committing the edit. */}
-            <div
-              className={styles.iconPickerBackdrop}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setOpen(false);
-              }}
-            />
-            <div
-              ref={pickerRef}
-              className={styles.iconPicker}
-              style={{ top: pos.top, left: pos.left }}
-              role="menu"
-              aria-label="Choose an icon"
-              // Keep focus on the rename textarea so picking an icon doesn't
-              // blur-commit the edit; the choice's onClick still fires.
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              {ENTRY_ICONS.map((opt) => {
-                const selected = iconName === opt.name && iconFamily === REMIX_FAMILY;
-                return (
-                  <button
-                    key={opt.name}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    aria-label={opt.label}
-                    title={opt.label}
-                    className={cn(styles.iconChoice, selected && styles.isSelected)}
-                    onClick={() => {
-                      onSelect?.(opt.name, REMIX_FAMILY);
-                      setOpen(false);
-                    }}
-                  >
-                    <i className={`ri-${opt.name}`} aria-hidden="true" />
-                  </button>
-                );
-              })}
-            </div>
-          </>,
-          document.body,
-        )}
-    </>
+    <IconPicker
+      iconName={iconName}
+      iconFamily={iconFamily}
+      onSelect={onSelect}
+      buttonClassName={cn(styles.cardIcon, interactive && styles.cardIconInteractive)}
+      defaultIconClassName={styles.cardIconDefault}
+      keepFocusOnMouseDown
+    />
   );
 });
 
@@ -452,6 +337,7 @@ const EntryCard = memo(function EntryCard({
   onAddChild,
   onRename,
   onReorder,
+  onSelectIcon,
   onToggleFold,
   onShiftLeft,
   onShiftRight,
@@ -477,6 +363,10 @@ const EntryCard = memo(function EntryCard({
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
+  /** Change this entry's icon from the resting card. Honoured only on
+   *  non-foldable cards: a foldable card gives the icon's hover slot to the
+   *  fold button, so its icon stays static (editable while renaming instead). */
+  onSelectIcon: (iconName: string, iconFamily: string) => void;
   /** Fold this entry — hide its descendants behind a placeholder. Wired to the
    *  fold button, which shows only on sticky (unfolded, branching) cards. */
   onToggleFold: () => void;
@@ -549,11 +439,16 @@ const EntryCard = memo(function EntryCard({
   const cardBody = (
     <div className={styles.cardBody}>
       <div className={styles.cardHeader}>
-        {/* The icon is static here — it's only editable while the card is in
-              its editing state (see InputCard). On branching (foldable) cards the
-              fold button takes the icon's place on hover, in whichever direction
-              applies: contract to fold, expand to unfold while folded. */}
-        <EntryIcon iconName={entry.iconName} iconFamily={entry.iconFamily} />
+        {/* The resting card's icon is clickable to change at any time — except
+              on branching (foldable) cards, whose icon slot is taken over by the
+              fold button on hover (contract to fold, expand to unfold while
+              folded); there the icon stays static and is editable while renaming
+              instead (see InputCard). */}
+        <EntryIcon
+          iconName={entry.iconName}
+          iconFamily={entry.iconFamily}
+          onSelect={foldable ? undefined : onSelectIcon}
+        />
         {foldable && (
           <button
             type="button"
@@ -781,14 +676,37 @@ const InputCard = memo(function InputCard({
   /** The edited entry's icon. Defaults to none (a brand-new add input). */
   iconName?: string | null;
   iconFamily?: string | null;
-  /** When given, the icon is pickable while editing (rename of an existing
-   *  entry); omitted for a new entry that has no id to set an icon on yet. */
+  /** Rename of an existing entry: the icon is pickable and committed
+   *  immediately via this callback. Omitted for a new entry, which has no id to
+   *  set an icon on yet — there the pick is held locally (see `draftIcon`) and
+   *  handed back through `onSubmit`. */
   onSelectIcon?: (iconName: string, iconFamily: string) => void;
-  onSubmit: (name: string) => void;
+  /** Commit the entry's name. The chosen icon is passed alongside so a
+   *  brand-new entry can be created with it; on rename it's null (the icon was
+   *  already committed via `onSelectIcon`). */
+  onSubmit: (name: string, icon: { iconName: string; iconFamily: string } | null) => void;
   onCancel: () => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const settledRef = useRef(false);
+
+  // Adding a new entry (no `onSelectIcon`): the picked icon has no saved entry
+  // to attach to, so hold it locally and pass it at submit. Renaming
+  // (`onSelectIcon` present): the icon commits immediately and the shown icon
+  // comes from props.
+  const adding = onSelectIcon === undefined;
+  const [draftIcon, setDraftIcon] = useState<{ iconName: string; iconFamily: string } | null>(null);
+  const shownName = adding ? (draftIcon?.iconName ?? null) : iconName;
+  const shownFamily = adding ? (draftIcon?.iconFamily ?? null) : iconFamily;
+  const handleSelectIcon = adding
+    ? (n: string, f: string) => setDraftIcon({ iconName: n, iconFamily: f })
+    : onSelectIcon;
+
+  const submit = (value: string) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    onSubmit(value, adding ? draftIcon : null);
+  };
 
   useLayoutEffect(() => {
     const el = inputRef.current;
@@ -805,23 +723,17 @@ const InputCard = memo(function InputCard({
     >
       <div className={styles.cardBody} data-sticky-floor="">
         <div className={styles.cardHeader}>
-          <EntryIcon iconName={iconName} iconFamily={iconFamily} onSelect={onSelectIcon} />
+          <EntryIcon iconName={shownName} iconFamily={shownFamily} onSelect={handleSelectIcon} />
           <textarea
             ref={inputRef}
             className={styles.cardInput}
             rows={1}
             defaultValue={initialValue}
-            onBlur={(e) => {
-              if (settledRef.current) return;
-              settledRef.current = true;
-              onSubmit(e.target.value);
-            }}
+            onBlur={(e) => submit(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (settledRef.current) return;
-                settledRef.current = true;
-                onSubmit(e.currentTarget.value);
+                submit(e.currentTarget.value);
               } else if (e.key === "Escape") {
                 e.preventDefault();
                 if (settledRef.current) return;
@@ -842,7 +754,15 @@ const InputCard = memo(function InputCard({
  * so we render the typed name with a spinner here until the server confirms,
  * at which point the real, focusable card replaces it.
  */
-const LoadingCard = memo(function LoadingCard({ name }: { name: string }) {
+const LoadingCard = memo(function LoadingCard({
+  name,
+  iconName = null,
+  iconFamily = null,
+}: {
+  name: string;
+  iconName?: string | null;
+  iconFamily?: string | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -851,7 +771,7 @@ const LoadingCard = memo(function LoadingCard({ name }: { name: string }) {
     <div ref={ref} className={cn(styles.card, "opacity-65")} aria-busy="true">
       <div className={styles.cardBody}>
         <div className={styles.cardHeader}>
-          <EntryIcon iconName={null} iconFamily={null} />
+          <EntryIcon iconName={iconName} iconFamily={iconFamily} />
           <span className={cn(styles.cardTitle, !name && styles.isUntitled)}>
             {name || "Unnamed entry"}
           </span>
@@ -981,7 +901,7 @@ function SubtreeImpl({
   onToggleFold: (id: number) => void;
   /** Shift a root's subtree by `delta` columns (+1 = left, -1 = right). */
   onShiftRoot: (id: number, delta: 1 | -1) => void;
-  onSubmitPending: (name: string) => void;
+  onSubmitPending: (name: string, icon: { iconName: string; iconFamily: string } | null) => void;
   onCancelPending: () => void;
 }) {
   const isRenaming = pendingInput?.kind === "rename" && pendingInput.entryId === node.id;
@@ -1054,6 +974,7 @@ function SubtreeImpl({
             onAddChild={handleAddChild}
             onRename={handleRename}
             onReorder={handleReorder}
+            onSelectIcon={handleSelectIcon}
             onToggleFold={handleToggleFold}
             onShiftLeft={isRoot ? handleShiftLeft : undefined}
             onShiftRight={isRoot ? handleShiftRight : undefined}
@@ -1115,7 +1036,11 @@ function SubtreeImpl({
           {creatingHere && (
             <div className={styles.subtree}>
               <div className={styles.cell} style={widthVar(childCol)}>
-                <LoadingCard name={pendingCreate.name} />
+                <LoadingCard
+                  name={pendingCreate.name}
+                  iconName={pendingCreate.iconName}
+                  iconFamily={pendingCreate.iconFamily}
+                />
               </div>
             </div>
           )}
@@ -1200,7 +1125,9 @@ export function OrgView({
   onRename: (id: number) => void;
   /** Set an entry's icon (from the card's icon popover). */
   onSetIcon: (id: number, iconName: string, iconFamily: string) => void;
-  onSubmitPending: (name: string) => void;
+  /** Commit the live input cell's name, with the icon chosen for a brand-new
+   *  entry (null on rename, where the icon commits separately). */
+  onSubmitPending: (name: string, icon: { iconName: string; iconFamily: string } | null) => void;
   onCancelPending: () => void;
   /** Commit a drag-and-drop move (re-parent and/or reposition an entry). */
   onMove: (input: MoveEntryInput) => void;
@@ -1619,7 +1546,11 @@ export function OrgView({
                   <div className={styles.tree} style={colStyle(creatingRoot.col, maxCol)}>
                     <div className={styles.subtree}>
                       <div className={styles.cell} style={widthVar(creatingRoot.col)}>
-                        <LoadingCard name={creatingRoot.name} />
+                        <LoadingCard
+                          name={creatingRoot.name}
+                          iconName={creatingRoot.iconName}
+                          iconFamily={creatingRoot.iconFamily}
+                        />
                       </div>
                     </div>
                   </div>

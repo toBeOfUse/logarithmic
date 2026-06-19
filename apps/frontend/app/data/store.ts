@@ -250,6 +250,8 @@ export function createEntry(input: {
   name?: string;
   col?: number;
   parentId?: number | null;
+  iconName?: string | null;
+  iconFamily?: string | null;
 }): EntryDetail | null {
   if (!store.logbooks.has(input.logbookId)) return null;
   const parent = input.parentId != null ? (store.entries.get(input.parentId) ?? null) : null;
@@ -258,6 +260,9 @@ export function createEntry(input: {
   const siblings = siblingsOf(input.logbookId, parent?.id ?? null);
   const order = siblings.length === 0 ? 0 : Math.max(...siblings.map((s) => s.order)) + 1;
   const name = input.name ?? "";
+  // Mirror the server: an icon and its family are stored as a pair, so a
+  // half-set (or absent) icon leaves the new entry iconless.
+  const hasIcon = input.iconName != null && input.iconFamily != null;
   const rec: EntryRecord = {
     id: nextEntryId++,
     slug: slugify(name),
@@ -268,8 +273,8 @@ export function createEntry(input: {
     order,
     content: null,
     metadata: null,
-    iconName: null,
-    iconFamily: null,
+    iconName: hasIcon ? input.iconName! : null,
+    iconFamily: hasIcon ? input.iconFamily! : null,
     createdAt: now,
     updatedAt: now,
   };
