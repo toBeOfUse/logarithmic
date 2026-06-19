@@ -42,7 +42,7 @@ All entries that are sticky can also be "folded," which lets you temporarily hid
 
 #### Adding Entries
 
-Creating a new entry adds a new "input cell" to the chart. In the cell, a simple text input is rendered, which the user can type the new entry's name into. (Whenever an input cell is created, it's scrolled into view if necessary.) The new entry is not saved until the input loses focus or the user presses enter; also, a non-whitespace name is required to be present in the input. If there is no non-whitespace content in the input at this point, it goes away and no entry is created.
+Creating a new entry adds a new "input cell" to the chart. In the cell, a simple text input is rendered, which the user can type the new entry's name into. (Whenever an input cell is created, it's scrolled into view if necessary.) The entry's icon can also be chosen within the input cell. The new entry is not saved until the input cell loses focus or the user presses enter; also, a non-whitespace name is required to be present in the input. If there is no non-whitespace content in the input at this point, it goes away and no entry is created.
 
 For convenience, if the user presses enter twice after typing the new entry's name, they end up on its page. (In this scenario, they have pressed enter once to save the name, which leaves the link to the new entry present and focused, and once to navigate to that link.)
 
@@ -52,7 +52,9 @@ One of the buttons on each entry is the "add child" button. Its icon is a mirror
 
 #### Editing Entries
 
-Entries can be renamed from the organizational interface using the "Rename" button, which has a pencil as its icon. Clicking it makes an input cell show up. The entry's name can be edited using the same pattern as when the entry is being created; however, if the input cell is empty when the user hits enter or clicks away from it, the edit is simply cancelled and the entry's name is left unchanged. The icon for an entry is also editable from the input cell.
+Entries can be renamed from the organizational interface using the "Rename" button, which has a pencil as its icon. Clicking it makes an input cell show up. The entry's name can be edited using the same pattern as when the entry is being created; however, if the input cell is empty when the user hits enter or clicks away from it, the edit is simply cancelled and the entry's name is left unchanged.
+
+The icon for an entry is also editable from the input cell; also, for non-sticky entries, the icon can be clicked or tapped to change it at any time. (This is not available for sticky entries only because the "fold" button takes the place of the icon when they're hovered over.)
 
 With regard to adding and editing entries: note that input cells only exist while they're focused, and there should never be a need to render two at once.
 
@@ -76,7 +78,7 @@ When an entry is moved (including by giving it a new parent), all of its childre
 
 ### Content Interface
 
-The content interface should show the entry's title, show its metadata, list its children, and have a text editor for its rich text content.
+The content interface should show an editable version of the entry's title and icon, show its metadata, list its children, and have a text editor for its rich text content.
 
 There should be a focus mode that can be activated to see just the title and the rich text content editor. Activating focus mode takes the browser into full screen mode.
 
@@ -84,7 +86,7 @@ While in focus mode, two unobtrusive controls sit in the top-right corner: a but
 
 #### Metadata & Children
 
-There should be a section titled "Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified. Then, entries' children should be displayed, in a section titled "Subsections." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view.
+There should be a section titled "Metadata" that lists the metadata. Existing metadata attributes can be clicked to edit them, or a new attribute can be added using another inline "Add" button. Adding or editing attributes brings up a modal that lets the type, name, and value(s) for that item be specified. Then, entries' children should be displayed, in a section titled "Subsections." This should list the children, followed by a button that allows an entry to be added inline, following the same interaction pattern as the "Add" button in the organizational view. <!-- TODO: make this act like a subset of the list view that doesn't exist yet, with reordering and title and icon editing from this pane -->
 
 These two sections will collapse down if they don't have content to show. Like this:
 
