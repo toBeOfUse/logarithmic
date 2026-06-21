@@ -200,49 +200,6 @@ export const entryRouter = router({
       return buildEntryDetail(ctx.em, entry);
     }),
 
-  reorderSiblings: logbookProcedure
-    .input(
-      z.object({
-        parentId: entryIdSchema.nullable(),
-        ids: z.array(entryIdSchema),
-      }),
-    )
-    .mutation(async ({ ctx, input }): Promise<boolean> => {
-      const lb = ctx.logbook;
-      const sibs = await ctx.em.find(Entry, {
-        logbook: lb.id,
-        parent: input.parentId ?? null,
-      });
-      const set = new Set(sibs.map((s) => s.id));
-      if (input.ids.length !== sibs.length) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "ids must be a permutation of siblings",
-        });
-      }
-      const seen = new Set<number>();
-      for (const id of input.ids) {
-        if (!set.has(id)) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "id is not a sibling under that parent",
-          });
-        }
-        if (seen.has(id)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "duplicate id in reorder" });
-        }
-        seen.add(id);
-      }
-      const byId = new Map(sibs.map((s) => [s.id, s] as const));
-      input.ids.forEach((id, i) => {
-        const s = byId.get(id);
-        if (s) s.order = i;
-      });
-      lb.updatedAt = new Date();
-      await ctx.em.flush();
-      return true;
-    }),
-
   delete: entryProcedure.mutation(async ({ ctx }): Promise<boolean> => {
     const entry = ctx.entry;
     // this gets all entries in the logbook and goes through them to find any

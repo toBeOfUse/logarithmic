@@ -319,24 +319,6 @@ export function moveEntry(input: MoveEntryInput): EntryDetail | null {
   return getEntry(e.id);
 }
 
-export function reorderSiblings(input: {
-  parentId: number | null;
-  logbookId: string;
-  ids: number[];
-}): boolean {
-  if (!store.logbooks.has(input.logbookId)) return false;
-  const sibs = siblingsOf(input.logbookId, input.parentId);
-  const set = new Set(sibs.map((s) => s.id));
-  for (const id of input.ids) if (!set.has(id)) return false;
-  if (input.ids.length !== sibs.length) return false;
-  input.ids.forEach((id, i) => {
-    const s = store.entries.get(id);
-    if (s) s.order = i;
-  });
-  touchLogbook(input.logbookId, new Date());
-  return true;
-}
-
 function siblingsOf(logbookId: string, parentId: number | null): EntryRecord[] {
   const out: EntryRecord[] = [];
   for (const c of store.entries.values()) {

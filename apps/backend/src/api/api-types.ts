@@ -168,17 +168,6 @@ export type MoveEntryInput = {
   position: number;
 };
 
-/**
- * Bulk-reorder all siblings under a single parent (or all roots, when
- * `parentId` is null). `ids` must be a permutation of the existing sibling
- * set — partial reorderings are rejected by the server.
- */
-export type ReorderSiblingsInput = {
-  logbookId: ILogbook["id"];
-  parentId: IEntry["id"] | null;
-  ids: IEntry["id"][];
-};
-
 export type DeleteEntryInput = {
   logbookId: ILogbook["id"];
   id: IEntry["id"];

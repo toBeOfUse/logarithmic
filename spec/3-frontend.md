@@ -48,7 +48,7 @@ For convenience, if the user presses enter twice after typing the new entry's na
 
 At the top, where the column numbers are listed, each has a button below it that creates a new entry in that column. That new entry is created as a new root node, positioned after any existing root nodes in the ordering.
 
-One of the buttons on each entry is the "add child" button. Its icon is a mirrored version of the return symbol (⏎); it is an arrow that points down and then right. Clicking it adds a child for the entry (inline, in the same manner described above.) (If that entry already has children, the new one will be the new last child.)
+One of the buttons on each entry card is the "add child" button. Clicking it adds a child for the entry (inline, in the same manner described above.) (If that entry already has children, the new one will be the new last child.)
 
 #### Editing Entries
 
@@ -67,8 +67,6 @@ While an entry is being dragged, every entry that does not already have children
 No leaf dropzone is shown for the entry currently being dragged, nor for any entry that is a descendant of the entry currently being dragged, since an entry can't become the child of itself or one of its own descendants.
 
 ![](org_view_v3_drag_and_drop_wireframe.png)
-
-Also, one of the secondary buttons that shows up when an entry is hovered over is the "Reorder" button, which uses an icon that has two arrows pointing up and down (kind of like this: ↑↓). When this button is clicked, a modal appears that gives a list view of that entry and its direct siblings (or, if the entry is a root, that entry and the other roots of the other trees in the logbook.) The entries in this list can be dragged and dropped to change their order. The modal has a "Confirm" button that saves the new order when it's clicked. The point of this is to allow a convenient way to rearrange entries that are siblings, but have many children or descendants that separate them visually in the overall view, and therefore are awkward to reorder by directly dragging and dropping them.
 
 A well-established drag-and-drop library should be used instead of a purely custom implementation.
 

@@ -168,26 +168,6 @@ function applyMoveToForest(forest: EntryNode[], input: MoveEntryInput): EntryNod
   return insertNode(extracted.forest, input.parentId, input.position, moved);
 }
 
-function reorderForestChildren(
-  forest: EntryNode[],
-  parentId: number | null,
-  ids: number[],
-): EntryNode[] {
-  if (parentId === null) {
-    const byId = new Map(forest.map((n) => [n.id, n] as const));
-    return ids.map((id) => byId.get(id)).filter((n): n is EntryNode => !!n);
-  }
-  return forest.map((n) => {
-    if (n.id === parentId) {
-      const byId = new Map(n.children.map((c) => [c.id, c] as const));
-      const next = ids.map((id) => byId.get(id)).filter((c): c is EntryNode => !!c);
-      return { ...n, children: next };
-    }
-    if (n.children.length === 0) return n;
-    return { ...n, children: reorderForestChildren(n.children, parentId, ids) };
-  });
-}
-
 // ── Reads ──────────────────────────────────────────────────────────────
 
 export function useLogbooks({ demo = false }: { demo?: boolean } = {}) {
@@ -800,43 +780,6 @@ export function useMoveEntry({ demo = false }: { demo?: boolean } = {}) {
     onSettled: (_data, _err, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
       void qc.invalidateQueries({ queryKey: keys.entry(demo, vars.id) });
-    },
-  });
-}
-
-type ReorderCtx = { prevOverview: LogbookOverview | null | undefined };
-
-export function useReorderSiblings({ demo = false }: { demo?: boolean } = {}) {
-  const qc = useQueryClient();
-  return useMutation<
-    boolean,
-    Error,
-    { logbookId: string; parentId: number | null; ids: number[] },
-    ReorderCtx
-  >({
-    mutationFn: (input) =>
-      demo
-        ? Promise.resolve(store.reorderSiblings(input))
-        : trpc.entry.reorderSiblings.mutate(input),
-    onMutate: async (vars) => {
-      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
-      await qc.cancelQueries({ queryKey: overviewKey });
-      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
-      if (prevOverview) {
-        qc.setQueryData<LogbookOverview | null>(overviewKey, {
-          ...prevOverview,
-          entries: reorderForestChildren(prevOverview.entries, vars.parentId, vars.ids),
-        });
-      }
-      return { prevOverview };
-    },
-    onError: (_err, vars, ctx) => {
-      if (ctx?.prevOverview !== undefined) {
-        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
-      }
-    },
-    onSettled: (_ok, _err, vars) => {
-      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
     },
   });
 }

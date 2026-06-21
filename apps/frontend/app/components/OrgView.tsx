@@ -16,9 +16,10 @@
  * it stays on screen while any descendant is visible. Single chains never grow
  * tall, so they don't stick.
  *
- * Hovering a card swaps its meta line for three actions: rename (pencil),
- * reorder siblings (↑↓, opens the rearrange modal), and add child (↳). On touch
- * devices (no hover) a "⋯" button on the meta line reveals that same row.
+ * Hovering a card swaps its meta line for actions: rename (pencil), delete
+ * (trash), and add child (sticky-note-add); root cards add a column-shift arrow
+ * on each end. On touch devices (no hover) a "⋯" button on the meta line reveals
+ * that same row.
  *
  * Branching cards additionally show a fold button in place of their icon on
  * hover: folding hides the entry's descendants (a client-only view state),
@@ -68,7 +69,6 @@ import { routeSegment } from "~/lib/route-segment.ts";
 import { IconPicker } from "./IconPicker.tsx";
 
 import styles from "./OrgView.module.css";
-import { RearrangeModal } from "./RearrangeModal.tsx";
 
 export type AddInput = { col: number; parentId: number | null };
 
@@ -336,7 +336,6 @@ const EntryCard = memo(function EntryCard({
   draggedSubtreeIds,
   onAddChild,
   onRename,
-  onReorder,
   onDelete,
   onSelectIcon,
   onToggleFold,
@@ -363,7 +362,6 @@ const EntryCard = memo(function EntryCard({
   draggedSubtreeIds: Set<number> | null;
   onAddChild: () => void;
   onRename: () => void;
-  onReorder: () => void;
   /** Delete this entry (and its whole subtree). Opens a confirmation first. */
   onDelete: () => void;
   /** Change this entry's icon from the resting card. Honoured only on
@@ -532,7 +530,7 @@ const EntryCard = memo(function EntryCard({
               title="Move one column left"
               onClick={onShiftLeft}
             >
-              <i className="ri-arrow-left-s-line" aria-hidden="true" />
+              <i className="ri-expand-left-line" aria-hidden="true" />
             </button>
           )}
           <button
@@ -556,20 +554,11 @@ const EntryCard = memo(function EntryCard({
           <button
             type="button"
             className={styles.cardAction}
-            aria-label="Reorder siblings"
-            title="Reorder siblings"
-            onClick={onReorder}
-          >
-            <i className="ri-arrow-up-down-line" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={styles.cardAction}
             aria-label="Add child"
             title="Add child"
             onClick={onAddChild}
           >
-            <i className="ri-corner-down-right-line" aria-hidden="true" />
+            <i className="ri-sticky-note-add-line" aria-hidden="true" />
           </button>
           {canShift && (
             <button
@@ -579,7 +568,7 @@ const EntryCard = memo(function EntryCard({
               title="Move one column right"
               onClick={onShiftRight}
             >
-              <i className="ri-arrow-right-s-line" aria-hidden="true" />
+              <i className="ri-expand-right-line" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -884,7 +873,6 @@ function SubtreeImpl({
   draggedSubtreeIds,
   onAdd,
   onRename,
-  onReorder,
   onDelete,
   onSetIcon,
   onToggleFold,
@@ -907,7 +895,6 @@ function SubtreeImpl({
   draggedSubtreeIds: Set<number> | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
-  onReorder: (id: number) => void;
   /** Delete an entry (and its subtree), after confirming. */
   onDelete: (id: number) => void;
   /** Set an entry's icon (from the card's icon popover). */
@@ -952,7 +939,6 @@ function SubtreeImpl({
     [onAdd, childCol, node.id],
   );
   const handleRename = useCallback(() => onRename(node.id), [onRename, node.id]);
-  const handleReorder = useCallback(() => onReorder(node.id), [onReorder, node.id]);
   const handleDelete = useCallback(() => onDelete(node.id), [onDelete, node.id]);
   const handleToggleFold = useCallback(() => onToggleFold(node.id), [onToggleFold, node.id]);
   const handleShiftLeft = useCallback(() => onShiftRoot(node.id, 1), [onShiftRoot, node.id]);
@@ -989,7 +975,6 @@ function SubtreeImpl({
             draggedSubtreeIds={draggedSubtreeIds}
             onAddChild={handleAddChild}
             onRename={handleRename}
-            onReorder={handleReorder}
             onDelete={handleDelete}
             onSelectIcon={handleSelectIcon}
             onToggleFold={handleToggleFold}
@@ -1024,7 +1009,6 @@ function SubtreeImpl({
                 draggedSubtreeIds={draggedSubtreeIds}
                 onAdd={onAdd}
                 onRename={onRename}
-                onReorder={onReorder}
                 onDelete={onDelete}
                 onSetIcon={onSetIcon}
                 onToggleFold={onToggleFold}
@@ -1128,7 +1112,6 @@ export function OrgView({
   onSubmitPending,
   onCancelPending,
   onMove,
-  onReorderSiblings,
   onFocused,
 }: {
   forest: EntryNode[];
@@ -1152,7 +1135,6 @@ export function OrgView({
   onCancelPending: () => void;
   /** Commit a drag-and-drop move (re-parent and/or reposition an entry). */
   onMove: (input: MoveEntryInput) => void;
-  onReorderSiblings: (parentId: number | null, ids: number[]) => void;
   onFocused: () => void;
 }) {
   const logbookSegment = routeSegment(logbookSlug, logbookId);
@@ -1434,17 +1416,6 @@ export function OrgView({
     onFocused();
   }, [focusEntryId, onFocused, forest]);
 
-  // Rearrange-modal state.
-  const [rearrangeFor, setRearrangeFor] = useState<number | null>(null);
-  const rearrangeContext = useMemo(() => {
-    if (rearrangeFor === null) return null;
-    const target = byId.get(rearrangeFor);
-    if (!target) return null;
-    const targetParent = parentOf.get(target.id) ?? null;
-    const siblings = targetParent === null ? forest : (byId.get(targetParent)?.children ?? []);
-    return { parentId: targetParent, siblings };
-  }, [rearrangeFor, byId, parentOf, forest]);
-
   // Shift a root (and, via the col cascade, its whole subtree) one column over.
   // This is just a move that keeps the root's parent (null) and position but
   // changes its column: the existing move path re-derives every descendant's
@@ -1460,8 +1431,6 @@ export function OrgView({
     },
     [byId, forest, logbookId, onMove],
   );
-
-  const handleReorder = useCallback((id: number) => setRearrangeFor(id), []);
 
   const addingRoot =
     pendingInput?.kind === "add" && pendingInput.parentId === null ? pendingInput : null;
@@ -1497,7 +1466,7 @@ export function OrgView({
                     title={`Add entry in column ${c}`}
                     onClick={() => handleAdd({ col: c, parentId: null })}
                   >
-                    <i className="ri-add-line" aria-hidden="true" />
+                    <i className="ri-sticky-note-add-line" aria-hidden="true" />
                   </button>
                 </div>
               ))}
@@ -1534,7 +1503,6 @@ export function OrgView({
                       draggedSubtreeIds={draggedSubtreeIds}
                       onAdd={handleAdd}
                       onRename={onRename}
-                      onReorder={handleReorder}
                       onDelete={onDelete}
                       onSetIcon={onSetIcon}
                       onToggleFold={toggleFold}
@@ -1602,17 +1570,6 @@ export function OrgView({
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {rearrangeContext && (
-        <RearrangeModal
-          siblings={rearrangeContext.siblings}
-          onCancel={() => setRearrangeFor(null)}
-          onConfirm={(ids) => {
-            onReorderSiblings(rearrangeContext.parentId, ids);
-            setRearrangeFor(null);
-          }}
-        />
-      )}
     </div>
   );
 }

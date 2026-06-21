@@ -15,7 +15,6 @@ import {
   useMoveEntry,
   useRenameEntry,
   useRenameLogbook,
-  useReorderSiblings,
   useSetEntryIcon,
 } from "~/data/hooks.ts";
 import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
@@ -33,7 +32,6 @@ export default function LogbookRoute() {
   const createEntry = useCreateEntry({ demo });
   const renameEntry = useRenameEntry({ demo });
   const renameLogbook = useRenameLogbook({ demo });
-  const reorderSiblings = useReorderSiblings({ demo });
   const moveEntry = useMoveEntry({ demo });
   const setEntryIcon = useSetEntryIcon({ demo });
   const deleteEntry = useDeleteEntry({ demo });
@@ -133,13 +131,6 @@ export default function LogbookRoute() {
     setPendingInput(null);
   }, [pendingInput]);
   const handleMove = useCallback((input: MoveEntryInput) => moveEntry.mutate(input), [moveEntry]);
-  const handleReorderSiblings = useCallback(
-    (parentId: number | null, ids: number[]) => {
-      if (!data) return;
-      reorderSiblings.mutate({ logbookId: data.logbook.id, parentId, ids });
-    },
-    [data, reorderSiblings],
-  );
   const handleFocused = useCallback(() => setFocusEntryId(null), []);
 
   if (isLoading || !data) {
@@ -274,7 +265,6 @@ export default function LogbookRoute() {
         onSubmitPending={handleSubmitPending}
         onCancelPending={handleCancelPending}
         onMove={handleMove}
-        onReorderSiblings={handleReorderSiblings}
         onFocused={handleFocused}
       />
       {deleteDialog}
