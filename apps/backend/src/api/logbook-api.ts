@@ -22,6 +22,7 @@ import type {
 } from "./api-types.ts";
 import { Entry } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
+import { LogbookToken } from "../entities/LogbookToken.ts";
 import { logbookProcedure, publicAuthoringProcedure, publicProcedure, router } from "../trpc.ts";
 import { issueTokenForLogbook, resolveLogbooksForTokens } from "../tokens.ts";
 import { LOGBOOK_NAME_MAX, toLogbookDetail } from "./utils.ts";
@@ -114,4 +115,26 @@ export const logbookRouter = router({
       await ctx.em.flush();
       return toLogbookDetail(lb);
     }),
+
+  /**
+   * Permanently delete the logbook along with everything that hangs off it:
+   * all of its entries and all of its access tokens. We hand each row to the
+   * unit of work and flush once so MikroORM topologically orders the deletes —
+   * children before parents (entries self-reference via `parent`), and the
+   * logbook last, since entries and tokens point at it. This mirrors the
+   * entry-delete handler's `em.remove`-then-`flush` approach, which already
+   * relies on that ordering to delete an entry subtree under enforced FKs.
+   */
+  delete: logbookProcedure.mutation(async ({ ctx }): Promise<boolean> => {
+    const lb = ctx.logbook;
+    const [entries, tokens] = await Promise.all([
+      ctx.em.find(Entry, { logbook: lb.id }),
+      ctx.em.find(LogbookToken, { logbook: lb.id }),
+    ]);
+    for (const e of entries) ctx.em.remove(e);
+    for (const tk of tokens) ctx.em.remove(tk);
+    ctx.em.remove(lb);
+    await ctx.em.flush();
+    return true;
+  }),
 });

@@ -57,6 +57,18 @@ export function saveToken(logbookId: string, token: string) {
 }
 
 /**
+ * Drop a logbook's stored token. Called after the logbook is deleted on the
+ * server so it no longer surfaces on the splash screen (the list is built from
+ * the tokens that remain). A no-op if no token is held for the id.
+ */
+export function removeToken(logbookId: string) {
+  const map = read();
+  if (!(logbookId in map)) return;
+  delete map[logbookId];
+  write(map);
+}
+
+/**
  * Build the shareable bookmarkable URL for a logbook + token. The token rides
  * in the URL fragment so it is never sent to the server or logged by proxies.
  */

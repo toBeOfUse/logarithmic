@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { AccessLinkModal } from "~/components/AccessLinkModal";
 
 import { OrgView } from "~/components/OrgView.tsx";
@@ -9,6 +9,8 @@ import {
   exportLogbookToFile,
   isDemoLogbook,
   useCreateEntry,
+  useDeleteEntry,
+  useDeleteLogbook,
   useLogbookOverview,
   useMoveEntry,
   useRenameEntry,
@@ -19,6 +21,7 @@ import {
 import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
+import { entryDeleteRequest, useConfirmDelete } from "~/lib/use-confirm-delete.tsx";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
 export default function LogbookRoute() {
@@ -33,6 +36,10 @@ export default function LogbookRoute() {
   const reorderSiblings = useReorderSiblings({ demo });
   const moveEntry = useMoveEntry({ demo });
   const setEntryIcon = useSetEntryIcon({ demo });
+  const deleteEntry = useDeleteEntry({ demo });
+  const deleteLogbook = useDeleteLogbook();
+  const navigate = useNavigate();
+  const { confirm, dialog: deleteDialog } = useConfirmDelete();
 
   const [pendingInput, setPendingInput] = useState<PendingInput | null>(null);
   // A submitted new entry awaiting the server's id. Entry creation isn't
@@ -56,6 +63,17 @@ export default function LogbookRoute() {
   const handleRename = useCallback(
     (id: number) => setPendingInput({ kind: "rename", entryId: id }),
     [],
+  );
+  const handleDelete = useCallback(
+    (id: number) => {
+      if (!data) return;
+      const node = findInForest(data.entries, id);
+      confirm({
+        ...entryDeleteRequest(node?.name ?? ""),
+        onConfirm: () => deleteEntry.mutateAsync({ id, logbookId: data.logbook.id }),
+      });
+    },
+    [data, deleteEntry, confirm],
   );
   const handleSetIcon = useCallback(
     (id: number, iconName: string, iconFamily: string) => {
@@ -175,6 +193,28 @@ export default function LogbookRoute() {
           .finally(() => setExporting(false));
       },
     });
+    // Demo logbooks aren't persisted server-side and have no token to revoke,
+    // so deletion only applies to real logbooks (like export above).
+    menuItems.push({
+      id: "delete-logbook",
+      label: "Delete logbook",
+      icon: "ri-delete-bin-line",
+      destructive: true,
+      onSelect: () =>
+        confirm({
+          title: "Delete logbook?",
+          body: (
+            <>
+              <span className="text-primary font-medium">"{logbook.name}"</span> and all of its
+              entries will be permanently deleted. This cannot be undone.
+            </>
+          ),
+          onConfirm: async () => {
+            await deleteLogbook.mutateAsync({ logbookId: logbook.id });
+            void navigate("/", { replace: true });
+          },
+        }),
+    });
   }
 
   return (
@@ -229,6 +269,7 @@ export default function LogbookRoute() {
         focusEntryId={focusEntryId}
         onAdd={handleAdd}
         onRename={handleRename}
+        onDelete={handleDelete}
         onSetIcon={handleSetIcon}
         onSubmitPending={handleSubmitPending}
         onCancelPending={handleCancelPending}
@@ -236,6 +277,7 @@ export default function LogbookRoute() {
         onReorderSiblings={handleReorderSiblings}
         onFocused={handleFocused}
       />
+      {deleteDialog}
     </div>
   );
 }

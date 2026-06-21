@@ -20,6 +20,7 @@ import {
   useUpdateEntryMetadata,
 } from "~/data/hooks.ts";
 import { parseEntryId, parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
+import { entryDeleteRequest, useConfirmDelete } from "~/lib/use-confirm-delete.tsx";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
 /**
@@ -80,7 +81,7 @@ export default function EntryRoute() {
   // list until the server confirms and we can focus the new child's real link.
   const [pendingChildName, setPendingChildName] = useState<string | null>(null);
   const [focusChildId, setFocusChildId] = useState<number | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const { confirm, dialog: deleteDialog } = useConfirmDelete();
 
   // Real-saving = any mutation that affects this entry is in flight.
   const mutationPending =
@@ -300,21 +301,16 @@ export default function EntryRoute() {
       label: "Delete entry",
       icon: "ri-delete-bin-line",
       destructive: true,
-      onSelect: () => setConfirmingDelete(true),
+      onSelect: () =>
+        confirm({
+          ...entryDeleteRequest(entry.name),
+          onConfirm: async () => {
+            await deleteEntry.mutateAsync({ id: entry.id, logbookId: logbook.id });
+            void navigate(`/${routeSegment(logbook.slug, logbook.id)}`, { replace: true });
+          },
+        }),
     },
   ];
-
-  const confirmDelete = () => {
-    deleteEntry.mutate(
-      { id: entry.id, logbookId: logbook.id },
-      {
-        onSuccess: () => {
-          setConfirmingDelete(false);
-          void navigate(`/${routeSegment(logbook.slug, logbook.id)}`, { replace: true });
-        },
-      },
-    );
-  };
 
   if (maximized) {
     return (
@@ -390,14 +386,7 @@ export default function EntryRoute() {
           },
         ]}
       />
-      {confirmingDelete && (
-        <DeleteConfirmModal
-          entryName={entry.name}
-          busy={deleteEntry.isPending}
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={confirmDelete}
-        />
-      )}
+      {deleteDialog}
       <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
         <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
           <div className="flex items-start gap-3">
@@ -668,78 +657,6 @@ function TitleEditor({
         }
       }}
     />
-  );
-}
-
-function DeleteConfirmModal({
-  entryName,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  entryName: string;
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onCancel();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onCancel, busy]);
-
-  const label = entryName || "this untitled entry";
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-primary/30 flex items-center justify-center p-6"
-      onClick={() => !busy && onCancel()}
-    >
-      <div
-        className="w-full max-w-md bg-stark border border-stark-border rounded-lg shadow-2xl p-5"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-entry-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id="delete-entry-title" className="m-0 mb-2 text-xl font-semibold text-primary">
-          Delete entry?
-        </h3>
-        <p className="m-0 mb-4 text-muted">
-          {entryName ? (
-            <>
-              <span className="text-primary font-medium">"{label}"</span> and all of its descendants
-              will be permanently deleted. This cannot be undone.
-            </>
-          ) : (
-            <>
-              This entry and all of its descendants will be permanently deleted. This cannot be
-              undone.
-            </>
-          )}
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-warn bg-warn text-stark cursor-pointer transition-colors duration-[120ms] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={onConfirm}
-          >
-            {busy ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 

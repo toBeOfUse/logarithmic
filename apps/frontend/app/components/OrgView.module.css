@@ -673,6 +673,10 @@
   color: var(--color-primary);
 }
 
+.cardActionDanger:hover {
+  color: var(--color-warn);
+}
+
 /* The "⋯" button: a touch-only handle that toggles the action row open, since
    touch devices have no hover to reveal it. Pushed to the right of the meta
    line. Hidden on hover-capable devices, which keep using hover. */

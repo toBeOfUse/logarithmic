@@ -39,7 +39,7 @@ import { countWords } from "logarithmic-backend/word-count";
 
 import { readCachedLogbooks, saveCachedLogbooks } from "./logbook-cache.ts";
 import * as store from "./store.ts";
-import { getAllTokens, saveToken } from "./tokens.ts";
+import { getAllTokens, removeToken, saveToken } from "./tokens.ts";
 import { trpc } from "./trpc.ts";
 
 const DEMO_READ_LATENCY_MS = 200;
@@ -356,6 +356,24 @@ export function useRenameLogbook({ demo = false }: { demo?: boolean } = {}) {
     onSettled: (_data, _err, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
       void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
+    },
+  });
+}
+
+/**
+ * Permanently delete a logbook (and, server-side, all of its entries and
+ * tokens). Like `useCreateLogbook`, this is real-account only — the demo
+ * logbooks are a fixed in-memory set with no delete affordance — so there's no
+ * `demo` branch. On success we drop the now-dead token so the splash list stops
+ * showing the logbook, and invalidate that list to refetch it.
+ */
+export function useDeleteLogbook() {
+  const qc = useQueryClient();
+  return useMutation<boolean, Error, { logbookId: string }>({
+    mutationFn: (input) => trpc.logbook.delete.mutate(input),
+    onSuccess: (_ok, vars) => {
+      removeToken(vars.logbookId);
+      void qc.invalidateQueries({ queryKey: keys.logbooks(false) });
     },
   });
 }

@@ -337,6 +337,7 @@ const EntryCard = memo(function EntryCard({
   onAddChild,
   onRename,
   onReorder,
+  onDelete,
   onSelectIcon,
   onToggleFold,
   onShiftLeft,
@@ -363,6 +364,8 @@ const EntryCard = memo(function EntryCard({
   onAddChild: () => void;
   onRename: () => void;
   onReorder: () => void;
+  /** Delete this entry (and its whole subtree). Opens a confirmation first. */
+  onDelete: () => void;
   /** Change this entry's icon from the resting card. Honoured only on
    *  non-foldable cards: a foldable card gives the icon's hover slot to the
    *  fold button, so its icon stays static (editable while renaming instead). */
@@ -540,6 +543,15 @@ const EntryCard = memo(function EntryCard({
             onClick={onRename}
           >
             <i className="ri-pencil-line" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={cn(styles.cardAction, styles.cardActionDanger)}
+            aria-label="Delete"
+            title="Delete"
+            onClick={onDelete}
+          >
+            <i className="ri-delete-bin-line" aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -873,6 +885,7 @@ function SubtreeImpl({
   onAdd,
   onRename,
   onReorder,
+  onDelete,
   onSetIcon,
   onToggleFold,
   onShiftRoot,
@@ -895,6 +908,8 @@ function SubtreeImpl({
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
   onReorder: (id: number) => void;
+  /** Delete an entry (and its subtree), after confirming. */
+  onDelete: (id: number) => void;
   /** Set an entry's icon (from the card's icon popover). */
   onSetIcon: (id: number, iconName: string, iconFamily: string) => void;
   /** Toggle an entry's folded state. */
@@ -938,6 +953,7 @@ function SubtreeImpl({
   );
   const handleRename = useCallback(() => onRename(node.id), [onRename, node.id]);
   const handleReorder = useCallback(() => onReorder(node.id), [onReorder, node.id]);
+  const handleDelete = useCallback(() => onDelete(node.id), [onDelete, node.id]);
   const handleToggleFold = useCallback(() => onToggleFold(node.id), [onToggleFold, node.id]);
   const handleShiftLeft = useCallback(() => onShiftRoot(node.id, 1), [onShiftRoot, node.id]);
   const handleShiftRight = useCallback(() => onShiftRoot(node.id, -1), [onShiftRoot, node.id]);
@@ -974,6 +990,7 @@ function SubtreeImpl({
             onAddChild={handleAddChild}
             onRename={handleRename}
             onReorder={handleReorder}
+            onDelete={handleDelete}
             onSelectIcon={handleSelectIcon}
             onToggleFold={handleToggleFold}
             onShiftLeft={isRoot ? handleShiftLeft : undefined}
@@ -1008,6 +1025,7 @@ function SubtreeImpl({
                 onAdd={onAdd}
                 onRename={onRename}
                 onReorder={onReorder}
+                onDelete={onDelete}
                 onSetIcon={onSetIcon}
                 onToggleFold={onToggleFold}
                 onShiftRoot={onShiftRoot}
@@ -1105,6 +1123,7 @@ export function OrgView({
   focusEntryId,
   onAdd,
   onRename,
+  onDelete,
   onSetIcon,
   onSubmitPending,
   onCancelPending,
@@ -1123,6 +1142,8 @@ export function OrgView({
   focusEntryId: number | null;
   onAdd: (input: AddInput) => void;
   onRename: (id: number) => void;
+  /** Delete an entry (and its subtree). The caller confirms first. */
+  onDelete: (id: number) => void;
   /** Set an entry's icon (from the card's icon popover). */
   onSetIcon: (id: number, iconName: string, iconFamily: string) => void;
   /** Commit the live input cell's name, with the icon chosen for a brand-new
@@ -1514,6 +1535,7 @@ export function OrgView({
                       onAdd={handleAdd}
                       onRename={onRename}
                       onReorder={handleReorder}
+                      onDelete={onDelete}
                       onSetIcon={onSetIcon}
                       onToggleFold={toggleFold}
                       onShiftRoot={handleShiftRoot}
