@@ -448,7 +448,7 @@ function LinkForm({
           onMouseDown={(e) => e.preventDefault()}
           onClick={onRemove}
         >
-          <i className="ri-link-unlink" />
+          <i className="ri-delete-bin-2-line" />
         </button>
       )}
       <button
