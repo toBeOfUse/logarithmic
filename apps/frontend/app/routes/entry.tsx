@@ -46,7 +46,7 @@ function formatRelative(d: Date): string {
 }
 
 const appShell =
-  "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden";
+  "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-paper overflow-hidden";
 
 const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
@@ -188,11 +188,12 @@ export default function EntryRoute() {
     return (
       <div className={appShell}>
         <TopBar
+          variant="paper"
           logbookSegment={logbookSegment}
           logbookName={overview?.logbook.name ?? (isLoading ? "Loading…" : "Logbook")}
           currentName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper">
           <div className={cn("max-w-[720px] mx-auto", pagePadding)}>
             <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
           </div>
@@ -314,11 +315,11 @@ export default function EntryRoute() {
 
   if (maximized) {
     return (
-      <div className={cn(appShell, "bg-stark")}>
+      <div className={appShell}>
         <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
           <button
             type="button"
-            className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
+            className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
             onClick={exitFocus}
             title="Exit focus"
             aria-label="Exit focus"
@@ -327,7 +328,7 @@ export default function EntryRoute() {
           </button>
           <button
             type="button"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-soft hover:text-primary [font:inherit]"
+            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
             onClick={toggleFullscreen}
             title={isFullscreen ? "Exit full screen" : "Full screen"}
             aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
@@ -340,7 +341,7 @@ export default function EntryRoute() {
             />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2">
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2">
           <div className={cn("max-w-[680px] mx-auto min-h-full flex flex-col", pagePadding)}>
             <div className="my-4">
               <TitleEditor
@@ -367,6 +368,7 @@ export default function EntryRoute() {
   return (
     <div className={appShell}>
       <TopBar
+        variant="paper"
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
         parents={ancestors.map((a) => ({
@@ -387,14 +389,14 @@ export default function EntryRoute() {
         ]}
       />
       {deleteDialog}
-      <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
+      <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper">
         <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
           <div className="flex items-start gap-3">
             <IconPicker
               iconName={entry.iconName}
               iconFamily={entry.iconFamily}
               onSelect={onSelectIcon}
-              buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-stark-soft hover:text-accent"
+              buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-paper-soft hover:text-accent"
               defaultIconClassName="opacity-50"
             />
             <TitleEditor

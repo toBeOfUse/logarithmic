@@ -18,6 +18,13 @@ import { Logbook } from "../entities/Logbook.ts";
 export const ENTRY_NAME_MAX = 128;
 export const LOGBOOK_NAME_MAX = 128;
 export const CONTENT_MAX = 2_000_000_000;
+/** A column display name; empty is allowed (renders as the default `Column N`). */
+export const COLUMN_NAME_MAX = 128;
+/** Soft cap on how many columns one logbook can persist settings for — well past
+ *  any realistic chart width, but bounded so a caller can't park a huge array. */
+export const MAX_COLUMNS = 1_000;
+/** Bound on a column number so the persisted set stays sane. */
+const COLUMN_INDEX_BOUND = 100_000;
 const METADATA_KEY_MAX = 1_024;
 const METADATA_VALUE_MAX = 100_000;
 const metadataStringSchema = z.string().max(METADATA_VALUE_MAX);
@@ -28,6 +35,25 @@ const metadataValueSchema = z.union([
 ]);
 export const metadataSchema = z.record(z.string().max(METADATA_KEY_MAX), metadataValueSchema);
 
+/**
+ * Column settings input: a bounded array of {col, name, wide}, with no two
+ * entries sharing a column number (a duplicate col would make the persisted set
+ * ambiguous — the same logical-validity guard the spec calls for on bulk
+ * updates).
+ */
+export const columnSettingsSchema = z
+  .array(
+    z.object({
+      col: z.number().int().min(-COLUMN_INDEX_BOUND).max(COLUMN_INDEX_BOUND),
+      name: z.string().max(COLUMN_NAME_MAX),
+      wide: z.boolean(),
+    }),
+  )
+  .max(MAX_COLUMNS)
+  .refine((cols) => new Set(cols.map((c) => c.col)).size === cols.length, {
+    message: "Duplicate column numbers are not allowed.",
+  });
+
 export function toLogbookDetail(lb: Logbook): LogbookDetail {
   return {
     id: lb.id,
@@ -35,6 +61,8 @@ export function toLogbookDetail(lb: Logbook): LogbookDetail {
     name: lb.name,
     createdAt: lb.createdAt,
     updatedAt: lb.updatedAt,
+    // Rows predating this column hydrate `columns` as null until first written.
+    columns: (lb.columns ?? []).map((c) => ({ col: c.col, name: c.name, wide: c.wide })),
   };
 }
 

@@ -40,6 +40,8 @@ Each node belongs to a "logbook." Logbooks partition nodes, and thus, all their 
 
 Each logbook should have a unguessable random ID.
 
+A logbook can also store presentation settings for the columns in its organizational view. For each customized column, it records the column number, a display name, and whether the column should be visually wide or narrow.
+
 ## Exports and Imports
 
 Although this app relies on a relational database to store live data, content is meant to be able to map cleanly onto static files. Each entry can be expressed as a Markdown file with YAML frontmatter for the metadata. The tree structure can be mapped onto a directory model: each entry with no children becomes a single Markdown file, and each entry with children becomes a folder, with an "index.md" file containing its content.

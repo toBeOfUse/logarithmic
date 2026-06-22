@@ -93,9 +93,15 @@ export function TopBar({
             title={action.title ?? action.label}
             className={cn(
               "[font:inherit] text-sm font-medium border rounded-[6px] px-[11px] py-[6px] inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap",
+              // Match the bar's surface so the button blends in rather than
+              // floating as a contrasting box (the paper bar made bg-stark read
+              // as a white chip).
+              isPaper ? "bg-paper" : "bg-stark",
               action.destructive
-                ? "border-warn text-warn bg-stark hover:bg-warn-soft"
-                : "border-stark-border text-primary bg-stark hover:bg-stark-soft",
+                ? "border-warn text-warn hover:bg-warn-soft"
+                : isPaper
+                  ? "border-paper-edge text-primary hover:bg-paper-soft"
+                  : "border-stark-border text-primary hover:bg-stark-soft",
             )}
             onClick={action.onSelect}
           >

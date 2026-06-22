@@ -16,8 +16,9 @@ import {
   useRenameEntry,
   useRenameLogbook,
   useSetEntryIcon,
+  useSetLogbookColumns,
 } from "~/data/hooks.ts";
-import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
+import type { ColumnSetting, EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 import { buildBookmarkUrl, getToken } from "~/data/tokens";
 import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 import { entryDeleteRequest, useConfirmDelete } from "~/lib/use-confirm-delete.tsx";
@@ -34,6 +35,7 @@ export default function LogbookRoute() {
   const renameLogbook = useRenameLogbook({ demo });
   const moveEntry = useMoveEntry({ demo });
   const setEntryIcon = useSetEntryIcon({ demo });
+  const setLogbookColumns = useSetLogbookColumns({ demo });
   const deleteEntry = useDeleteEntry({ demo });
   const deleteLogbook = useDeleteLogbook();
   const navigate = useNavigate();
@@ -46,6 +48,10 @@ export default function LogbookRoute() {
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [focusEntryId, setFocusEntryId] = useState<number | null>(null);
   const [renamingLogbook, setRenamingLogbook] = useState(false);
+  // Whether the org view's column-edit mode is on. Lives here because the toggle
+  // is a top-bar action ("Edit Columns" / "Save Columns") while the editable
+  // headers render inside OrgView.
+  const [editingColumns, setEditingColumns] = useState(false);
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -79,6 +85,13 @@ export default function LogbookRoute() {
       setEntryIcon.mutate({ id, iconName, iconFamily, logbookId: data.logbook.id });
     },
     [data, setEntryIcon],
+  );
+  const handlePersistColumns = useCallback(
+    (columns: ColumnSetting[]) => {
+      if (!data) return;
+      setLogbookColumns.mutate({ logbookId: data.logbook.id, columns });
+    },
+    [data, setLogbookColumns],
   );
   const handleSubmitPending = useCallback(
     (name: string, icon: { iconName: string; iconFamily: string } | null) => {
@@ -154,7 +167,30 @@ export default function LogbookRoute() {
 
   const { logbook, entries } = data;
 
-  const menuItems: KebabMenuItem[] = [
+  // Column-edit mode is entered from the kebab ("Edit Columns") and saved with a
+  // single-click action button beside the kebab ("Save Columns") that only shows
+  // while editing.
+  const topBarActions: KebabMenuItem[] = editingColumns
+    ? [
+        {
+          id: "save-columns",
+          label: "Save Columns",
+          icon: "ri-save-line",
+          onSelect: () => setEditingColumns(false),
+        },
+      ]
+    : [];
+
+  const menuItems: KebabMenuItem[] = [];
+  if (!editingColumns) {
+    menuItems.push({
+      id: "edit-columns",
+      label: "Edit Columns",
+      icon: "ri-layout-column-line",
+      onSelect: () => setEditingColumns(true),
+    });
+  }
+  menuItems.push(
     {
       id: "rename",
       label: "Rename logbook",
@@ -167,7 +203,7 @@ export default function LogbookRoute() {
       label: "View access link",
       onSelect: () => setDisplayingAccessLink(true),
     },
-  ];
+  );
   if (!demo) {
     menuItems.push({
       id: "export",
@@ -214,6 +250,7 @@ export default function LogbookRoute() {
         variant="paper"
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
+        actions={topBarActions}
         menuItems={menuItems}
       />
       {renamingLogbook && (
@@ -255,6 +292,10 @@ export default function LogbookRoute() {
         forest={entries}
         logbookId={logbook.id}
         logbookSlug={logbook.slug}
+        columns={logbook.columns}
+        editingColumns={editingColumns}
+        onSaveColumns={() => setEditingColumns(false)}
+        onPersistColumns={handlePersistColumns}
         pendingInput={pendingInput}
         pendingCreate={pendingCreate}
         focusEntryId={focusEntryId}

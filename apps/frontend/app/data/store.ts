@@ -15,6 +15,7 @@
  */
 import slugify from "@sindresorhus/slugify";
 import type {
+  ColumnSetting,
   EntryDetail,
   EntryNode,
   LogbookDetail,
@@ -48,6 +49,9 @@ type LogbookRecord = {
   id: string;
   slug: string;
   name: string;
+  /** Org-view column presentation; empty until customized. Demo edits live here
+   *  for the session only (the whole store resets on reload). */
+  columns: ColumnSetting[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -74,6 +78,7 @@ function seed() {
       id: demo.id,
       slug: slugify(demo.name),
       name: demo.name,
+      columns: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -156,6 +161,7 @@ function recToDetail(lb: LogbookRecord): LogbookDetail {
     name: lb.name,
     createdAt: lb.createdAt,
     updatedAt: lb.updatedAt,
+    columns: lb.columns.map((c) => ({ ...c })),
   };
 }
 
@@ -241,6 +247,17 @@ export function renameLogbook(input: { logbookId: string; name: string }): Logbo
   if (!lb) return null;
   lb.name = input.name;
   lb.slug = slugify(input.name);
+  lb.updatedAt = new Date();
+  return recToDetail(lb);
+}
+
+export function setLogbookColumns(input: {
+  logbookId: string;
+  columns: ColumnSetting[];
+}): LogbookDetail | null {
+  const lb = store.logbooks.get(input.logbookId);
+  if (!lb) return null;
+  lb.columns = input.columns.map((c) => ({ ...c }));
   lb.updatedAt = new Date();
   return recToDetail(lb);
 }

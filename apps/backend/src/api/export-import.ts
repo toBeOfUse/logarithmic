@@ -483,6 +483,7 @@ export const exportImportRouter = router({
       const lb = ctx.em.create(Logbook, {
         name,
         slug: slugify(name),
+        columns: [],
       });
       ctx.em.persist(lb);
       await ctx.em.flush();

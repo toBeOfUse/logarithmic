@@ -60,7 +60,7 @@ import {
 } from "react";
 import { Link } from "react-router";
 
-import type { EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
+import type { ColumnSetting, EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
 import { cn } from "~/lib/cn.ts";
 import { entryIconClass, isDefaultEntryIcon } from "~/lib/entry-icons.ts";
@@ -271,19 +271,36 @@ function formatCardDate(d: Date): string {
 }
 
 /**
- * Horizontal-position vars for a column header or a tree root at column `c`:
- * its index from the left, and whether it sits right of column 0 (the widened
- * body column) and so must be shifted by the extra width. Pairs with the
- * calc() on .colHead / .tree.
+ * A column's editable presentation: its display name (empty → rendered as
+ * "Column N") and whether it uses the wide body width or the narrow column
+ * width. Held per column in OrgView's ephemeral `columnConfig` map.
  */
-function colStyle(c: number, maxCol: number): CSSProperties {
-  return { "--org-col-idx": maxCol - c, "--org-col-shift": c < 0 ? 1 : 0 } as CSSProperties;
+export type ColumnConfig = { name: string; wide: boolean };
+
+/** The config a column falls back to when unset: no custom name, and wide only
+ *  for column 0 (the body column). `existing` carries over any partial override
+ *  already stored, so updating one field leaves the other intact. */
+function defaultColumnConfig(c: number, existing?: ColumnConfig): ColumnConfig {
+  return existing ?? { name: "", wide: c === 0 };
 }
 
-/** Pick a cell/card's width: column 0 is the wide body column, the rest aren't. */
-function widthVar(c: number): CSSProperties {
+/** The persisted `ColumnSetting[]` (from the logbook) as a by-column map for
+ *  local editing. */
+function columnsToConfig(columns: ColumnSetting[]): Map<number, ColumnConfig> {
+  return new Map(columns.map((c) => [c.col, { name: c.name, wide: c.wide }]));
+}
+
+/** The local by-column map back into the `ColumnSetting[]` the API persists. */
+function configToColumns(config: Map<number, ColumnConfig>): ColumnSetting[] {
+  return [...config].map(([col, c]) => ({ col, name: c.name, wide: c.wide }));
+}
+
+/** Pick a cell/card's width: wide columns get the body width, the rest the
+ *  narrow column width. Which columns are wide is configurable in the column
+ *  edit mode (column 0 wide by default); `wideCols` holds the current set. */
+function widthVar(c: number, wideCols: ReadonlySet<number>): CSSProperties {
   return {
-    "--col-width": c === 0 ? "var(--org-card-width-0)" : "var(--org-card-width)",
+    "--col-width": wideCols.has(c) ? "var(--org-card-width-0)" : "var(--org-card-width)",
   } as CSSProperties;
 }
 
@@ -834,6 +851,7 @@ const ChildDropzone = memo(function ChildDropzone({
   parentId,
   col,
   narrow,
+  wideCols,
 }: {
   parentId: number;
   /** The would-be child column, used to size a full-width drop zone. */
@@ -841,6 +859,8 @@ const ChildDropzone = memo(function ChildDropzone({
   /** Whether this drop zone sits past the lowest visible column (rendered as a
    *  narrow stub instead of a full column-width box). */
   narrow: boolean;
+  /** The set of wide columns, so a full-width zone matches its column's width. */
+  wideCols: ReadonlySet<number>;
 }) {
   const drop = useDroppable({
     id: `child:${parentId}`,
@@ -850,13 +870,48 @@ const ChildDropzone = memo(function ChildDropzone({
     <div
       ref={drop.setNodeRef}
       className={cn(styles.childDropzone, narrow && styles.narrow, drop.isOver && styles.isOver)}
-      style={narrow ? undefined : widthVar(col)}
+      style={narrow ? undefined : widthVar(col, wideCols)}
       aria-hidden="true"
     >
       <i className={cn(styles.childDropzoneIcon, "ri-drag-drop-line")} aria-hidden="true" />
     </div>
   );
 });
+
+/**
+ * Invisible leading placeholders for a tree whose root sits in a lower-numbered
+ * (further-right) column: one `.colSpacer` per column between `fromCol` (the
+ * leftmost visible column) and the root's column, each sized to that column's
+ * width. Rendered as the first flex items of a `.tree` row so the root lands
+ * under its column header — the flex replacement for the old computed
+ * `margin-left`. Empty for a root already in the leftmost column.
+ */
+function LeadingSpacers({
+  fromCol,
+  toCol,
+  wideCols,
+}: {
+  /** The leftmost visible column (`maxCol`). */
+  fromCol: number;
+  /** The root's column; placeholders fill the columns strictly left of it. */
+  toCol: number;
+  wideCols: ReadonlySet<number>;
+}) {
+  const cols: number[] = [];
+  for (let c = fromCol; c > toCol; c--) cols.push(c);
+  return (
+    <>
+      {cols.map((c) => (
+        <div
+          key={c}
+          className={styles.colSpacer}
+          style={widthVar(c, wideCols)}
+          aria-hidden="true"
+        />
+      ))}
+    </>
+  );
+}
 
 // ── Subtree ────────────────────────────────────────────────────────────
 
@@ -865,6 +920,7 @@ function SubtreeImpl({
   isRoot,
   minCol,
   logbookSegment,
+  wideCols,
   stickySet,
   foldedSet,
   pendingInput,
@@ -887,6 +943,9 @@ function SubtreeImpl({
    *  the right edge of the chart, so that zone is rendered narrow. */
   minCol: number;
   logbookSegment: string;
+  /** Columns the user has set to wide width (column 0 by default). Threaded down
+   *  so every cell, card, and drop zone takes on its column's width. */
+  wideCols: ReadonlySet<number>;
   stickySet: Set<number>;
   foldedSet: Set<number>;
   pendingInput: PendingInput | null;
@@ -950,7 +1009,7 @@ function SubtreeImpl({
 
   return (
     <div className={styles.subtree}>
-      <div className={styles.cell} style={widthVar(node.col)}>
+      <div className={styles.cell} style={widthVar(node.col, wideCols)}>
         {isRenaming ? (
           <InputCard
             initialValue={node.name}
@@ -988,7 +1047,7 @@ function SubtreeImpl({
         <div className={styles.childCol}>
           {showFoldedPlaceholder && (
             <div className={styles.subtree}>
-              <div className={styles.cell} style={widthVar(childCol)}>
+              <div className={styles.cell} style={widthVar(childCol, wideCols)}>
                 <FoldedPlaceholder count={countDescendants(node)} onUnfold={handleToggleFold} />
               </div>
             </div>
@@ -1001,6 +1060,7 @@ function SubtreeImpl({
                 isRoot={false}
                 minCol={minCol}
                 logbookSegment={logbookSegment}
+                wideCols={wideCols}
                 stickySet={stickySet}
                 foldedSet={foldedSet}
                 pendingInput={pendingInput}
@@ -1025,7 +1085,7 @@ function SubtreeImpl({
               than inheriting the parent column's narrower width. */}
           {addingHere && (
             <div className={styles.subtree}>
-              <div className={styles.cell} style={widthVar(childCol)}>
+              <div className={styles.cell} style={widthVar(childCol, wideCols)}>
                 <InputCard
                   initialValue=""
                   sticky={false}
@@ -1037,7 +1097,7 @@ function SubtreeImpl({
           )}
           {creatingHere && (
             <div className={styles.subtree}>
-              <div className={styles.cell} style={widthVar(childCol)}>
+              <div className={styles.cell} style={widthVar(childCol, wideCols)}>
                 <LoadingCard
                   name={pendingCreate.name}
                   iconName={pendingCreate.iconName}
@@ -1050,7 +1110,12 @@ function SubtreeImpl({
       )}
 
       {showChildDropzone && (
-        <ChildDropzone parentId={node.id} col={childCol} narrow={node.col === minCol} />
+        <ChildDropzone
+          parentId={node.id}
+          col={childCol}
+          narrow={node.col === minCol}
+          wideCols={wideCols}
+        />
       )}
     </div>
   );
@@ -1102,6 +1167,10 @@ export function OrgView({
   forest,
   logbookId,
   logbookSlug,
+  columns,
+  editingColumns,
+  onSaveColumns,
+  onPersistColumns,
   pendingInput,
   pendingCreate,
   focusEntryId,
@@ -1117,6 +1186,21 @@ export function OrgView({
   forest: EntryNode[];
   logbookId: string;
   logbookSlug: string;
+  /** The persisted per-column settings (names + widths) for this logbook. The
+   *  edit mode seeds its working draft from these, and they drive the resting
+   *  chart's column widths and header labels. */
+  columns: ColumnSetting[];
+  /** Whether the column-edit mode is on: column headers become name inputs with
+   *  a wide/narrow width toggle, driven by the top bar's "Edit Columns" button. */
+  editingColumns: boolean;
+  /** Leave column-edit mode (the same as the top bar's "Save Columns"); fired
+   *  when Enter is pressed in a column name input. The actual persistence runs
+   *  off the resulting edit-mode-off transition (see `onPersistColumns`). */
+  onSaveColumns: () => void;
+  /** Persist the edited column settings. Called once when edit mode turns off
+   *  (via the button or Enter) with the full draft, so the parent can fire the
+   *  optimistic save mutation. */
+  onPersistColumns: (columns: ColumnSetting[]) => void;
   /** The single live input cell — adding a new entry or renaming one. */
   pendingInput: PendingInput | null;
   /** A submitted new entry awaiting the server's id, shown as a placeholder. */
@@ -1164,6 +1248,55 @@ export function OrgView({
     },
     [logbookId],
   );
+
+  // Per-column name and width overrides, keyed by column number, seeded from the
+  // persisted `columns` and used as the working draft while editing. A column
+  // absent from the map keeps its defaults — an empty name (rendered as
+  // "Column N") and the default width (column 0 wide, every other column
+  // narrow). Edited in the column-edit mode (see the header strip below) and
+  // persisted via `onPersistColumns` when edit mode turns off.
+  const [columnConfig, setColumnConfig] = useState<Map<number, ColumnConfig>>(() =>
+    columnsToConfig(columns),
+  );
+  // Mirror the persisted columns into the draft whenever they change while NOT
+  // editing — the initial load, the reconciling refetch, and the optimistic
+  // update that lands right after a save all flow in here. Keyed on `columns`
+  // only (read editing through a ref) so an in-progress edit is never clobbered.
+  const editingColumnsRef = useRef(editingColumns);
+  editingColumnsRef.current = editingColumns;
+  useEffect(() => {
+    if (editingColumnsRef.current) return;
+    setColumnConfig(columnsToConfig(columns));
+  }, [columns]);
+  // Persist the draft when edit mode turns off (via the button or Enter). Tracks
+  // the previous value so it fires only on the on→off transition, not on every
+  // keystroke that re-runs this effect.
+  const wasEditingColumnsRef = useRef(editingColumns);
+  useEffect(() => {
+    const was = wasEditingColumnsRef.current;
+    wasEditingColumnsRef.current = editingColumns;
+    if (was && !editingColumns) onPersistColumns(configToColumns(columnConfig));
+  }, [editingColumns, columnConfig, onPersistColumns]);
+  const setColumnName = useCallback((c: number, name: string) => {
+    // A name set to the column's default label ("Column N") carries no custom
+    // information, so store it as an empty string — which renders as that same
+    // default label anyway, and keeps a redundant default out of the persisted
+    // settings.
+    const stored = name === `Column ${c}` ? "" : name;
+    setColumnConfig((prev) => {
+      const next = new Map(prev);
+      next.set(c, { ...defaultColumnConfig(c, next.get(c)), name: stored });
+      return next;
+    });
+  }, []);
+  const toggleColumnWidth = useCallback((c: number) => {
+    setColumnConfig((prev) => {
+      const cur = defaultColumnConfig(c, prev.get(c));
+      const next = new Map(prev);
+      next.set(c, { ...cur, wide: !cur.wide });
+      return next;
+    });
+  }, []);
 
   // Adding a child to a folded entry first unfolds it, so the new input cell is
   // visible instead of hidden behind the "N collapsed entries" placeholder.
@@ -1257,6 +1390,16 @@ export function OrgView({
     return { maxCol, minCol, cols };
   }, [dataMax, dataMin]);
 
+  // The set of wide columns, derived from the config (column 0 wide by default).
+  // Threaded down so every cell/card/drop zone, column head, and leading spacer
+  // sizes itself to its column's width (--col-width).
+  const wideCols = useMemo(() => {
+    const s = new Set<number>();
+    for (const [c, cfg] of columnConfig) if (cfg.wide) s.add(c);
+    if (!columnConfig.has(0)) s.add(0);
+    return s;
+  }, [columnConfig]);
+
   // The chart is centered only when the heading columns (>0, of which there are
   // `maxCol`) and the aside columns (<0, of which there are `-minCol`) balance.
   // When one side has more columns, that side's outer margin collapses to 0 so
@@ -1286,6 +1429,31 @@ export function OrgView({
   // it's the editing box itself. The box's `extent` (its parent: the stack /
   // cell) already stretches to the subtree height, so its rect is the span.
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The column-header strip, so entering edit mode can focus its first name input.
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  // Entering column-edit mode: seed any unset column names with their default
+  // "Column N" so the inputs hold real, editable text (clearing one falls back
+  // to the same string as a placeholder), and focus the first input so the user
+  // can start typing immediately.
+  useEffect(() => {
+    if (!editingColumns) return;
+    setColumnConfig((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const c of cols) {
+        const cur = next.get(c);
+        if (!cur || cur.name === "") {
+          next.set(c, { ...defaultColumnConfig(c, cur), name: `Column ${c}` });
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    const firstInput = stripRef.current?.querySelector<HTMLInputElement>("input");
+    firstInput?.focus();
+    firstInput?.select();
+  }, [editingColumns, cols]);
 
   // Restore the scroll position the user left this logbook's chart at (e.g.
   // after clicking into an entry and coming back), and keep it current as they
@@ -1299,6 +1467,21 @@ export function OrgView({
     if (saved) {
       el.scrollTop = saved.top;
       el.scrollLeft = saved.left;
+    } else if (window.matchMedia?.("(max-width: 640px)")?.matches) {
+      // First visit on a narrow screen (the breakpoint mirrors the stylesheet's
+      // `@media (max-width: 640px)`): the chart is wider than the viewport and
+      // would otherwise open on the leftmost, highest-numbered heading column.
+      // Start scrolled so the body column (0) — the spine most logbooks read
+      // from — is centered instead. Measured from rects (not offsetLeft) so it's
+      // independent of which ancestor is the offset parent; the browser clamps
+      // the result if column 0 sits too near an edge to fully center.
+      const head = el.querySelector<HTMLElement>('[data-col="0"]');
+      if (head) {
+        const headRect = head.getBoundingClientRect();
+        const center =
+          headRect.left - el.getBoundingClientRect().left + el.scrollLeft + headRect.width / 2;
+        el.scrollLeft = center - el.clientWidth / 2;
+      }
     }
     const onScroll = () => {
       orgScrollByLogbook.set(logbookId, { top: el.scrollTop, left: el.scrollLeft });
@@ -1310,10 +1493,15 @@ export function OrgView({
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
+    // Pin line (where sticky cards stop under the header) and the matching bottom
+    // gap, read from the CSS tokens so the geometry lives only in the stylesheet:
+    // --org-pin-top already folds in the strip height + gap (and is registered via
+    // @property, so getComputedStyle resolves it to px rather than a calc string),
+    // and --org-sticky-gap is the bottom inset. Fallbacks cover non-browser
+    // environments like jsdom, where custom properties read back empty.
     const rootStyle = getComputedStyle(document.documentElement);
-    const stripH = parseFloat(rootStyle.getPropertyValue("--org-strip-h")) || 50;
+    const pinTop = parseFloat(rootStyle.getPropertyValue("--org-pin-top")) || 64;
     const gap = parseFloat(rootStyle.getPropertyValue("--org-sticky-gap")) || 14;
-    const pinTop = stripH + gap;
 
     // Snapshot the sticky boxes once. The set only changes when the forest /
     // pending input / fold state does, which re-runs this effect — so there's no
@@ -1398,8 +1586,9 @@ export function OrgView({
       if (raf) cancelAnimationFrame(raf);
     };
     // Re-measure whenever the rendered cards change (tree edits, an input cell
-    // swapping in for a renamed entry, or a fold hiding/showing descendants).
-  }, [forest, pendingInput, foldedSet]);
+    // swapping in for a renamed entry, a fold hiding/showing descendants, or a
+    // column-width change that reflows card text and so card heights).
+  }, [forest, pendingInput, foldedSet, wideCols]);
 
   // Focus the freshly-created entry's link (and scroll it into view) once it
   // shows up in the forest. The focus is what lets a second Enter follow the
@@ -1437,10 +1626,7 @@ export function OrgView({
   const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
 
   return (
-    <div
-      className="flex-1 flex flex-col overflow-hidden bg-paper"
-      style={{ "--org-col-span": maxCol - minCol, ...alignVars } as CSSProperties}
-    >
+    <div className="flex-1 flex flex-col overflow-hidden bg-paper" style={alignVars}>
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -1450,30 +1636,153 @@ export function OrgView({
       >
         <RemeasureOnScroll scrollRef={scrollRef} />
         <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-paper")}>
-          <div className={styles.colStrip}>
-            <div className={styles.colStripInner}>
-              {cols.map((c) => (
-                <div
-                  key={c}
-                  className={styles.colHead}
-                  style={{ ...colStyle(c, maxCol), ...widthVar(c) }}
-                >
-                  <span className={styles.colLabel}>Column {c}</span>
-                  <button
-                    type="button"
-                    className={styles.colAdd}
-                    aria-label={`Add entry in column ${c}`}
-                    title={`Add entry in column ${c}`}
-                    onClick={() => handleAdd({ col: c, parentId: null })}
-                  >
-                    <i className="ri-sticky-note-add-line" aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
+          <div className={styles.inner}>
+            <div className={styles.colStrip}>
+              <div ref={stripRef} className={styles.colStripInner}>
+                {cols.map((c) => {
+                  const cfg = columnConfig.get(c);
+                  const wide = wideCols.has(c);
+                  const name = cfg?.name ?? "";
+                  return (
+                    <div
+                      key={c}
+                      data-col={c}
+                      className={cn(styles.colHead, editingColumns && styles.colHeadEditing)}
+                      style={widthVar(c, wideCols)}
+                    >
+                      {editingColumns ? (
+                        <>
+                          <input
+                            type="text"
+                            className={styles.colNameInput}
+                            value={name}
+                            placeholder={`Column ${c}`}
+                            aria-label={`Name for column ${c}`}
+                            onChange={(e) => setColumnName(c, e.target.value)}
+                            onKeyDown={(e) => {
+                              // Enter commits the column edits (names update live as
+                              // you type) and leaves edit mode, like "Save Columns".
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                onSaveColumns();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className={styles.colWidthToggle}
+                            aria-label={wide ? `Make column ${c} narrow` : `Make column ${c} wide`}
+                            aria-pressed={wide}
+                            title={
+                              wide
+                                ? "Wide column — click for narrow"
+                                : "Narrow column — click for wide"
+                            }
+                            onClick={() => toggleColumnWidth(c)}
+                          >
+                            <i
+                              className={
+                                wide ? "ri-contract-left-right-line" : "ri-expand-left-right-line"
+                              }
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className={styles.colLabel}>{name || `Column ${c}`}</span>
+                          <button
+                            type="button"
+                            className={styles.colAdd}
+                            aria-label={`Add entry in column ${c}`}
+                            title={`Add entry in column ${c}`}
+                            onClick={() => handleAdd({ col: c, parentId: null })}
+                          >
+                            <i className="ri-sticky-note-add-line" aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
+            {!(isEmpty && !pendingInput && !creatingRoot) && (
+              <div className={styles.canvas}>
+                {forest.map((root, i) => (
+                  <Fragment key={root.id}>
+                    {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                    <div className={styles.tree}>
+                      <LeadingSpacers fromCol={maxCol} toCol={root.col} wideCols={wideCols} />
+                      <Subtree
+                        node={root}
+                        isRoot
+                        minCol={minCol}
+                        logbookSegment={logbookSegment}
+                        wideCols={wideCols}
+                        stickySet={stickySet}
+                        foldedSet={foldedSet}
+                        pendingInput={pendingInput}
+                        pendingCreate={pendingCreate}
+                        draggedId={activeDragId}
+                        draggedSubtreeIds={draggedSubtreeIds}
+                        onAdd={handleAdd}
+                        onRename={onRename}
+                        onDelete={onDelete}
+                        onSetIcon={onSetIcon}
+                        onToggleFold={toggleFold}
+                        onShiftRoot={handleShiftRoot}
+                        onSubmitPending={onSubmitPending}
+                        onCancelPending={onCancelPending}
+                      />
+                    </div>
+                  </Fragment>
+                ))}
+                {addingRoot && (
+                  <Fragment>
+                    {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                    <div className={styles.tree}>
+                      <LeadingSpacers fromCol={maxCol} toCol={addingRoot.col} wideCols={wideCols} />
+                      <div className={styles.subtree}>
+                        <div className={styles.cell} style={widthVar(addingRoot.col, wideCols)}>
+                          <InputCard
+                            initialValue=""
+                            sticky={false}
+                            onSubmit={onSubmitPending}
+                            onCancel={onCancelPending}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Fragment>
+                )}
+                {creatingRoot && (
+                  <Fragment>
+                    {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
+                    <div className={styles.tree}>
+                      <LeadingSpacers
+                        fromCol={maxCol}
+                        toCol={creatingRoot.col}
+                        wideCols={wideCols}
+                      />
+                      <div className={styles.subtree}>
+                        <div className={styles.cell} style={widthVar(creatingRoot.col, wideCols)}>
+                          <LoadingCard
+                            name={creatingRoot.name}
+                            iconName={creatingRoot.iconName}
+                            iconFamily={creatingRoot.iconFamily}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Fragment>
+                )}
+              </div>
+            )}
           </div>
 
-          {isEmpty && !pendingInput && !creatingRoot ? (
+          {isEmpty && !pendingInput && !creatingRoot && (
             <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
               <div className={styles.illustration} />
               <h3 className="text-lg font-semibold text-primary m-0">
@@ -1484,69 +1793,6 @@ export function OrgView({
                 under any column above to create your first entry there.
               </p>
             </div>
-          ) : (
-            <div className={styles.canvas}>
-              {forest.map((root, i) => (
-                <Fragment key={root.id}>
-                  {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                  <div className={styles.tree} style={colStyle(root.col, maxCol)}>
-                    <Subtree
-                      node={root}
-                      isRoot
-                      minCol={minCol}
-                      logbookSegment={logbookSegment}
-                      stickySet={stickySet}
-                      foldedSet={foldedSet}
-                      pendingInput={pendingInput}
-                      pendingCreate={pendingCreate}
-                      draggedId={activeDragId}
-                      draggedSubtreeIds={draggedSubtreeIds}
-                      onAdd={handleAdd}
-                      onRename={onRename}
-                      onDelete={onDelete}
-                      onSetIcon={onSetIcon}
-                      onToggleFold={toggleFold}
-                      onShiftRoot={handleShiftRoot}
-                      onSubmitPending={onSubmitPending}
-                      onCancelPending={onCancelPending}
-                    />
-                  </div>
-                </Fragment>
-              ))}
-              {addingRoot && (
-                <Fragment>
-                  {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                  <div className={styles.tree} style={colStyle(addingRoot.col, maxCol)}>
-                    <div className={styles.subtree}>
-                      <div className={styles.cell} style={widthVar(addingRoot.col)}>
-                        <InputCard
-                          initialValue=""
-                          sticky={false}
-                          onSubmit={onSubmitPending}
-                          onCancel={onCancelPending}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </Fragment>
-              )}
-              {creatingRoot && (
-                <Fragment>
-                  {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
-                  <div className={styles.tree} style={colStyle(creatingRoot.col, maxCol)}>
-                    <div className={styles.subtree}>
-                      <div className={styles.cell} style={widthVar(creatingRoot.col)}>
-                        <LoadingCard
-                          name={creatingRoot.name}
-                          iconName={creatingRoot.iconName}
-                          iconFamily={creatingRoot.iconFamily}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </Fragment>
-              )}
-            </div>
           )}
         </div>
 
@@ -1554,7 +1800,7 @@ export function OrgView({
           {draggedEntry ? (
             <div
               className={cn(styles.cardOverlay, !draggedEntry.name && styles.isUntitled)}
-              style={widthVar(draggedEntry.col)}
+              style={widthVar(draggedEntry.col, wideCols)}
             >
               <i
                 className={cn(

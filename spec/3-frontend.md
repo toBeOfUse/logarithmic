@@ -16,7 +16,7 @@ The first version of Logarithmic will be accessible via a simple web app. This a
 
 Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case) and a kebab menu. The breadcrumb trail is led by a link back to the initial splash screen.
 
-When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry.
+When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, enter the column-editing mode (see "Editing Columns" below), or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry.
 
 ### Organizational Interface
 
@@ -24,7 +24,7 @@ The organizational view shows a spreadsheet/chart of all of the entries. Each en
 
 ![](org_view_v3_wireframe.png)
 
-Column 0 (body text) is rendered wider than the other columns. The chart and the column-number strip are centered horizontally only when there are an equal number of columns greater than 0 and less than 0. When there are more columns greater than 0 that columns less than 0, the content is aligned to the left edge instead; when there are more columns less than 0, it is aligned to the right edge. (This is not shown in the wireframe.)
+Column 0 (body text) is rendered wider than the other columns. The chart and the column-number strip are centered horizontally only when there are an equal number of columns greater than 0 and less than 0. When there are more columns greater than 0 that columns less than 0, the content is aligned to the left edge instead; when there are more columns less than 0, it is aligned to the right edge. (This is not shown in the wireframe.) When a logbook loads in on a narrow screen, column 0 is initially horizontally centered.
 
 Entries with more than one child or a descendant with more than one child are "sticky." As you scroll down, their top edge moves down and their content stays on screen as long as any of their descendants are on screen. Also, their bottom edge stays on screen, and is fixed in the same place visually until the last descendant in a column to the right has its bottom edge move above the bottom of the viewport. Here is a mock up with a (very short) viewport:
 
@@ -57,6 +57,20 @@ Entries can be renamed from the organizational interface using the "Rename" butt
 The icon for an entry is also editable from the input cell; also, for non-sticky entries, the icon can be clicked or tapped to change it at any time. (This is not available for sticky entries only because the "fold" button takes the place of the icon when they're hovered over.)
 
 With regard to adding and editing entries: note that input cells only exist while they're focused, and there should never be a need to render two at once.
+
+#### Editing Columns
+
+Each column's name and width are configurable. By default, a column has no custom name; the name is just displayed as "Column N", where N is its number. Column 0 is wide by default; all others are narrow.
+
+There is an "Edit Columns" item in the kebab menu when in the organizational view. When that's selected, the column number strip changes: each column header gains a text input for its name, and a width-toggle button appears instead of the "Add Entry" button that's normally there. The "Save Columns" action button appears in the top bar next to the kebab while editing.
+
+![](org_view_v3_column_editing_wireframe.png)
+
+Editing ends, and the settings are saved, when the user clicks "Save Columns", or presses enter in any column name input.
+
+A column name may be set to an empty string; an empty name is displayed as the default "Column N". If the column name is explicitly set to "Column N", it is persisted as an empty string rather than saving the default name.
+
+Column settings are persisted per logbook on the backend (stored as part of the logbook).
 
 #### Moving Entries
 

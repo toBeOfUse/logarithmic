@@ -4,21 +4,35 @@
    properties below drive the calc()-based column geometry that can't be
    expressed as Tailwind utilities.
 
-   The horizontal position of a card is purely a function of its column: every
-   column is one `--org-stride` wide (card width + gap), so cards in the same
-   column line up across every tree and under the sticky column header. */
+   The horizontal position of a card is purely a function of its column: each
+   column is either wide or narrow (configurable in the column edit mode, column
+   0 wide by default). Columns are laid out as flex tracks — the header strip is
+   a flex row of column heads, and each tree is a flex row that begins with
+   invisible .colSpacer placeholders for the columns to the left of its root — so
+   cards in the same column line up across every tree and under the sticky header
+   with no per-column offsets computed in JS. The strip and canvas share one
+   shrink-to-content .inner wrapper so both take the same overall width. */
+
+/* The line sticky cards pin to: the header strip's label row plus the sticky gap
+   below it. Defined once (as --org-pin-top in :root) and consumed by both the
+   CSS `top:` of sticky elements and the JS that drives their height, so the two
+   can't drift. Registered so its computed value resolves to px for
+   getComputedStyle in JS (an unregistered calc var would read back as a string). */
+@property --org-pin-top {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 
 :root {
-  /* Column 0 (body text) is wider than the rest; every other column uses
-     --org-card-width. The stride (one column's horizontal advance) is built from
-     --org-card-width, so only the geometry that crosses column 0 picks up the
-     extra (--org-card-width-0 − --org-card-width) — see the --org-col-shift term on
-     .colHead / .tree and the container-width calcs. */
+  /* Wide columns (column 0 by default) use --org-card-width-0; the rest use the
+     narrower --org-card-width. Which columns are wide is configurable; each cell,
+     head, and spacer sizes itself with flex-basis (--col-width), so no per-column
+     offset or total-width math is needed here or in OrgView. */
   --org-card-width-0: 320px;
   --org-card-width: 235px;
   --org-col-gap: 18px;
   --org-card-gap: 9px;
-  --org-stride: calc(var(--org-card-width) + var(--org-col-gap));
 
   --org-card-pad-x: 12px;
   --org-card-pad-y: 9px;
@@ -31,6 +45,9 @@
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
   --org-sticky-gap: 14px;
+  /* The line sticky cards pin to (header strip + gap). Single source for both the
+     CSS `top:` of sticky elements and the JS sticky-height driver. */
+  --org-pin-top: calc(var(--org-strip-h) + var(--org-sticky-gap));
   /* The dashed pseudo-card drop zone shown to the right of a childless entry
      during a drag normally fills its would-be child column. The exception is an
      entry in the lowest visible column, whose child column falls past the right
@@ -87,6 +104,15 @@
   padding-inline: var(--org-page-pad-x);
 }
 
+/* Wraps the sticky header strip and the canvas in one shrink-to-content block,
+   so the strip (a flex row of every column) establishes the full chart width and
+   the canvas inherits it — keeping the two aligned without a computed width.
+   Centered, or pinned to the heavier side, via the align vars set in OrgView. */
+.inner {
+  width: max-content;
+  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
+}
+
 /* ── Column-header strip ─────────────────────────────────────── */
 
 /* The strip's paper extends past the label row by the sticky gap, down to the
@@ -97,38 +123,26 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  flex-shrink: 0;
-  /* Span the full content width, not just the viewport. As a flex item this
-     would otherwise stretch only to the viewport (the flex cross size), so when
-     the chart is wider than the viewport and scrolled right, the strip's opaque
-     paper ran out and cards scrolling up showed through past its right edge.
-     max-content sizes it to .colStripInner; min-width keeps it filling the
-     viewport (so the inner still centers) when the content is narrower. */
-  width: max-content;
-  min-width: 100%;
-  height: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  /* Fills .inner (the full chart width), so cards scrolling up vanish behind its
+     opaque paper across every column rather than peeking past its right edge. */
+  width: 100%;
+  /* Extends down to the pin line, so cards scrolling up vanish exactly where the
+     sticky cards stop. */
+  height: var(--org-pin-top);
   background: var(--color-paper);
 }
 
+/* A flex row of column heads; the gap is the inter-column gap, so heads line up
+   with the cards in each tree below. */
 .colStripInner {
-  position: relative;
-  width: calc(var(--org-card-width-0) + var(--org-col-span, 0) * var(--org-stride));
+  display: flex;
+  gap: var(--org-col-gap);
   height: 100%;
-  /* Centered when the heading (>0) and aside (<0) columns balance; otherwise the
-     heavier side's outer margin collapses to 0 so the chart hugs that edge. The
-     non-auto margin is set per-side in OrgView (see alignVars). */
-  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
 }
 
 .colHead {
-  position: absolute;
-  top: 0;
-  /* idx * stride, plus the column-0 widening for any column to its right. */
-  left: calc(
-    var(--org-col-idx, 0) * var(--org-stride) + var(--org-col-shift, 0) *
-      (var(--org-card-width-0) - var(--org-card-width))
-  );
-  width: var(--col-width, var(--org-card-width));
+  /* One flex track per column, sized to that column's width. */
+  flex: 0 0 var(--col-width, var(--org-card-width));
   /* Only the label row, not the gap below it, so labels keep their position. */
   height: var(--org-strip-h);
   display: flex;
@@ -174,25 +188,95 @@
   color: var(--color-accent);
 }
 
+/* ── Column edit mode ────────────────────────────────────────── */
+
+/* In edit mode the header's centered label/add stack is replaced by a name
+   input above a wide/narrow width toggle. The column keeps its fixed strip
+   height; the controls are sized to fit within it. */
+.colHeadEditing {
+  gap: 3px;
+  padding-inline: 4px;
+}
+
+.colNameInput {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 3px 7px;
+  border: 1px solid var(--color-paper-edge);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: center;
+  outline: none;
+  transition:
+    border-color var(--org-transition),
+    box-shadow var(--org-transition);
+}
+
+.colNameInput::placeholder {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.colNameInput:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+/* The wide/narrow width toggle: outward arrows when wide, inward when narrow. */
+.colWidthToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--org-transition);
+}
+
+.colWidthToggle:hover {
+  color: var(--color-accent);
+}
+
+.colWidthToggle > i {
+  font-style: normal;
+}
+
 /* ── Canvas & trees ──────────────────────────────────────────── */
 
 .canvas {
-  width: calc(var(--org-card-width-0) + var(--org-col-span, 0) * var(--org-stride));
-  /* Same edge-alignment as the column strip, so the two stay in lockstep. */
-  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
-  /* The strip already includes the sticky gap, so the first row sits directly
-     below it — on the same line a sticky card pins to, keeping the top row of
-     sticky and non-sticky cards aligned at rest. */
-  /* Headroom so the last tree can scroll up far enough for its sticky cards. */
+  /* Width and centering come from .inner; this only adds headroom so the last
+     tree can scroll up far enough for its sticky cards. The strip already
+     includes the sticky gap, so the first row sits directly below it — on the
+     line a sticky card pins to — keeping resting rows aligned. */
   padding-bottom: 8vh;
 }
 
-/* Offset each tree so its root lands under the matching column header. */
+/* A tree is a flex row that starts with invisible .colSpacer placeholders for
+   the columns to the left of its root, so the root lands under its column header
+   without a computed margin. `align-items: stretch` lets the spacers (and the
+   root card) span the subtree's full height. */
 .tree {
-  margin-left: calc(
-    var(--org-col-idx, 0) * var(--org-stride) + var(--org-col-shift, 0) *
-      (var(--org-card-width-0) - var(--org-card-width))
-  );
+  display: flex;
+  align-items: stretch;
+  gap: var(--org-col-gap);
+}
+
+/* One invisible leading placeholder per column to a root's left, each its
+   column's width; the flex-row gap supplies the inter-column spacing. */
+.colSpacer {
+  flex: 0 0 var(--col-width, var(--org-card-width));
+  pointer-events: none;
 }
 
 /* A horizontal rule with a small gap on either side, between trees. */
@@ -323,7 +407,7 @@
    can't do both. align-self:start keeps its top at the pin line, not stretched. */
 .cardSpan {
   position: sticky;
-  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  top: var(--org-pin-top);
   align-self: start;
   box-sizing: border-box;
   width: var(--col-width, var(--org-card-width));
@@ -346,7 +430,7 @@
    for an opaque header to hide anyway. */
 .stickyHeader {
   position: sticky;
-  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  top: var(--org-pin-top);
   align-self: start;
   z-index: 1;
   height: auto;
@@ -373,7 +457,7 @@
    sizing (full border comes from .card / .cardEditing). */
 .cardSticky {
   position: sticky;
-  top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  top: var(--org-pin-top);
   flex: 0 0 auto;
   height: var(--org-sticky-h, auto);
   min-height: 0;

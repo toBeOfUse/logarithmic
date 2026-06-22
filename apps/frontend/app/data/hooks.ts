@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import slugify from "@sindresorhus/slugify";
 import type {
+  ColumnSetting,
   CreatedLogbook,
   EntryDetail,
   EntryNode,
@@ -336,6 +337,55 @@ export function useRenameLogbook({ demo = false }: { demo?: boolean } = {}) {
     onSettled: (_data, _err, vars) => {
       void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
       void qc.invalidateQueries({ queryKey: keys.logbooks(demo) });
+    },
+  });
+}
+
+type SetColumnsCtx = {
+  prevOverview: LogbookOverview | null | undefined;
+};
+
+/**
+ * Persist the org-view column settings (names + widths). Optimistic, like
+ * rename: the overview's `logbook.columns` is patched immediately so the chart
+ * keeps showing the just-saved layout without waiting for the round trip, then
+ * reconciled on settle. Demo logbooks update the in-memory store (session-only).
+ */
+export function useSetLogbookColumns({ demo = false }: { demo?: boolean } = {}) {
+  const qc = useQueryClient();
+  return useMutation<
+    LogbookDetail | null,
+    Error,
+    { logbookId: string; columns: ColumnSetting[] },
+    SetColumnsCtx
+  >({
+    mutationFn: (input) =>
+      demo
+        ? Promise.resolve(store.setLogbookColumns(input))
+        : trpc.logbook.setColumns.mutate(input),
+    onMutate: async (vars) => {
+      const overviewKey = keys.logbookOverview(demo, vars.logbookId);
+      await qc.cancelQueries({ queryKey: overviewKey });
+      const prevOverview = qc.getQueryData<LogbookOverview | null>(overviewKey);
+      if (prevOverview) {
+        qc.setQueryData<LogbookOverview | null>(overviewKey, {
+          ...prevOverview,
+          logbook: {
+            ...prevOverview.logbook,
+            columns: vars.columns.map((c) => ({ ...c })),
+            updatedAt: new Date(),
+          },
+        });
+      }
+      return { prevOverview };
+    },
+    onError: (_err, vars, ctx) => {
+      if (ctx?.prevOverview !== undefined) {
+        qc.setQueryData(keys.logbookOverview(demo, vars.logbookId), ctx.prevOverview);
+      }
+    },
+    onSettled: (_data, _err, vars) => {
+      void qc.invalidateQueries({ queryKey: keys.logbookOverview(demo, vars.logbookId) });
     },
   });
 }

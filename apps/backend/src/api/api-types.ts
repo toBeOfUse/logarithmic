@@ -5,12 +5,19 @@
  * the entity types using `Pick<>` so we maintain a single source of truth for
  * field shapes; only relations are flattened to IDs as appropriate.
  */
-import type { ILogbook } from "../entities/Logbook.ts";
+import type { IColumnSetting, ILogbook } from "../entities/Logbook.ts";
 import type { IEntry, Metadata } from "../entities/Entry.ts";
 
 export type { Metadata, MetadataValue } from "../entities/Entry.ts";
 
 // ── Logbooks ─────────────────────────────────────────────────────────────
+
+/**
+ * One column's persisted org-view presentation: its number, display name (empty
+ * string means "fall back to `Column N`", applied on the frontend), and whether
+ * it renders at the wide body width. Mirrors the ColumnSetting embeddable.
+ */
+export type ColumnSetting = Pick<IColumnSetting, "col" | "name" | "wide">;
 
 /**
  * Used by the splash screen's "your logbooks" list. Counts the entries inside
@@ -21,7 +28,10 @@ export type LogbookSummary = Pick<ILogbook, "id" | "slug" | "name" | "updatedAt"
   entryCount: number;
 };
 
-export type LogbookDetail = Pick<ILogbook, "id" | "slug" | "name" | "createdAt" | "updatedAt">;
+export type LogbookDetail = Pick<ILogbook, "id" | "slug" | "name" | "createdAt" | "updatedAt"> & {
+  /** Persisted org-view column presentation; empty when never customized. */
+  columns: ColumnSetting[];
+};
 
 /**
  * Response from `logbook.create` and `logbook.import`. The server mints a
@@ -41,6 +51,16 @@ export type CreateLogbookInput = {
 export type RenameLogbookInput = {
   logbookId: ILogbook["id"];
   name: string;
+};
+
+/**
+ * Replace a logbook's org-view column settings wholesale. The frontend sends the
+ * full set it wants persisted (one entry per customized column); columns absent
+ * from the array fall back to their defaults when rendered.
+ */
+export type SetLogbookColumnsInput = {
+  logbookId: ILogbook["id"];
+  columns: ColumnSetting[];
 };
 
 /**
