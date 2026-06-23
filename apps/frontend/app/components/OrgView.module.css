@@ -709,11 +709,13 @@
    (the explicit tap), handled below. */
 @media (hover: hover) {
   .card:hover .cardMeta,
+  .cardSpan:hover + .card .cardMeta,
   .card:focus-within .cardMeta {
     display: none;
   }
 
   .card:hover .cardActions,
+  .cardSpan:hover + .card .cardActions,
   .card:focus-within .cardActions {
     display: flex;
   }
