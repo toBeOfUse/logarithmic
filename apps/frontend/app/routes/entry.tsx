@@ -415,7 +415,7 @@ export default function EntryRoute() {
             if (!showHeadings) {
               return (
                 <div className="text-base leading-relaxed my-5">
-                  <AddChildPill onClick={addChild} label="Add subsection..." />
+                  <AddChildPill onClick={addChild} label="Add subentry..." />
                   <ChildSep />
                   <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
                 </div>
@@ -463,7 +463,7 @@ export default function EntryRoute() {
                       <li className="list-none">
                         <AddChildPill
                           onClick={addChild}
-                          label={hasChildren ? "Add..." : "Add subsection..."}
+                          label={hasChildren ? "Add..." : "Add subentry..."}
                         />
                       </li>
                     )}
@@ -575,7 +575,7 @@ function PendingChildInput({
     <input
       ref={inputRef}
       defaultValue=""
-      placeholder="New subsection"
+      placeholder="New subentry"
       className={cn(
         childLink,
         "[font:inherit] bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",

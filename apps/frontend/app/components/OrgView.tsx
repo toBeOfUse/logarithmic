@@ -574,8 +574,8 @@ const EntryCard = memo(function EntryCard({
           <button
             type="button"
             className={styles.cardAction}
-            aria-label="Add child"
-            title="Add child"
+            aria-label="Add subentry"
+            title="Add subentry"
             onClick={onAddChild}
           >
             <i className="ri-sticky-note-add-line" aria-hidden="true" />
