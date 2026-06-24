@@ -58,7 +58,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import type { ColumnSetting, EntryNode, MoveEntryInput } from "logarithmic-backend/api-types";
 
@@ -73,22 +73,25 @@ import styles from "./OrgView.module.css";
 export type AddInput = { col: number; parentId: number | null };
 
 /**
- * Per-logbook scroll offset for the org view's inner scroll container. The chart
- * scrolls inside this element rather than the window, so React Router's
+ * Per-history-entry scroll offset for the org view's inner scroll container. The
+ * chart scrolls inside this element rather than the window, so React Router's
  * ScrollRestoration doesn't cover it; we stash the offset here so returning from
- * an entry's page restores the position the user left from. Module-level so it
- * survives the route unmount/remount that navigation causes.
+ * an entry's page restores the position the user left from. Keyed by the history
+ * entry's `useLocation().key` (the same key ScrollRestoration uses), so the
+ * offset is tied to a position in the history stack: going back restores what
+ * you left, while a fresh navigation to the same logbook starts clean.
+ * Module-level so it survives the route unmount/remount that navigation causes.
  */
-const orgScrollByLogbook = new Map<string, { top: number; left: number }>();
+const orgScrollByLocation = new Map<string, { top: number; left: number }>();
 
 /**
- * Per-logbook set of folded entry ids. Folding is a view concern — it hides an
- * entry's descendants in the chart without touching the data — so it lives only
- * on the client, and is stashed module-level (keyed by logbook, like the scroll
- * offset above) so a fold survives the route unmount/remount that navigating
- * into an entry and back causes.
+ * Per-history-entry set of folded entry ids. Folding is a view concern — it
+ * hides an entry's descendants in the chart without touching the data — so it
+ * lives only on the client, and is stashed module-level (keyed by the history
+ * entry's `useLocation().key`, like the scroll offset above) so a fold survives
+ * the route unmount/remount that navigating into an entry and back causes.
  */
-const orgFoldedByLogbook = new Map<string, Set<number>>();
+const orgFoldedByLocation = new Map<string, Set<number>>();
 
 /**
  * The single input cell that can be live in the org view at a time — either one
@@ -1222,6 +1225,10 @@ export function OrgView({
   onFocused: () => void;
 }) {
   const logbookSegment = routeSegment(logbookSlug, logbookId);
+  // The current history entry's key. The module-level scroll-offset and fold
+  // stores are keyed by it, so both ride the history stack: returning to this
+  // exact entry restores its state, a fresh navigation starts clean.
+  const locationKey = useLocation().key;
   const isEmpty = forest.length === 0;
   const { byId, parentOf } = useMemo(() => indexForest(forest), [forest]);
   const { min: dataMin, max: dataMax } = useMemo(() => colRange(forest), [forest]);
@@ -1229,24 +1236,24 @@ export function OrgView({
 
   // Folded entries (descendants hidden). Seeded from and written back to the
   // module-level store so a fold survives navigating away and back. Resynced
-  // when the logbook changes in case the component is reused across routes.
+  // when the history entry changes in case the component is reused across routes.
   const [foldedSet, setFoldedSet] = useState<Set<number>>(
-    () => orgFoldedByLogbook.get(logbookId) ?? new Set(),
+    () => orgFoldedByLocation.get(locationKey) ?? new Set(),
   );
   useEffect(() => {
-    setFoldedSet(orgFoldedByLogbook.get(logbookId) ?? new Set());
-  }, [logbookId]);
+    setFoldedSet(orgFoldedByLocation.get(locationKey) ?? new Set());
+  }, [locationKey]);
   const toggleFold = useCallback(
     (id: number) => {
       setFoldedSet((prev) => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        orgFoldedByLogbook.set(logbookId, next);
+        orgFoldedByLocation.set(locationKey, next);
         return next;
       });
     },
-    [logbookId],
+    [locationKey],
   );
 
   // Per-column name and width overrides, keyed by column number, seeded from the
@@ -1308,13 +1315,13 @@ export function OrgView({
           if (!prev.has(parentId)) return prev;
           const next = new Set(prev);
           next.delete(parentId);
-          orgFoldedByLogbook.set(logbookId, next);
+          orgFoldedByLocation.set(locationKey, next);
           return next;
         });
       }
       onAdd(input);
     },
-    [onAdd, logbookId],
+    [onAdd, locationKey],
   );
 
   // ── Drag & drop ──────────────────────────────────────────────────────
@@ -1455,15 +1462,15 @@ export function OrgView({
     firstInput?.select();
   }, [editingColumns, cols]);
 
-  // Restore the scroll position the user left this logbook's chart at (e.g.
-  // after clicking into an entry and coming back), and keep it current as they
-  // scroll. Runs before the sticky-measurement effect below so that pass sees
-  // the restored offset. The forest is already present when OrgView mounts (the
-  // route gates on load), so the content is laid out and the offset applies.
+  // Restore the scroll position the user left this history entry's chart at
+  // (e.g. after clicking into an entry and coming back), and keep it current as
+  // they scroll. Runs before the sticky-measurement effect below so that pass
+  // sees the restored offset. The forest is already present when OrgView mounts
+  // (the route gates on load), so the content is laid out and the offset applies.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const saved = orgScrollByLogbook.get(logbookId);
+    const saved = orgScrollByLocation.get(locationKey);
     if (saved) {
       el.scrollTop = saved.top;
       el.scrollLeft = saved.left;
@@ -1484,11 +1491,11 @@ export function OrgView({
       }
     }
     const onScroll = () => {
-      orgScrollByLogbook.set(logbookId, { top: el.scrollTop, left: el.scrollLeft });
+      orgScrollByLocation.set(locationKey, { top: el.scrollTop, left: el.scrollLeft });
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [logbookId]);
+  }, [locationKey]);
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
