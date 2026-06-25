@@ -41,7 +41,7 @@ export function TopBar({
   return (
     <div
       className={cn(
-        "flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-sm",
+        "flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
@@ -92,7 +92,7 @@ export function TopBar({
             type="button"
             title={action.title ?? action.label}
             className={cn(
-              "[font:inherit] text-sm font-medium border rounded-[6px] px-[11px] py-[6px] inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap",
+              "[font:inherit] text-sm font-medium border rounded-[6px] px-2 py-1 sm:px-3 sm:py-1.5 inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap",
               // Match the bar's surface so the button blends in rather than
               // floating as a contrasting box (the paper bar made bg-stark read
               // as a white chip).
@@ -142,7 +142,7 @@ function KebabMenu({ items }: { items: KebabMenuItem[] }) {
     <div ref={wrapperRef} className="relative">
       <button
         type="button"
-        className="size-6 border-0 bg-transparent text-muted rounded-[5px] inline-flex items-center justify-center text-base enabled:cursor-pointer enabled:hover:bg-stark-soft enabled:hover:text-primary disabled:opacity-40 disabled:cursor-default"
+        className="size-10 text-xl sm:text-base border-0 bg-transparent text-muted rounded-[5px] inline-flex items-center justify-center enabled:cursor-pointer enabled:hover:bg-stark-soft enabled:hover:text-primary disabled:opacity-40 disabled:cursor-default"
         aria-label="Open menu"
         aria-haspopup="menu"
         aria-expanded={open}

@@ -30,7 +30,7 @@
      head, and spacer sizes itself with flex-basis (--col-width), so no per-column
      offset or total-width math is needed here or in OrgView. */
   --org-card-width-0: 320px;
-  --org-card-width: 235px;
+  --org-card-width: 210px;
   --org-col-gap: 18px;
   --org-card-gap: 9px;
 
@@ -55,15 +55,7 @@
      to its card so it doesn't blow out the page gutter. */
   --org-child-dropzone-narrow-w: calc(var(--org-card-width) / 6);
   --org-child-dropzone-narrow-gap: 9px;
-  /* Horizontal gutter between the viewport edges and the chart, so content is
-     never flush against the left/right edges. Wide enough that the narrow drop
-     zone past the lowest visible column can flash into the gutter (its gap, then
-     its width) without being clipped; kept symmetric so the centered chart stays
-     centered. The full-width drop zones occupy in-chart child columns, so they
-     don't overflow and don't factor in here. */
-  --org-page-pad-x: calc(
-    28px + var(--org-child-dropzone-narrow-gap) + var(--org-child-dropzone-narrow-w)
-  );
+  --org-page-pad-x: 48px;
   /* Vertical space around the rule that separates trees in the forest. */
   --org-tree-gap: 20px;
   --org-transition: 120ms ease;
@@ -88,9 +80,7 @@
     --org-card-width-0: 250px;
     --org-card-width: 200px;
     --org-col-gap: 12px;
-    --org-page-pad-x: calc(
-      12px + var(--org-child-dropzone-narrow-gap) + var(--org-child-dropzone-narrow-w)
-    );
+    --org-page-pad-x: 24px;
   }
 }
 
@@ -729,15 +719,6 @@
   height: var(--org-footer-row-h);
 }
 
-@media (max-width: 640px) {
-  /* space out the action buttons more on small screens; this looks better with
-  the narrower columns than it would on desktop, and it makes accidentally
-  tapping the wrong button harder */
-  .cardActions {
-    justify-content: space-between;
-  }
-}
-
 .cardAction {
   pointer-events: auto;
   display: inline-flex;
@@ -752,7 +733,7 @@
   font-size: 14px;
   line-height: 1;
   transition: color var(--org-transition);
-  margin-right: 8px;
+  margin-right: 14px;
 }
 
 .cardAction:hover {
