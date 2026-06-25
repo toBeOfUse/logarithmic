@@ -13,6 +13,7 @@ import {
   useDeleteLogbook,
   useLogbookOverview,
   useMoveEntry,
+  usePrefetchEntries,
   useRenameEntry,
   useRenameLogbook,
   useSetEntryIcon,
@@ -30,6 +31,10 @@ export default function LogbookRoute() {
   const demo = isDemoLogbook(logbookId);
 
   const { data, isLoading } = useLogbookOverview(logbookId, { demo });
+  // Warm every entry's detail cache up front so opening one from the org view
+  // paints instantly (then revalidates). Fire-and-forget — the org view renders
+  // off the overview, not this.
+  usePrefetchEntries(logbookId, { demo });
   const createEntry = useCreateEntry({ demo });
   const renameEntry = useRenameEntry({ demo });
   const renameLogbook = useRenameLogbook({ demo });

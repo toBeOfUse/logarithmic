@@ -16,6 +16,7 @@ import { Entry } from "../entities/Entry.ts";
 import { Logbook } from "../entities/Logbook.ts";
 import { logbookProcedure, router } from "../trpc.ts";
 import {
+  buildAllEntryDetails,
   buildEntryDetail,
   cascadeCols,
   CONTENT_MAX,
@@ -41,6 +42,17 @@ const entryProcedure = logbookProcedure
 
 export const entryRouter = router({
   get: entryProcedure.query(({ ctx }) => buildEntryDetail(ctx.em, ctx.entry)),
+
+  /**
+   * Every entry in the logbook as a full EntryDetail, in one round trip. The
+   * frontend calls this when a logbook opens to warm the per-entry cache up
+   * front, so opening an entry paints instantly while a per-entry refetch
+   * revalidates it. Authorized by `logbookProcedure` — no per-entry id, so it
+   * loads the whole authorized logbook at once.
+   */
+  allDetails: logbookProcedure.query(
+    ({ ctx }): Promise<EntryDetail[]> => buildAllEntryDetails(ctx.em, ctx.logbook.id),
+  ),
 
   create: logbookProcedure
     .input(

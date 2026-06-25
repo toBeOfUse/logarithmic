@@ -240,6 +240,21 @@ export function getEntry(entryId: number): EntryDetail | null {
   };
 }
 
+/**
+ * Every entry in a demo logbook as a full EntryDetail. Mirrors the backend's
+ * `entry.allDetails` route so the prefetch hook can warm the per-entry cache
+ * the same way for demo and real logbooks.
+ */
+export function getAllEntries(logbookId: string): EntryDetail[] {
+  const out: EntryDetail[] = [];
+  for (const e of store.entries.values()) {
+    if (e.logbookId !== logbookId) continue;
+    const detail = getEntry(e.id);
+    if (detail) out.push(detail);
+  }
+  return out;
+}
+
 // ── writes ─────────────────────────────────────────────────────────────
 
 export function renameLogbook(input: { logbookId: string; name: string }): LogbookDetail | null {

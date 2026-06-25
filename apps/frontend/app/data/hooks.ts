@@ -76,6 +76,8 @@ const keys = {
   logbookOverview: (demo: boolean, logbookId: string) =>
     ["logbookOverview", logbookId, { demo }] as const,
   entry: (demo: boolean, entryId: number) => ["entry", entryId, { demo }] as const,
+  entryDetails: (demo: boolean, logbookId: string) =>
+    ["entryDetails", logbookId, { demo }] as const,
 };
 
 // ── Forest helpers for optimistic updates ──────────────────────────────
@@ -219,6 +221,47 @@ export function useEntry(
       if (demo) return delay(DEMO_READ_LATENCY_MS, () => store.getEntry(entryId));
       return trpc.entry.get.query({ logbookId, id: entryId });
     },
+    retry: retryUnlessNotFound,
+  });
+}
+
+/**
+ * Prefetch every entry's full detail for a logbook in one round trip and seed
+ * each entry's own `entry` cache, so opening an entry from the org view paints
+ * its content immediately instead of waiting on a per-entry fetch. Call this as
+ * soon as the logbook route mounts.
+ *
+ * The seeded data is written with `updatedAt: 0` — marking it already stale, the
+ * same trick `useLogbooks` uses for its localStorage seed — so `useEntry` still
+ * fires a background refetch when the entry opens (the default 30s `staleTime`
+ * would otherwise treat the just-seeded value as fresh and skip it). The result
+ * is stale-while-revalidate: instant paint from the seed, then reconciliation
+ * with whatever the per-entry fetch returns.
+ */
+export function usePrefetchEntries(
+  logbookId: string | undefined,
+  { demo = false }: { demo?: boolean } = {},
+) {
+  const qc = useQueryClient();
+  return useQuery<EntryDetail[]>({
+    enabled: !!logbookId,
+    queryKey: keys.entryDetails(demo, logbookId ?? ""),
+    queryFn: async () => {
+      if (!logbookId) return [];
+      const details = demo
+        ? await delay(DEMO_READ_LATENCY_MS, () => store.getAllEntries(logbookId))
+        : await trpc.entry.allDetails.query({ logbookId });
+      for (const detail of details) {
+        qc.setQueryData<EntryDetail | null>(keys.entry(demo, detail.id), detail, { updatedAt: 0 });
+      }
+      return details;
+    },
+    // This bulk fetch only exists to warm the per-entry caches once when the
+    // logbook opens; freshness of any entry the user actually visits is handled
+    // by `useEntry`'s own refetch. So keep the prefetch fresh for a long time —
+    // we don't want it re-running (and re-seeding every entry) on routine
+    // remounts of the logbook route.
+    staleTime: 1000 * 60 * 60,
     retry: retryUnlessNotFound,
   });
 }
