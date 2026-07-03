@@ -24,7 +24,6 @@ import type {
   Metadata,
   MoveEntryInput,
 } from "logarithmic-backend/api-types";
-import { countWords } from "logarithmic-backend/word-count";
 
 import { DEMO_LOGBOOKS } from "./demo-tree.ts";
 

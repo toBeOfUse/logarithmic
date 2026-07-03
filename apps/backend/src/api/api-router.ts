@@ -9,11 +9,10 @@
  */
 import { mergeRouters, router } from "../trpc.ts";
 import { entryRouter } from "./entry-api.ts";
-import { exportImportRouter } from "./export-import.ts";
 import { logbookRouter } from "./logbook-api.ts";
 
 export const appRouter = router({
-  logbook: mergeRouters(logbookRouter, exportImportRouter),
+  logbook: mergeRouters(logbookRouter),
   entry: entryRouter,
 });
 

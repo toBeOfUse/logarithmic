@@ -6,7 +6,6 @@ import { OrgView } from "~/components/OrgView.tsx";
 import type { AddInput, PendingCreate, PendingInput } from "~/components/OrgView.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import {
-  exportLogbookToFile,
   isDemoLogbook,
   useCreateEntry,
   useDeleteEntry,
@@ -58,8 +57,6 @@ export default function LogbookRoute() {
   // headers render inside OrgView.
   const [editingColumns, setEditingColumns] = useState(false);
   const [displayingAccessLink, setDisplayingAccessLink] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   useDocumentTitle(data ? data.logbook.name : null);
 
@@ -210,21 +207,6 @@ export default function LogbookRoute() {
     },
   );
   if (!demo) {
-    menuItems.push({
-      id: "export",
-      label: exporting ? "Exporting…" : "Export as ZIP",
-      icon: "ri-download-2-line",
-      onSelect: () => {
-        if (exporting) return;
-        setExporting(true);
-        setExportError(null);
-        exportLogbookToFile(logbook.id, `${logbook.slug || "logbook"}.zip`)
-          .catch((err: unknown) => {
-            setExportError(err instanceof Error ? err.message : String(err));
-          })
-          .finally(() => setExporting(false));
-      },
-    });
     // Demo logbooks aren't persisted server-side and have no token to revoke,
     // so deletion only applies to real logbooks (like export above).
     menuItems.push({
@@ -281,18 +263,7 @@ export default function LogbookRoute() {
           )}
         />
       )}
-      {exportError && (
-        <div className="bg-warn-soft text-warn text-sm px-4 py-2 border-b border-paper-edge flex items-center justify-between">
-          <span>Couldn't export logbook: {exportError}</span>
-          <button
-            type="button"
-            className="text-warn underline cursor-pointer bg-transparent border-0 [font:inherit]"
-            onClick={() => setExportError(null)}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+
       <OrgView
         forest={entries}
         logbookId={logbook.id}

@@ -1,7 +1,6 @@
 import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
 import slugify from "@sindresorhus/slugify";
 
-import { countWords } from "../word-count.ts";
 import { Logbook } from "./Logbook.ts";
 
 /**

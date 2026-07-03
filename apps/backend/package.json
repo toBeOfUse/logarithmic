@@ -20,7 +20,6 @@
     "@trpc/server": "catalog:",
     "bcryptjs": "^3.0.2",
     "fastify": "catalog:",
-    "jszip": "catalog:",
     "nanoid": "catalog:",
     "superjson": "catalog:",
     "uuid": "^11.0.3",

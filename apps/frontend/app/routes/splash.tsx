@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { AccessLinkModal } from "~/components/AccessLinkModal.tsx";
 import { AppMark } from "~/components/AppMark.tsx";
-import { useCreateLogbook, useImportLogbook, useLogbooks } from "~/data/hooks.ts";
+import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
 import { buildBookmarkUrl } from "~/data/tokens.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
@@ -25,9 +25,6 @@ function formatRelative(d: Date): string {
 const btnPrimary =
   "[font:inherit] text-sm font-medium bg-primary border border-primary text-paper px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-primary-hover disabled:opacity-[0.55] disabled:cursor-not-allowed";
 
-const btnSecondary =
-  "[font:inherit] text-sm font-medium bg-stark border border-paper-edge text-primary px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-stark-soft disabled:opacity-[0.55] disabled:cursor-not-allowed";
-
 type PendingShare = { logbookName: string; url: string; nextPath: string };
 
 export default function Splash() {
@@ -36,12 +33,6 @@ export default function Splash() {
   const { data: logbooks = [], isLoading } = useLogbooks({ demo: false });
   const { data: demoLogbooks = [] } = useLogbooks({ demo: true });
   const createLogbook = useCreateLogbook();
-  const importLogbook = useImportLogbook();
-  const importInputRef = useRef<HTMLInputElement>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  // Holds the freshly-minted access link after a create/import succeeds, so the
-  // modal can surface it before we navigate away from the splash screen. The
-  // route swap happens once the user dismisses the modal.
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
 
   useDocumentTitle(null);
@@ -64,26 +55,6 @@ export default function Splash() {
             url: buildBookmarkUrl(routeSegment(logbook.slug, logbook.id), token),
             nextPath: path,
           });
-        },
-      },
-    );
-  }
-
-  function onImportFile(file: File) {
-    setImportError(null);
-    importLogbook.mutate(
-      { file },
-      {
-        onSuccess: ({ logbook, token }) => {
-          const path = `/${routeSegment(logbook.slug, logbook.id)}`;
-          setPendingShare({
-            logbookName: logbook.name,
-            url: buildBookmarkUrl(routeSegment(logbook.slug, logbook.id), token),
-            nextPath: path,
-          });
-        },
-        onError: (err) => {
-          setImportError(err.message);
         },
       },
     );
@@ -135,30 +106,6 @@ export default function Splash() {
               {hasLogbooks ? "Create" : "Create logbook"}
             </button>
           </form>
-
-          <div className="mb-9 flex items-center gap-3 text-sm text-muted">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".zip,application/zip"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) onImportFile(file);
-                e.target.value = "";
-              }}
-            />
-            <button
-              type="button"
-              className={btnSecondary}
-              disabled={importLogbook.isPending}
-              onClick={() => importInputRef.current?.click()}
-            >
-              <i className="ri-upload-2-line" aria-hidden="true" />
-              {importLogbook.isPending ? "Importing…" : "Import logbook (.zip)"}
-            </button>
-            {importError && <span className="text-warn">{importError}</span>}
-          </div>
 
           {hasLogbooks && (
             <>

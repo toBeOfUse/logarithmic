@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import type { Metadata } from "logarithmic-backend/api-types";
 
 import { Attributes } from "~/components/Attributes.tsx";
-import { MarkdownEditor, type MarkdownEditorHandle } from "~/components/Editor.tsx";
+
 import { IconPicker } from "~/components/IconPicker.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import { cn } from "~/lib/cn.ts";
@@ -68,7 +68,7 @@ export default function EntryRoute() {
   const deleteEntry = useDeleteEntry({ demo });
   const navigate = useNavigate();
 
-  const editorRef = useRef<MarkdownEditorHandle>(null);
+  const editorRef = useRef<EditorHandle>(null);
   const [maximized, setMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export default function EntryRoute() {
 
   // When nothing editable is focused and the user starts typing, drop them into
   // the editor at the end of its content. The keystroke fired on `document`, not
-  // the editor, so ProseMirror never sees it — we cancel the default and hand
+  // the editor, so the editor never sees it — we cancel the default and hand
   // the character to the editor to insert, so it isn't lost.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -219,9 +219,9 @@ export default function EntryRoute() {
     setTitleDraft(null);
   };
 
-  const onSaveContent = (markdown: string) => {
+  const onSaveContent = (content: string) => {
     updateContent.mutate(
-      { id: entry.id, content: markdown, logbookId },
+      { id: entry.id, content, logbookId },
       { onSuccess: () => setSavedAt(new Date()) },
     );
   };
@@ -351,12 +351,8 @@ export default function EntryRoute() {
                 onBlur={onTitleBlur}
               />
             </div>
-            <MarkdownEditor
-              key={entry.id}
-              ref={editorRef}
-              initialMarkdown={entry.content ?? ""}
-              onSave={onSaveContent}
-              onDirtyChange={setEditorDirty}
+            <RichTextEditor
+              // TODO: insert rich text editor here!
               className="flex-1 flex flex-col"
             />
           </div>
@@ -474,10 +470,10 @@ export default function EntryRoute() {
           })()}
 
           <div className="flex-1 flex flex-col">
-            <MarkdownEditor
+            <RichTextEditor
               key={entry.id}
               ref={editorRef}
-              initialMarkdown={entry.content ?? ""}
+              initialContent={null}
               onSave={onSaveContent}
               onDirtyChange={setEditorDirty}
               className="flex-1 flex flex-col"
