@@ -1,0 +1,27 @@
+{
+  "name": "logarithmic-content",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./word-count": "./src/word-count.ts",
+    "./document": "./src/document.ts",
+    "./markdown": "./src/markdown.ts",
+    "./schema": "./src/schema.ts",
+    "./nodes/footnote-node": "./src/nodes/footnote-node.ts"
+  },
+  "dependencies": {
+    "@lexical/code": "catalog:",
+    "@lexical/extension": "catalog:",
+    "@lexical/headless": "catalog:",
+    "@lexical/link": "catalog:",
+    "@lexical/list": "catalog:",
+    "@lexical/markdown": "catalog:",
+    "@lexical/rich-text": "catalog:",
+    "lexical": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

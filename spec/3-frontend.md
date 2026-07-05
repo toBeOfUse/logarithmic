@@ -16,7 +16,7 @@ The first version of Logarithmic will be accessible via a simple web app. This a
 
 Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case) and a kebab menu. The breadcrumb trail is led by a link back to the initial splash screen.
 
-When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, enter the column-editing mode (see "Editing Columns" below), or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry.
+When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, enter the column-editing mode (see "Editing Columns" below), or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry or copy it as Markdown (see below.)
 
 ### Organizational Interface
 
@@ -108,15 +108,29 @@ These two sections will collapse down if they don't have content to show. Like t
 
 #### Text Editor
 
-We need a simple WYSIWYG text editor (and a way to convert its contents to Markdown.) As a baseline, it needs standard set of Markdown-friendly formatting options that show up in a tooltip when you highlight some text. For now, let's try the TipTap editor (https://tiptap.dev/llms.txt). The formatting buttons should show up in a tooltip when you highlight some text.
+For editing entries' rich text, we are using the [Lexical](https://lexical.dev/) editor.
 
-Formatting options should include H2, H3, bold, italics, links, strike-through, bulleted list, numbered list, blockquote, and code. (Note that H1 is not a possible option, since the entry title is the highest-level heading.)
+To keep the interface simple, formatting options are presented to the user only when they highlight text or type the "/" character. Both of these actions cause a floating menu to appear.
 
-In addition to the standard set of Markdown formatting options, it needs to support inline comments. Text in the editor can be highlighted and set to be a comment just like it can be highlighted and set to be italic. Comments should be stored in the Markdown with the standard `<!-- -->` syntax.
+The available "common" formatting options are: H2, H3, bulleted list, numbered list, and blockquote. These should show up in both of the floating menus described below.
 
-(Note that TipTap has a Beta extension that adds official Markdown support. However, it should not be used here yet, since it specifically doesn't have support for comments.)
+The available inline formatting options are: the common formatting options, bold, italic, underline, strike-through, and links. All of these options should be presented as buttons in a simple floating horizontal toolbar when the user highlights text, with standard rich text editor functionality. There also should be a "clear formatting" button in it.
+
+Inline code formatting is also supported, but only when the user enters Markdown-style backtick (\`) characters, under the assumption that programmers will know to use backticks, no one else will want to format their text like code, and I don't want this app to look like a programmer's tool.
+
+A very simple form will need to take the place of the floating menu when the "link" option is selected. It will have a plain text input for the link URL, a "confirm" button, and a "remove" button. (Also, if you highlight some text and then paste a URL, that text should be converted to a link to that URL.) Note that when part of a link is highlighted, and then the "remove" button is used in the link form or the "clear formatting" button is clicked, the link should only be removed from the text that is highlighted.
+
+<!-- TODO: add a "move to subentry" tool to the floating selection menu, but not yet. Another possible future tool is the ability to add comments. -->
+
+The available block formatting options are: the common formatting options, and the horizontal rule. Selecting any of these options will switch the current block (which may or may not be empty) to that type. (Note that H1 is not a possible option, since the entry title is the highest-level heading.) Typing "/" after a newline or a space will cause a simple vertical menu to appear that offers these options. Similarly to inline code formatting, code blocks can be created only by typing in a code fence (three backticks.) <!-- TODO: add image insertion, but not yet. -->
+
+An extra option in the vertical slash menu is the ability to add a footnote. Footnotes consist of an inline superscript number that is linked to a rich text body that is displayed at the bottom of the document. Within footnotes, the inline-only formatting options should be available. (The slash menu, the "common" formatting options, and the block elements should not be.)
+
+Note that when an inline footnote reference is cut or copied and pasted into another or the same Lexical editor, it needs to take the content of the footnote body with it, with no possibility of losing the content outright (unless, of course, the footnote reference is deleted or cut and then never pasted again.) Similarly, when footnotes are copied and pasted into an external application, their bodies should be placed at the end of the pasted content. (Technical note: this means that the `text/html` and `text/plain` clipboard payloads need to be customized.)
 
 The content should auto-save periodically. It should also save when you press Ctrl-S (or Cmd-S.)
+
+Technical note: When the content is copied as Markdown via the kebab menu, it should be converted using the `@lexical/markdown` package. Custom elements like footnotes should be handled and output in a Markdown-typical way.
 
 ## Demo Logbook
 

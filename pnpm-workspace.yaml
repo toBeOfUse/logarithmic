@@ -4,21 +4,30 @@ packages:
   - tools/*
 
 catalog:
-  "@fastify/cors": ^10.1.0
-  "@fastify/multipart": ^9.0.3
-  cookie: ^1.1.1
-  jszip: ^3.10.1
-  yaml: ^2.8.3
-  superjson: ^2.2.2
   "@dnd-kit/core": ^6.3.1
   "@dnd-kit/modifiers": ^9.0.0
   "@dnd-kit/sortable": ^10.0.0
   "@dnd-kit/utilities": ^3.2.2
+  "@fastify/cors": ^10.1.0
+  "@fastify/multipart": ^9.0.3
+  "@lexical/clipboard": ^0.45.0
+  "@lexical/code": ^0.45.0
+  "@lexical/extension": ^0.45.0
+  "@lexical/headless": ^0.45.0
+  "@lexical/html": ^0.45.0
+  "@lexical/link": ^0.45.0
+  "@lexical/list": ^0.45.0
+  "@lexical/markdown": ^0.45.0
+  "@lexical/react": ^0.45.0
+  "@lexical/rich-text": ^0.45.0
+  "@lexical/selection": ^0.45.0
+  "@lexical/utils": ^0.45.0
   "@mikro-orm/core": ^7.0.11
   "@mikro-orm/decorators": ^7.0.11
   "@mikro-orm/migrations": ^7.0.11
   "@mikro-orm/sqlite": ^7.0.11
   "@playwright/cli": ^0.1.8
+  "@sindresorhus/slugify": ^2.2.1
   "@tailwindcss/typography": ^0.5.16
   "@tanstack/react-query": ^5.99.0
   "@trpc/client": ^11.16.0
@@ -27,16 +36,20 @@ catalog:
   "@types/node": ^24
   agent-browser: ^0.26.0
   clsx: ^2.1.1
+  cookie: ^1.1.1
   fastify: ^5.8.5
+  jszip: ^3.10.1
+  lexical: ^0.45.0
   nanoid: ^5.0.7
   playwright-cli: ^0.262.0
   remixicon: ^4.9.1
-  "@sindresorhus/slugify": ^2.2.1
+  superjson: ^2.2.2
   "tailwind-merge": ^3.3.0
   typescript: ^5
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vite-plus: latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest
+  yaml: ^2.8.3
   zod: ^4.3.6
 
 catalogMode: prefer

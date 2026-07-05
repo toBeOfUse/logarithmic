@@ -2,13 +2,24 @@
  * API model types — derived from MikroORM entity DTOs (see spec/2-backend.md).
  *
  * These are the shapes the frontend consumes through tRPC. They are built from
- * the entity types using `Pick<>` so we maintain a single source of truth for
- * field shapes; only relations are flattened to IDs as appropriate.
+ * the entity types using `PickPresent<>` so we maintain a single source of truth
+ * for field shapes; only relations are flattened to IDs as appropriate.
  */
 import type { IColumnSetting, ILogbook } from "../entities/Logbook.ts";
 import type { IEntry, Metadata } from "../entities/Entry.ts";
 
 export type { Metadata, MetadataValue } from "../entities/Entry.ts";
+
+/**
+ * Like `Pick`, but guarantees the selected fields are present (required) and
+ * free of `undefined`. MikroORM infers nullable and auto-generated columns as
+ * optional `T | null | undefined`, whereas an API DTO always sends them and
+ * wants an exact `T | null`. Using this — instead of redeclaring each nullable
+ * field by hand — keeps the entity as the single source of truth for shapes.
+ */
+type PickPresent<T, K extends keyof T> = {
+  [P in K]-?: Exclude<T[P], undefined>;
+};
 
 // ── Logbooks ─────────────────────────────────────────────────────────────
 
@@ -17,18 +28,21 @@ export type { Metadata, MetadataValue } from "../entities/Entry.ts";
  * string means "fall back to `Column N`", applied on the frontend), and whether
  * it renders at the wide body width. Mirrors the ColumnSetting embeddable.
  */
-export type ColumnSetting = Pick<IColumnSetting, "col" | "name" | "wide">;
+export type ColumnSetting = PickPresent<IColumnSetting, "col" | "name" | "wide">;
 
 /**
  * Used by the splash screen's "your logbooks" list. Counts the entries inside
  * the logbook so we can render "142 entries · edited 2m ago" without paying
  * for the full entry list.
  */
-export type LogbookSummary = Pick<ILogbook, "id" | "slug" | "name" | "updatedAt"> & {
+export type LogbookSummary = PickPresent<ILogbook, "id" | "slug" | "name" | "updatedAt"> & {
   entryCount: number;
 };
 
-export type LogbookDetail = Pick<ILogbook, "id" | "slug" | "name" | "createdAt" | "updatedAt"> & {
+export type LogbookDetail = PickPresent<
+  ILogbook,
+  "id" | "slug" | "name" | "createdAt" | "updatedAt"
+> & {
   /** Persisted org-view column presentation; empty when never customized. */
   columns: ColumnSetting[];
 };
@@ -81,13 +95,19 @@ export type ListLogbooksByTokensInput = {
  * parent/child relationships from a flat list. Excludes `content` and
  * `metadata` so we never download full bodies for an overview.
  */
-export type EntryNode = Pick<
+export type EntryNode = PickPresent<
   IEntry,
-  "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt" | "wordCount"
+  | "id"
+  | "slug"
+  | "name"
+  | "col"
+  | "createdAt"
+  | "updatedAt"
+  | "wordCount"
+  // Icon parts are null when none has been chosen (see Entry entity).
+  | "iconName"
+  | "iconFamily"
 > & {
-  // The entry's icon, or nulls when none has been chosen (see Entry entity).
-  iconName: string | null;
-  iconFamily: string | null;
   metadataKeys: string[];
   children: EntryNode[];
 };
@@ -105,24 +125,29 @@ export type LogbookOverview = {
  * plus a flattened list of ancestor IDs/names for the breadcrumb and a
  * lightweight list of children for the "Children" section.
  */
-export type EntryDetail = Pick<
+export type EntryDetail = PickPresent<
   IEntry,
-  "id" | "slug" | "name" | "col" | "createdAt" | "updatedAt" | "wordCount"
+  | "id"
+  | "slug"
+  | "name"
+  | "col"
+  | "createdAt"
+  | "updatedAt"
+  | "wordCount"
+  // `contentJson` is the rich text body as serialized editor (Lexical) JSON,
+  // null when empty; `metadata`/icon parts are null when unset.
+  | "contentJson"
+  | "metadata"
+  | "iconName"
+  | "iconFamily"
 > & {
-  // Override nullable fields so the API type is exact-shape (non-optional).
-  content: string | null;
-  metadata: Metadata | null;
-  iconName: string | null;
-  iconFamily: string | null;
   logbookId: ILogbook["id"];
   parentId: IEntry["id"] | null;
-  ancestors: ReadonlyArray<Pick<IEntry, "id" | "slug" | "name">>;
+  ancestors: ReadonlyArray<PickPresent<IEntry, "id" | "slug" | "name">>;
   children: ReadonlyArray<EntryChildSummary>;
 };
 
-export type EntryChildSummary = Pick<IEntry, "id" | "slug" | "name" | "col"> & {
-  metadata: Metadata | null;
-};
+export type EntryChildSummary = PickPresent<IEntry, "id" | "slug" | "name" | "col" | "metadata">;
 
 // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -146,11 +171,12 @@ export type RenameEntryInput = {
   name: string;
 };
 
-/** Update just the rich-text content; common enough to have its own endpoint. */
+/** Update just the rich-text content; common enough to have its own endpoint.
+ *  `contentJson` is the editor's serialized (Lexical) JSON as a string. */
 export type UpdateEntryContentInput = {
   logbookId: ILogbook["id"];
   id: IEntry["id"];
-  content: string;
+  contentJson: string;
 };
 
 export type UpdateEntryMetadataInput = {

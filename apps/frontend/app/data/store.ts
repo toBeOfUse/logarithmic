@@ -14,6 +14,7 @@
  * nanoid for `Logbook.id`).
  */
 import slugify from "@sindresorhus/slugify";
+import { countWords } from "logarithmic-content/word-count";
 import type {
   ColumnSetting,
   EntryDetail,
@@ -36,7 +37,8 @@ type EntryRecord = {
   col: number;
   /** Rank among siblings; lower comes first. */
   order: number;
-  content: string | null;
+  /** Rich text body as serialized editor (Lexical) JSON; null when empty. */
+  contentJson: string | null;
   metadata: Metadata | null;
   iconName: string | null;
   iconFamily: string | null;
@@ -116,7 +118,7 @@ function seed() {
         name: entry.name,
         col: entry.col,
         order,
-        content: entry.content ?? null,
+        contentJson: entry.contentJson ?? null,
         metadata: entry.metadata ?? null,
         iconName: entry.iconName ?? null,
         iconFamily: entry.iconFamily ?? null,
@@ -181,7 +183,7 @@ function buildTree(logbookId: string): EntryNode[] {
       col: e.col,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
-      wordCount: countWords(e.content),
+      wordCount: countWords(e.contentJson),
       iconName: e.iconName,
       iconFamily: e.iconFamily,
       metadataKeys: e.metadata ? Object.keys(e.metadata) : [],
@@ -225,13 +227,13 @@ export function getEntry(entryId: number): EntryDetail | null {
     slug: e.slug,
     name: e.name,
     col: e.col,
-    content: e.content,
+    contentJson: e.contentJson,
     metadata: e.metadata,
     iconName: e.iconName,
     iconFamily: e.iconFamily,
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
-    wordCount: countWords(e.content),
+    wordCount: countWords(e.contentJson),
     logbookId: e.logbookId,
     parentId: e.parentId,
     ancestors,
@@ -302,7 +304,7 @@ export function createEntry(input: {
     name,
     col,
     order,
-    content: null,
+    contentJson: null,
     metadata: null,
     iconName: hasIcon ? input.iconName! : null,
     iconFamily: hasIcon ? input.iconFamily! : null,
@@ -403,10 +405,10 @@ export function renameEntry(input: { id: number; name: string }): EntryDetail | 
   return getEntry(e.id);
 }
 
-export function updateEntryContent(input: { id: number; content: string }): EntryDetail | null {
+export function updateEntryContent(input: { id: number; contentJson: string }): EntryDetail | null {
   const e = store.entries.get(input.id);
   if (!e) return null;
-  e.content = input.content;
+  e.contentJson = input.contentJson;
   e.updatedAt = new Date();
   touchLogbook(e.logbookId, e.updatedAt);
   return getEntry(e.id);

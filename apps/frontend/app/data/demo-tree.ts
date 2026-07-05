@@ -19,10 +19,12 @@
  *   • Entries at col ≥ 1 are headings. Higher columns are larger headings.
  *   • Entries at col ≤ -1 are asides / footnotes.
  */
+import { plainTextContent } from "logarithmic-content/document";
 import type { EntryNode, Metadata } from "logarithmic-backend/api-types";
 
 type Seed = Pick<EntryNode, "id" | "name" | "col"> & {
-  content?: string;
+  /** Rich text body as serialized editor (Lexical) JSON; see `plainTextContent`. */
+  contentJson?: string;
   metadata?: Metadata;
   /** Optional seeded icon (see Entry entity). Both parts go together. */
   iconName?: string;
@@ -108,9 +110,10 @@ const researchTree: Seed[] = [
     name: "Wadden Sea — bird migrations",
     col: 2,
     metadata: { Status: "Active", Tags: ["fieldwork", "2026"] },
-    content:
+    contentJson: plainTextContent(
       "Multi-season survey of stopover sites along the Dutch and German Wadden coast. " +
-      "Looking for shifts in arrival timing relative to the 2009 baseline.",
+        "Looking for shifts in arrival timing relative to the 2009 baseline.",
+    ),
     children: [
       {
         id: 45,
@@ -155,7 +158,9 @@ const researchTree: Seed[] = [
             id: 56,
             name: "Stopover length correlates with sea-surface temp anomaly",
             col: 0,
-            content: "Singleton — used to verify that lone-leaf rendering still looks right.",
+            contentJson: plainTextContent(
+              "Singleton — used to verify that lone-leaf rendering still looks right.",
+            ),
           },
         ],
       },

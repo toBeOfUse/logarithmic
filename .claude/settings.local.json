@@ -29,7 +29,8 @@
       "PowerShell(vp fmt *)",
       "PowerShell(vp check *)",
       "PowerShell(vp test *)",
-      "PowerShell(npx playwright-cli *)"
+      "PowerShell(npx playwright-cli *)",
+      "WebFetch(domain:lexical.dev)"
     ]
   }
 }

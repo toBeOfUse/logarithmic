@@ -14,9 +14,7 @@ The nodes in the tree are called "entries." Their names are simple strings. They
 
 ## Rich Text Content
 
-The rich text content is just stored as Markdown.
-
-<!-- TODO: extensions for referencing other entries, uploading images -->
+The rich text content is stored as JSON in the format used by the rich text editor on the frontend. Currently, this is [Lexical](https://lexical.dev/).
 
 ## Metadata
 
@@ -42,6 +40,6 @@ Each logbook should have a unguessable random ID.
 
 A logbook can also store presentation settings for the columns in its organizational view. For each customized column, it records the column number, a display name, and whether the column should be visually wide or narrow.
 
-## Exports and Imports
+## Exports
 
-Although this app relies on a relational database to store live data, content is meant to be able to map cleanly onto static files. Each entry can be expressed as a Markdown file with YAML frontmatter for the metadata. The tree structure can be mapped onto a directory model: each entry with no children becomes a single Markdown file, and each entry with children becomes a folder, with an "index.md" file containing its content.
+Exports and imports are planned future feature. An export will produce a ZIP file that contains the logbook's content in HTML files, organized in a folder structure that matches the logbook's tree structure. <!-- TODO: implement at a later time. --> <!-- TODO: do we want an import feature as well? -->

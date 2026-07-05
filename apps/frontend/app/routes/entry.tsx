@@ -6,6 +6,7 @@ import type { Metadata } from "logarithmic-backend/api-types";
 import { Attributes } from "~/components/Attributes.tsx";
 
 import { IconPicker } from "~/components/IconPicker.tsx";
+import { RichTextEditor, type EditorHandle } from "~/components/editor/RichTextEditor.tsx";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import { cn } from "~/lib/cn.ts";
 import {
@@ -126,31 +127,26 @@ export default function EntryRoute() {
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "s" || e.key === "S")) {
-        e.preventDefault();
-        editorRef.current?.save();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  // When nothing editable is focused and the user starts typing, drop them into
-  // the editor at the end of its content. The keystroke fired on `document`, not
-  // the editor, so the editor never sees it — we cancel the default and hand
-  // the character to the editor to insert, so it isn't lost.
+  // When nothing interactive is focused and the user starts typing, drop them
+  // into the editor at the end of its content. The keystroke fired on
+  // `document`, not the editor, so we cancel the default and hand the character
+  // to the editor to insert so it isn't lost. Interactive elements (inputs,
+  // buttons, links, …) are skipped so their own keyboard behavior — Space/Enter
+  // to activate, typing into a field — keeps working. (Ctrl/Cmd-S and other
+  // editor shortcuts are owned by the editor itself.)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.isComposing) return; // let IME composition target a real field
       if (e.key.length !== 1) return; // ignore non-printable keys (arrows, etc.)
       const active = document.activeElement as HTMLElement | null;
-      const editable =
+      const interactive =
         active != null &&
-        (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
-      if (editable) return;
+        (active.isContentEditable ||
+          active.matches(
+            "input, textarea, select, button, a[href], [role='button'], [role='link']",
+          ));
+      if (interactive) return;
       e.preventDefault();
       editorRef.current?.focusEnd(e.key);
     };
@@ -219,9 +215,9 @@ export default function EntryRoute() {
     setTitleDraft(null);
   };
 
-  const onSaveContent = (content: string) => {
+  const onSaveContent = (contentJson: string) => {
     updateContent.mutate(
-      { id: entry.id, content, logbookId },
+      { id: entry.id, contentJson, logbookId },
       { onSuccess: () => setSavedAt(new Date()) },
     );
   };
@@ -293,8 +289,13 @@ export default function EntryRoute() {
       label: "Copy as Markdown",
       icon: "ri-file-copy-2-line",
       destructive: false,
+      // Convert the live editor content to Markdown via the code-split
+      // `@lexical/markdown` bundle (loaded lazily inside the handle) rather
+      // than shipping it in the main chunk. See spec/3-frontend.md.
       onSelect: () => {
-        void navigator.clipboard.writeText(entry.content ?? "");
+        void editorRef.current?.getMarkdown().then((md) => {
+          void navigator.clipboard.writeText(md);
+        });
       },
     },
     {
@@ -313,36 +314,77 @@ export default function EntryRoute() {
     },
   ];
 
-  if (maximized) {
-    return (
-      <div className={appShell}>
-        <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
-          <button
-            type="button"
-            className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
-            onClick={exitFocus}
-            title="Exit focus"
-            aria-label="Exit focus"
-          >
-            <i className="ri-arrow-go-back-line text-xl" />
-          </button>
-          <button
-            type="button"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
-            onClick={toggleFullscreen}
-            title={isFullscreen ? "Exit full screen" : "Full screen"}
-            aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
-          >
-            <i
-              className={cn(
-                isFullscreen ? "ri-fullscreen-exit-line" : "ri-fullscreen-line",
-                "text-xl",
-              )}
-            />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2">
-          <div className={cn("max-w-[680px] mx-auto min-h-full flex flex-col", pagePadding)}>
+  // Focus mode's unobtrusive top-right controls (used in place of the TopBar).
+  const focusControls = (
+    <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
+      <button
+        type="button"
+        className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
+        onClick={exitFocus}
+        title="Exit focus"
+        aria-label="Exit focus"
+      >
+        <i className="ri-arrow-go-back-line text-xl" />
+      </button>
+      <button
+        type="button"
+        className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
+        onClick={toggleFullscreen}
+        title={isFullscreen ? "Exit full screen" : "Full screen"}
+        aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+      >
+        <i
+          className={cn(isFullscreen ? "ri-fullscreen-exit-line" : "ri-fullscreen-line", "text-xl")}
+        />
+      </button>
+    </div>
+  );
+
+  // One layout for both modes so the editor is never unmounted (and its state
+  // never lost) when focus mode toggles — only the surrounding chrome changes,
+  // and the editor stays at a stable position in the tree.
+  return (
+    <div className={appShell}>
+      {maximized ? (
+        focusControls
+      ) : (
+        <TopBar
+          variant="paper"
+          logbookSegment={routeSegment(logbook.slug, logbook.id)}
+          logbookName={logbook.name}
+          parents={ancestors.map((a) => ({
+            id: a.id,
+            name: a.name,
+            href: `/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(a.slug, a.id)}`,
+          }))}
+          currentName={entry.name || "Untitled entry"}
+          menuItems={menuItems}
+          actions={[
+            {
+              id: "focus",
+              label: "Focus",
+              icon: "ri-fullscreen-line",
+              title: "Maximize editor",
+              onSelect: enterFocus,
+            },
+          ]}
+        />
+      )}
+      {!maximized && deleteDialog}
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper",
+          maximized && "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-2",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto min-h-full flex flex-col",
+            pagePadding,
+            maximized ? "max-w-[680px]" : "max-w-3xl",
+          )}
+        >
+          {maximized ? (
             <div className="my-4">
               <TitleEditor
                 value={titleValue}
@@ -351,141 +393,110 @@ export default function EntryRoute() {
                 onBlur={onTitleBlur}
               />
             </div>
-            <RichTextEditor
-              // TODO: insert rich text editor here!
-              className="flex-1 flex flex-col"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
+          ) : (
+            <div className="flex items-start gap-3">
+              <IconPicker
+                iconName={entry.iconName}
+                iconFamily={entry.iconFamily}
+                onSelect={onSelectIcon}
+                buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-paper-soft hover:text-accent"
+                defaultIconClassName="opacity-50"
+              />
+              <TitleEditor
+                value={titleValue}
+                isUntitled={isUntitled}
+                onChange={setTitleDraft}
+                onBlur={onTitleBlur}
+              />
+            </div>
+          )}
 
-  return (
-    <div className={appShell}>
-      <TopBar
-        variant="paper"
-        logbookSegment={routeSegment(logbook.slug, logbook.id)}
-        logbookName={logbook.name}
-        parents={ancestors.map((a) => ({
-          id: a.id,
-          name: a.name,
-          href: `/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(a.slug, a.id)}`,
-        }))}
-        currentName={entry.name || "Untitled entry"}
-        menuItems={menuItems}
-        actions={[
-          {
-            id: "focus",
-            label: "Focus",
-            icon: "ri-fullscreen-line",
-            title: "Maximize editor",
-            onSelect: enterFocus,
-          },
-        ]}
-      />
-      {deleteDialog}
-      <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper">
-        <div className={cn("max-w-3xl mx-auto min-h-full flex flex-col", pagePadding)}>
-          <div className="flex items-start gap-3">
-            <IconPicker
-              iconName={entry.iconName}
-              iconFamily={entry.iconFamily}
-              onSelect={onSelectIcon}
-              buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-paper-soft hover:text-accent"
-              defaultIconClassName="opacity-50"
-            />
-            <TitleEditor
-              value={titleValue}
-              isUntitled={isUntitled}
-              onChange={setTitleDraft}
-              onBlur={onTitleBlur}
-            />
-          </div>
-
-          {(() => {
-            const hasChildren = entry.children.length > 0;
-            const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
-            const creatingChild = pendingChildName != null;
-            const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
-            if (!showHeadings) {
+          {!maximized &&
+            (() => {
+              const hasChildren = entry.children.length > 0;
+              const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
+              const creatingChild = pendingChildName != null;
+              const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
+              if (!showHeadings) {
+                return (
+                  <div className="text-base leading-relaxed my-5">
+                    <AddChildPill onClick={addChild} label="Add subentry..." />
+                    <ChildSep />
+                    <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
+                  </div>
+                );
+              }
               return (
-                <div className="text-base leading-relaxed my-5">
-                  <AddChildPill onClick={addChild} label="Add subentry..." />
-                  <ChildSep />
-                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
-                </div>
-              );
-            }
-            return (
-              <div className="space-y-7 my-7">
-                <section>
-                  {hasAttrs && <SectionHeading>Metadata</SectionHeading>}
-                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
-                </section>
-                <section>
-                  {(hasChildren || pendingChild || creatingChild) && (
-                    <SectionHeading>Subsections</SectionHeading>
-                  )}
-                  {/* Children list as bullets. The pending input and loading
+                <div className="space-y-7 my-7">
+                  <section>
+                    {hasAttrs && <SectionHeading>Metadata</SectionHeading>}
+                    <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
+                  </section>
+                  <section>
+                    {(hasChildren || pendingChild || creatingChild) && (
+                      <SectionHeading>Subsections</SectionHeading>
+                    )}
+                    {/* Children list as bullets. The pending input and loading
                       placeholder slot in as bullets too (a new child taking
                       shape), while the trailing "Add" control sits as a
                       marker-less item — same add semantics as before: typing
                       swaps the Add control for the input, submitting shows the
                       loading placeholder until the real child link replaces it. */}
-                  <ul className="list-disc pl-4 space-y-2 marker:text-paper-edge text-base text-primary">
-                    {entry.children.map((c) => (
-                      <li key={c.id}>
-                        <ChildItem
-                          href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
-                          id={c.id}
-                          name={c.name}
-                        />
-                      </li>
-                    ))}
-                    {pendingChildName != null && (
-                      <li>
-                        <PendingChildItem name={pendingChildName} />
-                      </li>
-                    )}
-                    {pendingChild ? (
-                      <li>
-                        <PendingChildInput
-                          onSubmit={onSubmitPendingChild}
-                          onCancel={() => setPendingChild(false)}
-                        />
-                      </li>
-                    ) : (
-                      <li className="list-none">
-                        <AddChildPill
-                          onClick={addChild}
-                          label={hasChildren ? "Add..." : "Add subentry..."}
-                        />
-                      </li>
-                    )}
-                  </ul>
-                </section>
-              </div>
-            );
-          })()}
+                    <ul className="list-disc pl-4 space-y-2 marker:text-paper-edge text-base text-primary">
+                      {entry.children.map((c) => (
+                        <li key={c.id}>
+                          <ChildItem
+                            href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
+                            id={c.id}
+                            name={c.name}
+                          />
+                        </li>
+                      ))}
+                      {pendingChildName != null && (
+                        <li>
+                          <PendingChildItem name={pendingChildName} />
+                        </li>
+                      )}
+                      {pendingChild ? (
+                        <li>
+                          <PendingChildInput
+                            onSubmit={onSubmitPendingChild}
+                            onCancel={() => setPendingChild(false)}
+                          />
+                        </li>
+                      ) : (
+                        <li className="list-none">
+                          <AddChildPill
+                            onClick={addChild}
+                            label={hasChildren ? "Add..." : "Add subentry..."}
+                          />
+                        </li>
+                      )}
+                    </ul>
+                  </section>
+                </div>
+              );
+            })()}
 
           <div className="flex-1 flex flex-col">
             <RichTextEditor
               key={entry.id}
               ref={editorRef}
-              initialContent={null}
+              initialContent={entry.contentJson}
               onSave={onSaveContent}
               onDirtyChange={setEditorDirty}
               className="flex-1 flex flex-col"
             />
           </div>
 
-          <Footer
-            createdAt={entry.createdAt}
-            savedAt={savedAt}
-            saving={saving}
-            wordCount={entry.wordCount}
-          />
+          {!maximized && (
+            <Footer
+              createdAt={entry.createdAt}
+              savedAt={savedAt}
+              saving={saving}
+              wordCount={entry.wordCount}
+            />
+          )}
         </div>
       </div>
     </div>

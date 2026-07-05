@@ -25,6 +25,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import slugify from "@sindresorhus/slugify";
+import { countWords } from "logarithmic-content/word-count";
 import type {
   ColumnSetting,
   CreatedLogbook,
@@ -570,12 +571,14 @@ export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {})
   return useMutation<
     EntryDetail | null,
     Error,
-    { id: number; content: string; logbookId: string },
+    { id: number; contentJson: string; logbookId: string },
     UpdateContentCtx
   >({
     mutationFn: (input) =>
       demo
-        ? Promise.resolve(store.updateEntryContent({ id: input.id, content: input.content }))
+        ? Promise.resolve(
+            store.updateEntryContent({ id: input.id, contentJson: input.contentJson }),
+          )
         : trpc.entry.updateContent.mutate(input),
     onMutate: async (vars) => {
       const entryKey = keys.entry(demo, vars.id);
@@ -585,12 +588,12 @@ export function useUpdateEntryContent({ demo = false }: { demo?: boolean } = {})
         qc.cancelQueries({ queryKey: overviewKey }),
       ]);
       const prev = qc.getQueryData<EntryDetail | null>(entryKey);
-      const wordCount = countWords(vars.content);
+      const wordCount = countWords(vars.contentJson);
       const updatedAt = new Date();
       if (prev) {
         qc.setQueryData<EntryDetail | null>(entryKey, {
           ...prev,
-          content: vars.content,
+          contentJson: vars.contentJson,
           wordCount,
           updatedAt,
         });

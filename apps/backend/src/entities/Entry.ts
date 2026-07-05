@@ -1,5 +1,6 @@
 import { defineEntity, p, type InferEntity } from "@mikro-orm/core";
 import slugify from "@sindresorhus/slugify";
+import { countWords } from "logarithmic-content/word-count";
 
 import { Logbook } from "./Logbook.ts";
 
@@ -35,9 +36,20 @@ const EntrySchema = defineEntity({
      * arrive as ordered JSON arrays.
      */
     order: p.integer().default(0),
+    /**
+     * Legacy Markdown body from the previous editor. Retained so a later step
+     * can convert it to `contentJson` on a best-effort basis; no longer read by
+     * the app. New content is written to `contentJson`.
+     */
     content: p.string().nullable(),
     /**
-     * Cached word count of `content`, kept as the source of truth for the
+     * The rich text body as the JSON the frontend editor (Lexical) serializes,
+     * stored as a string. The `content` package understands this shape; the
+     * backend treats it as opaque apart from deriving `wordCount` below.
+     */
+    contentJson: p.string().nullable(),
+    /**
+     * Cached word count of `contentJson`, kept as the source of truth for the
      * frontend so it never recomputes live. Derived here at persist time (same
      * onCreate/onUpdate pattern as `slug`) so it stays in lockstep with whatever
      * the content ends up being — including imports and any other write path.
@@ -45,8 +57,8 @@ const EntrySchema = defineEntity({
     wordCount: p
       .integer()
       .default(0)
-      .onCreate((e) => countWords(e.content))
-      .onUpdate((e) => countWords(e.content)),
+      .onCreate((e) => countWords(e.contentJson))
+      .onUpdate((e) => countWords(e.contentJson)),
     metadata: p.json<Metadata>().nullable(),
     /**
      * User-selectable icon for the entry, stored as two parts so the icon

@@ -10,6 +10,10 @@ Again, the available API operations should be based on the reads and writes of u
 
 All API calls should be validated for both type safety and logical validity. For example, a bulk position update should not be allowed to assign the same position to multiple entries.
 
+## Content
+
+The backend may need to inspect or process the content produced by the editor on the frontend. However, the backend should not depend directly on the frontend rich text editor framework. Instead, a separate package called `content` should provide an interface that abstracts away the details of the rich text content that the editor produces. It should contain the tools to handle things like word counts or serialization.
+
 ## Users & Access Model
 
 Auth should be handled by Better Auth (https://better-auth.com/llms.txt) in stateless mode (with no database setup.) For now, only local email-and-password accounts will be supported, with verification of emails not required.

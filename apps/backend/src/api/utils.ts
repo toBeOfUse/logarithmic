@@ -17,7 +17,12 @@ import { Logbook } from "../entities/Logbook.ts";
  */
 export const ENTRY_NAME_MAX = 128;
 export const LOGBOOK_NAME_MAX = 128;
-export const CONTENT_MAX = 2_000_000_000;
+/**
+ * Soft cap on a serialized content document (Lexical JSON, which runs a few
+ * times larger than its text). 8M characters is a book-length entry — well past
+ * anything a human will write, but bounded so a caller can't park a huge blob.
+ */
+export const CONTENT_MAX = 8_000_000;
 /** A column display name; empty is allowed (renders as the default `Column N`). */
 export const COLUMN_NAME_MAX = 128;
 /** Soft cap on how many columns one logbook can persist settings for — well past
@@ -92,7 +97,7 @@ function projectEntryDetail(
     slug: entry.slug,
     name: entry.name,
     col: entry.col,
-    content: entry.content ?? null,
+    contentJson: entry.contentJson ?? null,
     metadata: entry.metadata ?? null,
     iconName: entry.iconName ?? null,
     iconFamily: entry.iconFamily ?? null,

@@ -96,6 +96,7 @@ export const entryRouter = router({
         col,
         order,
         content: null,
+        contentJson: null,
         metadata: null,
         iconName: hasIcon ? input.iconName! : null,
         iconFamily: hasIcon ? input.iconFamily! : null,
@@ -121,10 +122,10 @@ export const entryRouter = router({
     }),
 
   updateContent: entryProcedure
-    .input(z.object({ content: z.string().max(CONTENT_MAX) }))
+    .input(z.object({ contentJson: z.string().max(CONTENT_MAX) }))
     .mutation(async ({ ctx, input }): Promise<EntryDetail> => {
       const entry = ctx.entry;
-      entry.content = input.content;
+      entry.contentJson = input.contentJson;
       entry.logbook.updatedAt = new Date();
       await ctx.em.flush();
       return buildEntryDetail(ctx.em, entry);

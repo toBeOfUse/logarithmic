@@ -105,6 +105,10 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 - [ ] Run `vp check` and `vp test` to validate changes.
 <!--VITE PLUS END-->
 
+## Running one-off Node scripts
+
+Native-module ABI mismatch: the shell's `node` (e.g. v22.17) can differ from the Vite+‑managed Node that built native modules like `better-sqlite3`, so running a script that touches the database directly with `node` fails with a `NODE_MODULE_VERSION` error. Run it through Vite+'s toolchain instead — e.g. `NODE_ENV=production vp exec tsx <script>` — which uses the managed Node whose ABI matches the built binaries.
+
 # Browser Automation
 
 Use the Playwright CLI skill for browser automation when prompted. Run it with `pnpm dlx @playwright/cli`, like this:

@@ -41,7 +41,10 @@ export function TopBar({
   return (
     <div
       className={cn(
-        "flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
+        // `relative z-40` establishes a stacking layer above the editor's
+        // floating toolbar (z-30) so a selection toolbar near the top slides
+        // behind the bar rather than over it.
+        "relative z-40 flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
         isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
       )}
     >
