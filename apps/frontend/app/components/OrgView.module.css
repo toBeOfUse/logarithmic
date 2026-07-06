@@ -131,8 +131,14 @@
 }
 
 .colHead {
-  /* One flex track per column, sized to that column's width. */
+  /* One flex track per column, sized to that column's width. The explicit
+     `width` duplicates the flex-basis: it's redundant for the resting layout but
+     load-bearing for the shrink-to-content .inner wrapper — Firefox ignores a
+     flex item's `flex-basis` when computing a flex row's `max-content`, so with
+     basis alone .inner collapses to the heads' text width and the centered strip
+     spills its columns off to the right. An explicit `width` is honoured there. */
   flex: 0 0 var(--col-width, var(--org-card-width));
+  width: var(--col-width, var(--org-card-width));
   /* Only the label row, not the gap below it, so labels keep their position. */
   height: var(--org-strip-h);
   display: flex;
@@ -265,7 +271,11 @@
 /* One invisible leading placeholder per column to a root's left, each its
    column's width; the flex-row gap supplies the inter-column spacing. */
 .colSpacer {
+  /* Explicit width alongside the basis so Firefox includes this (empty) track in
+     the canvas's max-content — see .colHead. Without it a tree whose root sits
+     right of the leftmost column collapses .inner. */
   flex: 0 0 var(--col-width, var(--org-card-width));
+  width: var(--col-width, var(--org-card-width));
   pointer-events: none;
 }
 
@@ -291,7 +301,10 @@
 /* The fixed-width slot for one card. Column orientation so the card inside
    grows *vertically* (flex:1) to fill the stretched cell. */
 .cell {
+  /* Explicit width alongside the basis so Firefox sizes this track in the
+     canvas's max-content — see .colHead. */
   flex: 0 0 var(--col-width, var(--org-card-width));
+  width: var(--col-width, var(--org-card-width));
   display: flex;
   flex-direction: column;
 }
@@ -849,7 +862,10 @@
    It fills its would-be child column (--col-width, set inline) and stretches to
    the cell's height, so it reads as a ghost card occupying that child slot. */
 .childDropzone {
+  /* Explicit width alongside the basis so Firefox sizes this track in
+     max-content — see .colHead. (.narrow overrides both below.) */
   flex: 0 0 var(--col-width, var(--org-card-width));
+  width: var(--col-width, var(--org-card-width));
   align-self: stretch;
   box-sizing: border-box;
   min-height: var(--org-card-min-h);
@@ -871,6 +887,7 @@
    --org-child-dropzone-narrow-gap) so it doesn't push far into the page gutter. */
 .childDropzone.narrow {
   flex-basis: var(--org-child-dropzone-narrow-w);
+  width: var(--org-child-dropzone-narrow-w);
   margin-left: calc(var(--org-child-dropzone-narrow-gap) - var(--org-col-gap));
 }
 
