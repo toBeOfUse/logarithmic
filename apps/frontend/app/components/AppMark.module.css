@@ -14,7 +14,7 @@
 .dot::after {
   content: "";
   position: absolute;
-  background: var(--color-paper);
+  background: var(--color-stark);
 }
 
 .dot::before {

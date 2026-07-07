@@ -5,7 +5,7 @@
  * the LEFT of its children (one column over) and its card stretches downward to
  * span the full vertical extent of its descendants, so each subtree reads as a
  * single block. Higher column numbers sit further left; column 0 is body text,
- * columns > 0 are headings (bold titles), columns < 0 are asides (secondary
+ * columns > 0 are headings (bold titles), columns < 0 are asides (muted
  * color). Only the columns the data needs are shown, unioned with a default
  * [1, 0, -1] working set so there's always a heading / body / aside column to
  * seed a root into.
@@ -1407,22 +1407,6 @@ export function OrgView({
     return s;
   }, [columnConfig]);
 
-  // The chart is centered only when the heading columns (>0, of which there are
-  // `maxCol`) and the aside columns (<0, of which there are `-minCol`) balance.
-  // When one side has more columns, that side's outer margin collapses to 0 so
-  // the chart hugs that edge instead of drifting off-center: more headings →
-  // pin left, more asides → pin right. Set as CSS vars consumed by
-  // .colStripInner / .canvas; the unset side keeps its `auto` default.
-  const alignVars: CSSProperties = useMemo(
-    () =>
-      maxCol > -minCol
-        ? ({ "--org-align-left": "0" } as CSSProperties)
-        : maxCol < -minCol
-          ? ({ "--org-align-right": "0" } as CSSProperties)
-          : {},
-    [maxCol, minCol],
-  );
-
   // Drive the height of each sticky box imperatively. A sticky box has to both
   // span its subtree (stretch down past its descendants) and be shorter than its
   // cell (so it has room to travel and pin) — a plain sticky element can't do
@@ -1633,7 +1617,7 @@ export function OrgView({
   const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-paper" style={alignVars}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-stark">
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -1642,7 +1626,7 @@ export function OrgView({
         onDragCancel={onDragCancel}
       >
         <RemeasureOnScroll scrollRef={scrollRef} />
-        <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-paper")}>
+        <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-stark")}>
           <div className={styles.inner}>
             <div className={styles.colStrip}>
               <div ref={stripRef} className={styles.colStripInner}>
@@ -1791,7 +1775,6 @@ export function OrgView({
 
           {isEmpty && !pendingInput && !creatingRoot && (
             <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-16 px-10 text-center">
-              <div className={styles.illustration} />
               <h3 className="text-lg font-semibold text-primary m-0">
                 An empty logbook is a fine place to start.
               </h3>

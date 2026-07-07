@@ -7,7 +7,7 @@ import { cn } from "~/lib/cn";
 const linkText = "text-base text-primary whitespace-nowrap";
 
 const addBtn =
-  "inline-flex items-baseline gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary [font:inherit]";
+  "inline-flex items-baseline gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary";
 
 type AttrType = "text" | "list";
 
@@ -119,7 +119,7 @@ function AttributeText({
   return (
     <button
       type="button"
-      className={cn(linkText, "[font:inherit] bg-transparent border-0 p-0 m-0 cursor-pointer")}
+      className={cn(linkText, "bg-transparent border-0 p-0 m-0 cursor-pointer")}
       onClick={onClick}
     >
       {body}
@@ -129,7 +129,7 @@ function AttributeText({
 
 function Sep() {
   return (
-    <span aria-hidden className="text-paper-edge select-none">
+    <span aria-hidden className="text-stark-border select-none">
       |
     </span>
   );
@@ -206,14 +206,14 @@ function AttributeModal({
 
   return (
     <div
-      className="fixed inset-0 z-100 bg-primary/30 flex items-center justify-center p-6"
+      className="fixed inset-0 z-(--z-modal) bg-scrim flex items-center justify-center p-6"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={state.mode === "add" ? "Add attribute" : "Edit attribute"}
-        className="w-full max-w-md bg-stark border border-stark-border rounded-lg shadow-[0_24px_48px_rgba(0,0,0,0.18)] p-5"
+        className="w-full max-w-md bg-stark border border-stark-border rounded-lg shadow-modal p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-base font-semibold text-primary mb-4">
@@ -276,7 +276,7 @@ function AttributeModal({
             {onDelete && (
               <button
                 type="button"
-                className="text-sm text-warn hover:underline cursor-pointer bg-transparent border-0 p-0 [font:inherit]"
+                className="text-sm text-warn hover:underline cursor-pointer bg-transparent border-0 p-0"
                 onClick={onDelete}
               >
                 Delete
@@ -298,10 +298,10 @@ function AttributeModal({
 }
 
 const fieldInput =
-  "[font:inherit] w-full text-sm text-primary bg-stark border border-stark-border rounded-md px-2.5 py-1.5 outline-none focus:border-muted";
+  "w-full text-sm text-primary bg-stark border border-stark-border rounded-md px-2.5 py-1.5 outline-none focus:border-stark-border-strong";
 
 const modalBtn =
-  "[font:inherit] text-sm font-medium px-3.5 py-1.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer hover:bg-stark-soft";
+  "text-sm font-medium px-3.5 py-1.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer hover:bg-stark-hover";
 
 const modalBtnPrimary =
   "bg-primary text-stark border-primary hover:bg-primary-hover hover:text-stark";
@@ -309,7 +309,7 @@ const modalBtnPrimary =
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-muted tracking-[0.04em] uppercase mb-1">
+      <span className="block text-xs font-medium text-muted tracking-caps uppercase mb-1">
         {label}
       </span>
       {children}
@@ -332,9 +332,9 @@ function TypeOption({
     <button
       type="button"
       className={cn(
-        "[font:inherit] px-3 py-1 text-sm cursor-pointer",
+        "px-3 py-1 text-sm cursor-pointer",
         bordered && "border-l border-stark-border",
-        active ? "bg-stark-soft text-primary" : "bg-stark text-muted hover:text-primary",
+        active ? "bg-stark-hover text-primary" : "bg-stark text-muted hover:text-primary",
       )}
       onClick={onClick}
     >
@@ -370,7 +370,7 @@ function MultiValueEditor({
             type="button"
             aria-label="Remove value"
             title="Remove value"
-            className="inline-flex items-center justify-center w-6 h-6 rounded text-muted hover:text-warn hover:bg-stark-soft cursor-pointer bg-transparent border-0 p-0"
+            className="inline-flex items-center justify-center w-6 h-6 rounded text-muted hover:text-warn hover:bg-stark-hover cursor-pointer bg-transparent border-0 p-0"
             onClick={() => removeAt(i)}
           >
             <i className="ri-close-line" />
@@ -379,7 +379,7 @@ function MultiValueEditor({
       ))}
       <button
         type="button"
-        className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary cursor-pointer bg-transparent border-0 p-0 [font:inherit]"
+        className="inline-flex items-center gap-1 text-sm text-muted hover:text-primary cursor-pointer bg-transparent border-0 p-0"
         onClick={add}
       >
         <i className="ri-add-line" />

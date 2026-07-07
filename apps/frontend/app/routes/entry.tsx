@@ -47,7 +47,7 @@ function formatRelative(d: Date): string {
 }
 
 const appShell =
-  "font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-paper overflow-hidden";
+  "font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden";
 
 const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
@@ -184,13 +184,12 @@ export default function EntryRoute() {
     return (
       <div className={appShell}>
         <TopBar
-          variant="paper"
           logbookSegment={logbookSegment}
           logbookName={overview?.logbook.name ?? (isLoading ? "Loading…" : "Logbook")}
           currentName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper">
-          <div className={cn("max-w-[720px] mx-auto", pagePadding)}>
+        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
+          <div className={cn("max-w-reading mx-auto", pagePadding)}>
             <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
           </div>
         </div>
@@ -316,10 +315,10 @@ export default function EntryRoute() {
 
   // Focus mode's unobtrusive top-right controls (used in place of the TopBar).
   const focusControls = (
-    <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
+    <div className="fixed top-3 right-4 z-(--z-menu) flex items-center gap-1">
       <button
         type="button"
-        className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
+        className="h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-hover hover:text-primary"
         onClick={exitFocus}
         title="Exit focus"
         aria-label="Exit focus"
@@ -328,7 +327,7 @@ export default function EntryRoute() {
       </button>
       <button
         type="button"
-        className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-paper-soft hover:text-primary [font:inherit]"
+        className="w-9 h-9 inline-flex items-center justify-center rounded-full bg-transparent border-0 text-muted cursor-pointer transition-colors hover:bg-stark-hover hover:text-primary"
         onClick={toggleFullscreen}
         title={isFullscreen ? "Exit full screen" : "Full screen"}
         aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
@@ -349,7 +348,6 @@ export default function EntryRoute() {
         focusControls
       ) : (
         <TopBar
-          variant="paper"
           logbookSegment={routeSegment(logbook.slug, logbook.id)}
           logbookName={logbook.name}
           parents={ancestors.map((a) => ({
@@ -373,17 +371,11 @@ export default function EntryRoute() {
       {!maximized && deleteDialog}
       <div
         className={cn(
-          "flex-1 overflow-y-auto scrollbar-gutter-stable bg-paper",
+          "flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark",
           maximized && "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-2",
         )}
       >
-        <div
-          className={cn(
-            "mx-auto min-h-full flex flex-col",
-            pagePadding,
-            maximized ? "max-w-[680px]" : "max-w-3xl",
-          )}
-        >
+        <div className={cn("mx-auto min-h-full flex flex-col max-w-reading", pagePadding)}>
           {maximized ? (
             <div className="my-4">
               <TitleEditor
@@ -399,7 +391,7 @@ export default function EntryRoute() {
                 iconName={entry.iconName}
                 iconFamily={entry.iconFamily}
                 onSelect={onSelectIcon}
-                buttonClassName="shrink-0 mt-1 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-paper-soft hover:text-accent"
+                buttonClassName="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-stark-hover hover:text-accent"
                 defaultIconClassName="opacity-50"
               />
               <TitleEditor
@@ -442,7 +434,7 @@ export default function EntryRoute() {
                       marker-less item — same add semantics as before: typing
                       swaps the Add control for the input, submitting shows the
                       loading placeholder until the real child link replaces it. */}
-                    <ul className="list-disc pl-4 space-y-2 marker:text-paper-edge text-base text-primary">
+                    <ul className="list-disc pl-4 space-y-2 marker:text-stark-border text-base text-primary">
                       {entry.children.map((c) => (
                         <li key={c.id}>
                           <ChildItem
@@ -513,7 +505,7 @@ const childLink = "text-base text-primary";
  */
 function ChildSep() {
   return (
-    <span aria-hidden className="text-paper-edge select-none">
+    <span aria-hidden className="text-stark-border select-none">
       {" | "}
     </span>
   );
@@ -585,7 +577,7 @@ function PendingChildInput({
       placeholder="New subentry"
       className={cn(
         childLink,
-        "[font:inherit] bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",
+        "bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",
       )}
       onBlur={(e) => {
         if (settledRef.current) return;
@@ -617,7 +609,7 @@ function AddChildPill({ onClick, label }: { onClick: () => void; label: string }
   return (
     <button
       type="button"
-      className="gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary [font:inherit]"
+      className="gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary"
       onClick={onClick}
     >
       {label}
@@ -651,7 +643,7 @@ function TitleEditor({
       ref={ref}
       rows={1}
       className={cn(
-        "font-sans text-4xl leading-[1.2] tracking-[-0.02em] font-semibold text-primary " +
+        "font-sans text-4xl leading-title tracking-heading font-semibold text-primary " +
           "flex-1 m-0 bg-transparent border-0 outline-none p-0 w-full resize-none overflow-hidden field-sizing-content",
         isUntitled && "text-muted",
       )}

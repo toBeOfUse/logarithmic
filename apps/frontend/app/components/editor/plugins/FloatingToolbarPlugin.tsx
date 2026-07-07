@@ -65,13 +65,13 @@ const EMPTY_STATE: InlineState = {
 
 const INLINE_CLEARABLE: TextFormatType[] = ["bold", "italic", "underline", "strikethrough", "code"];
 
-// z-30 keeps the toolbar/link form below the TopBar (z-40) so it tucks behind
-// the bar when a selection near the top of the editor is toolbar-ed.
+// --z-toolbar keeps the toolbar/link form below the TopBar (--z-header) so it
+// tucks behind the bar when a selection near the top of the editor is toolbar-ed.
 const POPOVER =
-  "absolute z-30 flex items-center gap-0.5 rounded-md border border-stark-border bg-stark p-1 shadow-lg";
+  "absolute z-(--z-toolbar) flex items-center gap-0.5 rounded-md border border-stark-border bg-stark p-1 shadow-lg";
 const TOOL_BTN =
-  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-secondary transition-colors hover:bg-paper-soft hover:text-primary";
-const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-border-soft";
+  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-muted transition-colors hover:bg-stark-hover hover:text-primary";
+const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-hover";
 
 export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boolean } = {}) {
   const [editor] = useLexicalComposerContext();
@@ -288,7 +288,7 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
     mode === "link" ? (
       <div className={cn(POPOVER, "gap-1.5 p-1.5")} ref={popupRef} role="dialog">
         <input
-          className="w-[220px] rounded-sm border border-stark-border bg-stark-soft px-2 py-1 text-sm text-primary outline-none focus:border-accent"
+          className="w-[220px] rounded-sm border border-stark-border bg-stark-hover px-2 py-1 text-sm text-primary outline-none focus:border-accent"
           autoFocus
           value={linkDraft}
           placeholder="https://example.com"
@@ -399,7 +399,7 @@ function ToolButton({
   return (
     <button
       type="button"
-      className={cn(TOOL_BTN, active && "bg-accent-soft text-accent-text")}
+      className={cn(TOOL_BTN, active && "bg-accent-soft text-accent")}
       title={title}
       aria-label={title}
       // Prevent the button from stealing focus / collapsing the selection.

@@ -99,7 +99,7 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
           }
           placeholder={
             <div className="pointer-events-none absolute top-0 left-0 text-muted select-none">
-              Write something. Highlight text and use / for formatting options.
+              Write something. Highlight text or use / for formatting options.
             </div>
           }
           ErrorBoundary={LexicalErrorBoundary}

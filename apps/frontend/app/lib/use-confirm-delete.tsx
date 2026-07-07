@@ -27,7 +27,7 @@ export type ConfirmDeleteRequest = {
  * with the copy and the deletion to run, and render `dialog` somewhere in the
  * tree. Lifted out of the entry route's original inline modal so the org-view
  * card delete and the logbook delete reuse the exact same dialog, busy handling,
- * and dismissal behaviour.
+ * and dismissal behavior.
  */
 export function useConfirmDelete(): {
   confirm: (request: ConfirmDeleteRequest) => void;
@@ -103,7 +103,7 @@ function ConfirmDeleteModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-primary/30 flex items-center justify-center p-6"
+      className="fixed inset-0 z-(--z-modal) bg-scrim flex items-center justify-center p-6"
       onClick={() => !busy && onCancel()}
     >
       <div
@@ -121,7 +121,7 @@ function ConfirmDeleteModal({
           <button
             type="button"
             disabled={busy}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft disabled:opacity-60 disabled:cursor-not-allowed"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-120 hover:bg-stark-hover disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={onCancel}
           >
             Cancel
@@ -129,7 +129,7 @@ function ConfirmDeleteModal({
           <button
             type="button"
             disabled={busy}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-warn bg-warn text-stark cursor-pointer transition-colors duration-[120ms] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-warn bg-warn text-stark cursor-pointer transition-colors duration-120 hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={onConfirm}
           >
             {busy ? busyLabel : confirmLabel}

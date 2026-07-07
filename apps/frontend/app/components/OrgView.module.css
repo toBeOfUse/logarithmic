@@ -61,7 +61,7 @@
   --org-transition: 120ms ease;
 
   /* Column 0 is body text. Columns > 0 are headings — same size, bold. Columns
-     < 0 are asides — same size, secondary color. (Per the card-design spec,
+     < 0 are asides — same size, muted color. (Per the card-design spec,
      font size does NOT vary by column.) */
   --org-title-size: 1rem;
   --org-title-lh: 1.3;
@@ -72,7 +72,7 @@
      card doesn't change height on hover. */
   --org-footer-row-h: 1.18rem;
 
-  --org-card-edge: var(--color-paper-edge);
+  --org-card-edge: var(--color-stark-border);
 }
 
 @media (max-width: 640px) {
@@ -96,11 +96,10 @@
 
 /* Wraps the sticky header strip and the canvas in one shrink-to-content block,
    so the strip (a flex row of every column) establishes the full chart width and
-   the canvas inherits it — keeping the two aligned without a computed width.
-   Centered, or pinned to the heavier side, via the align vars set in OrgView. */
+   the canvas inherits it — keeping the two aligned without a computed width. */
 .inner {
   width: max-content;
-  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
+  margin: 0 auto;
 }
 
 /* ── Column-header strip ─────────────────────────────────────── */
@@ -119,7 +118,7 @@
   /* Extends down to the pin line, so cards scrolling up vanish exactly where the
      sticky cards stop. */
   height: var(--org-pin-top);
-  background: var(--color-paper);
+  background: var(--color-stark);
 }
 
 /* A flex row of column heads; the gap is the inter-column gap, so heads line up
@@ -198,9 +197,9 @@
   box-sizing: border-box;
   width: 100%;
   padding: 3px 7px;
-  border: 1px solid var(--color-paper-edge);
+  border: 1px solid var(--color-stark-border);
   border-radius: var(--radius-sm);
-  background: var(--color-paper);
+  background: var(--color-stark);
   color: var(--color-primary);
   font: inherit;
   font-size: 0.82rem;
@@ -283,7 +282,7 @@
 .treeDivider {
   width: 100%;
   height: 0;
-  border-top: 1px solid var(--color-paper-edge);
+  border-top: 1px solid var(--color-stark-border);
   margin: var(--org-tree-gap) 0;
 }
 
@@ -331,7 +330,7 @@
   min-height: var(--org-card-min-h);
   /* Clip the (empty) area below the content when a sticky card shrinks. */
   overflow: hidden;
-  background: var(--color-paper);
+  background: var(--color-stark);
   border: 1px solid var(--org-card-edge);
   /* Sharp, non-rounded corners. */
   border-radius: 0;
@@ -355,8 +354,8 @@
 }
 
 .card:hover {
-  background: var(--color-paper-soft);
-  border-color: var(--color-muted);
+  background: var(--color-stark-hover);
+  border-color: var(--color-stark-border-strong);
 }
 
 .card.isHeading {
@@ -364,7 +363,7 @@
 }
 
 .card.isAside {
-  --card-title-color: var(--color-secondary);
+  --card-title-color: var(--color-muted);
 }
 
 /* ── Sticky split ──────────────────────────────────────────────
@@ -416,7 +415,7 @@
   width: var(--col-width, var(--org-card-width));
   height: var(--org-sticky-h, 100%);
   min-height: var(--org-card-min-h);
-  background: var(--color-paper);
+  background: var(--color-stark);
   border: 1px solid var(--org-card-edge);
   border-top: 0;
   overflow: hidden;
@@ -428,8 +427,8 @@
 /* The glued header: top + side borders (from .card) and the content, pinned
    natively and never resized. No bottom border, so the box stays open below the
    title. Its background is TRANSPARENT so it never paints over the span's bottom
-   border when the span collapses to header height at the tail — the span's paper
-   fill (and everything behind it) is the same --color-paper, so there's nothing
+   border when the span collapses to header height at the tail — the span's
+   fill (and everything behind it) is the same --color-stark, so there's nothing
    for an opaque header to hide anyway. */
 .stickyHeader {
   position: sticky;
@@ -446,13 +445,13 @@
    stays transparent (so it still can't cover the span's bottom border); only its
    borders pick up the hover colour, while the span paints the soft fill behind. */
 .cardStack:hover .cardSpan {
-  background: var(--color-paper-soft);
-  border-color: var(--color-muted);
+  background: var(--color-stark-hover);
+  border-color: var(--color-stark-border-strong);
 }
 
 .cardStack:hover .stickyHeader {
   background: transparent;
-  border-color: var(--color-muted);
+  border-color: var(--color-stark-border-strong);
 }
 
 /* The editing input keeps spanning as one element — you don't scroll-read an
@@ -552,7 +551,7 @@
 }
 
 .cardIconInteractive:hover {
-  background: var(--color-paper-soft);
+  background: var(--color-stark-hover);
   color: var(--color-accent);
 }
 
@@ -574,7 +573,6 @@
   padding: 0;
   margin: 0;
   border: 0;
-  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
   font-size: 1.05rem;
@@ -590,7 +588,7 @@
 }
 
 .cardFold:hover {
-  background: var(--color-paper-soft);
+  background: var(--color-stark-hover);
   color: var(--color-accent);
 }
 
@@ -618,7 +616,7 @@
   width: var(--col-width, var(--org-card-width));
   min-height: var(--org-card-min-h);
   padding: var(--org-card-pad-y) var(--org-card-pad-x);
-  background: var(--color-paper);
+  background: var(--color-stark);
   border: 1px dashed var(--org-card-edge);
   border-radius: 0;
   text-align: left;
@@ -630,8 +628,8 @@
 }
 
 .foldedCard:hover {
-  background: var(--color-paper-soft);
-  border-color: var(--color-muted);
+  background: var(--color-stark-hover);
+  border-color: var(--color-stark-border-strong);
 }
 
 .foldedCardIcon {
@@ -894,7 +892,7 @@
 .childDropzone.isOver {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
-  color: var(--color-accent-text);
+  color: var(--color-accent);
 }
 
 /* The drag-drop hint glyph centered in the zone. Dim at rest (subtle), lifting
@@ -911,9 +909,9 @@
   box-sizing: border-box;
   width: var(--col-width, var(--org-card-width));
   padding: var(--org-card-pad-y) var(--org-card-pad-x);
-  background: oklch(from var(--color-paper) l c h / 0.3);
-  border: 1px solid var(--color-muted);
-  box-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
+  background: var(--color-stark);
+  border: 1px solid var(--color-stark-border-strong);
+  box-shadow: var(--shadow-pop);
   font-size: var(--org-title-size);
   font-weight: var(--org-title-weight);
   line-height: var(--org-title-lh);
@@ -937,7 +935,7 @@
 .cardEditing {
   border-color: var(--color-accent);
   box-shadow: inset 0 0 0 1px var(--color-accent);
-  background: var(--color-paper);
+  background: var(--color-stark);
   cursor: text;
 }
 
@@ -969,15 +967,4 @@
     field-sizing: content;
     height: auto;
   }
-}
-
-/* ── Empty state ─────────────────────────────────────────────── */
-
-.illustration {
-  width: 120px;
-  height: 90px;
-  border: 1px dashed var(--color-paper-edge);
-  background-image: radial-gradient(var(--color-paper-edge) 1px, transparent 1px);
-  background-size: 12px 12px;
-  background-position: 6px 6px;
 }

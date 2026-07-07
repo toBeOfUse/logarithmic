@@ -46,7 +46,7 @@ export class FootnoteNode extends HeadlessFootnoteNode {
   createDOM(): HTMLElement {
     const el = document.createElement("sup");
     el.className =
-      "cursor-pointer select-none px-px text-[0.72em] font-semibold leading-[0] text-accent-text";
+      "cursor-pointer select-none px-px text-[0.72em] font-semibold leading-flat text-accent";
     return el;
   }
 

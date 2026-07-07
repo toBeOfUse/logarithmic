@@ -8,8 +8,6 @@ import { buildBookmarkUrl } from "~/data/tokens.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
-import styles from "./splash.module.css";
-
 function formatRelative(d: Date): string {
   const ms = Date.now() - d.getTime();
   const min = Math.round(ms / 60_000);
@@ -23,7 +21,7 @@ function formatRelative(d: Date): string {
 }
 
 const btnPrimary =
-  "[font:inherit] text-sm font-medium bg-primary border border-primary text-paper px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-primary-hover disabled:opacity-[0.55] disabled:cursor-not-allowed";
+  "text-sm font-medium bg-primary border border-primary text-stark px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-primary-hover disabled:opacity-55 disabled:cursor-not-allowed";
 
 type PendingShare = { logbookName: string; url: string; nextPath: string };
 
@@ -67,23 +65,23 @@ export default function Splash() {
   }
 
   return (
-    <div className="font-sans text-primary text-base leading-[1.5] h-full w-full flex flex-col bg-stark overflow-hidden">
-      <div className={`flex-1 flex flex-col bg-paper ${styles.bg} relative overflow-auto`}>
-        <div className="max-w-[560px] w-full mx-auto px-12 pt-24 pb-16 relative z-[1] flex-1 flex flex-col box-border">
+    <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
+      <div className={`flex-1 flex flex-col bg-stark relative overflow-auto`}>
+        <div className="max-w-[560px] w-full mx-auto px-12 pt-24 pb-16 relative z-10 flex-1 flex flex-col box-border">
           <AppMark size="lg" />
 
           {hasLogbooks ? (
             <>
-              <h1 className="font-serif font-normal text-5xl leading-[1.1] tracking-[-0.02em] m-0 mb-3 text-primary">
-                Welcome <em className="italic text-accent-text">back</em>.
+              <h1 className="font-serif font-normal text-5xl leading-display tracking-heading m-0 mb-3 text-primary">
+                Welcome <em className="italic text-accent">back</em>.
               </h1>
-              <p className="text-lg leading-[1.55] text-secondary max-w-[460px] m-0 mb-9">
+              <p className="text-lg leading-prose text-muted max-w-[460px] m-0 mb-9">
                 Pick a logbook to open, or start a new one.
               </p>
             </>
           ) : (
             <>
-              <h1 className="font-serif font-normal text-5xl leading-[1.1] tracking-[-0.02em] m-0 mb-3 text-primary">
+              <h1 className="font-serif font-normal text-5xl leading-display tracking-heading m-0 mb-3 text-primary">
                 A logbook for things from your brain
               </h1>
             </>
@@ -91,7 +89,7 @@ export default function Splash() {
 
           <form className="flex gap-2 mb-3" onSubmit={onCreate}>
             <input
-              className="flex-1 [font:inherit] text-base border border-paper-edge bg-stark text-primary rounded-[7px] px-3 py-2.5 outline-none placeholder:text-muted focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]"
+              className="flex-1 text-base border border-stark-border bg-stark text-primary rounded-[7px] px-3 py-2.5 outline-none placeholder:text-muted focus:border-accent focus:shadow-focus"
               placeholder={hasLogbooks ? "New logbook…" : "Name your first logbook…"}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -109,17 +107,17 @@ export default function Splash() {
 
           {hasLogbooks && (
             <>
-              <div className="text-xs uppercase tracking-[0.08em] text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-paper-edge">
+              <div className="text-xs uppercase tracking-label text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-stark-hover">
                 Your logbooks · {logbooks.length}
               </div>
-              <div className="flex flex-col bg-stark border border-paper-edge rounded-lg overflow-hidden mb-[22px] divide-y divide-stark-border-soft">
+              <div className="flex flex-col bg-stark border border-stark-border rounded-lg overflow-hidden mb-[22px] divide-y divide-stark-border">
                 {logbooks.map((lb) => (
                   <Link
                     key={lb.id}
                     to={`/${routeSegment(lb.slug, lb.id)}`}
-                    className="flex items-center gap-3.5 px-3.5 py-3 cursor-pointer bg-stark no-underline text-[inherit] hover:bg-stark-soft"
+                    className="flex items-center gap-3.5 px-3.5 py-3 cursor-pointer bg-stark no-underline text-[inherit] hover:bg-stark-hover"
                   >
-                    <span className="size-[28px] rounded-[5px] bg-paper-soft border border-paper-edge inline-flex items-center justify-center text-muted flex-shrink-0 text-base">
+                    <span className="size-[28px] rounded-[5px] bg-stark-hover border border-stark-border inline-flex items-center justify-center text-muted flex-shrink-0 text-base">
                       <i className="ri-book-2-line" aria-hidden="true" />
                     </span>
                     <span className="text-base font-medium text-primary flex-1 min-w-0">
@@ -138,7 +136,7 @@ export default function Splash() {
 
           {hasDemos && (
             <>
-              <div className="text-xs uppercase tracking-[0.08em] text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-paper-edge">
+              <div className="text-xs uppercase tracking-label text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-stark-hover">
                 {hasLogbooks || isLoading
                   ? `Demo logbooks · ${demoLogbooks.length}`
                   : "Or try it without an account"}
@@ -148,12 +146,12 @@ export default function Splash() {
                   <Link
                     key={lb.id}
                     to={`/${routeSegment(lb.slug, lb.id)}`}
-                    className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-paper-edge rounded-lg bg-paper-col-even no-underline text-[inherit] hover:bg-paper-soft"
+                    className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-stark-border rounded-lg no-underline text-[inherit] hover:bg-stark-hover"
                   >
-                    <span className="text-xs font-medium bg-primary text-paper px-[6px] py-[2px] rounded-[3px] tracking-[0.05em] uppercase flex-none leading-[1.4]">
+                    <span className="text-xs font-medium bg-primary text-stark px-[6px] py-[2px] rounded-[3px] tracking-wider uppercase flex-none leading-tag">
                       Demo
                     </span>
-                    <span className="flex-1 text-base text-secondary">{lb.name}</span>
+                    <span className="flex-1 text-base text-muted">{lb.name}</span>
                     <span className="text-sm text-muted tabular-nums">
                       {lb.entryCount} {lb.entryCount === 1 ? "entry" : "entries"}
                     </span>

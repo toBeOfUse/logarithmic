@@ -17,7 +17,7 @@ export const editorTheme: EditorThemeClasses = {
     underlineStrikethrough: "underline underline-offset-2 line-through",
     code: styles.inlineCode,
   },
-  link: "text-accent-text underline",
+  link: "text-accent underline",
   code: styles.codeBlock,
   list: {
     // The wrapper <li> that holds a nested list needs its own marker hidden

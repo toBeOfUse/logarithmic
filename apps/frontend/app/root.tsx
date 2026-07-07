@@ -75,9 +75,9 @@ export function ErrorBoundary() {
     details = error.message;
   }
   return (
-    <main style={{ padding: "64px 32px", maxWidth: 640, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "var(--serif)", fontSize: 44, margin: "0 0 12px" }}>{message}</h1>
-      <p style={{ color: "var(--ink-3)" }}>{details}</p>
+    <main className="max-w-2xl mx-auto px-8 py-16">
+      <h1 className="font-serif text-5xl mb-3 text-primary">{message}</h1>
+      <p className="text-muted">{details}</p>
     </main>
   );
 }

@@ -188,20 +188,16 @@ function FootnotesSection({
   if (keys.length === 0) return null;
 
   return (
-    <div className="mt-10 border-t border-paper-edge pt-4" contentEditable={false}>
+    <div className="mt-10 border-t border-stark-border pt-4" contentEditable={false}>
       <div className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">Footnotes</div>
       {keys.map((key, i) => {
         const nested = editors.current.get(key);
         if (!nested) return null;
         return (
-          <div
-            className="mb-2 flex gap-2.5 text-sm text-secondary"
-            id={`footnote-${key}`}
-            key={key}
-          >
+          <div className="mb-2 flex gap-2.5 text-sm text-muted" id={`footnote-${key}`} key={key}>
             <button
               type="button"
-              className="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-semibold text-accent-text [font:inherit] hover:underline"
+              className="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-semibold text-accent hover:underline"
               title={`Go to reference ${i + 1}`}
               onClick={() => jumpToReference(editor, key)}
             >

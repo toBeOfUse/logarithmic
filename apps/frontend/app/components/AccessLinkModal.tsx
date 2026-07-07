@@ -44,7 +44,7 @@ export function AccessLinkModal({
 
   return (
     <div
-      className="fixed inset-0 z-100 bg-primary/30 flex items-center justify-center p-6"
+      className="fixed inset-0 z-(--z-modal) bg-scrim flex items-center justify-center p-6"
       onClick={onClose}
     >
       <div
@@ -67,12 +67,12 @@ export function AccessLinkModal({
             ref={inputRef}
             readOnly
             value={url}
-            className="flex-1 [font:inherit] text-sm font-mono border border-paper-edge bg-paper text-primary rounded-[7px] px-3 py-2 outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]"
+            className="flex-1 text-sm font-mono border border-stark-border bg-stark text-primary rounded-[7px] px-3 py-2 outline-none focus:border-accent focus:shadow-focus"
             onFocus={(e) => e.target.select()}
           />
           <button
             type="button"
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-primary bg-primary text-paper cursor-pointer transition-colors duration-[120ms] hover:bg-primary-hover"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-primary bg-primary text-stark cursor-pointer transition-colors duration-120 hover:bg-primary-hover"
             onClick={copy}
           >
             {copied ? "Copied" : "Copy"}
@@ -81,7 +81,7 @@ export function AccessLinkModal({
         <div className="mt-5 flex justify-end">
           <button
             type="button"
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-120 hover:bg-stark-hover"
             onClick={onClose}
           >
             I've saved it

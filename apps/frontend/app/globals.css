@@ -3,42 +3,61 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* Surface — cool, spreadsheet/engineering tone (cool gray with a faint
-     blue cast). Less "paper", more "graph". */
-  --color-paper: oklch(0.985 0.003 240);
-  --color-paper-edge: oklch(0.82 0.009 240);
-  --color-paper-rule: oklch(0.5 0.012 240 / 0.14);
-  --color-paper-soft: oklch(0.965 0.005 240);
-  --color-paper-col-even: oklch(0.99 0.002 240);
+  /* Surface. `stark` is the base; `stark-border` is the single light-grey used
+     for every subtle edge — borders, dividers, separators, hover/selected fills,
+     and code backgrounds. `stark-border-strong` is the darker edge for
+     hover/focus emphasis, kept separate so `muted` stays reserved for text. */
+  --color-stark: white; /* white */
+  --color-stark-hover: oklch(0.97 0.005 250); /* lighter grey */
+  --color-stark-border: oklch(0.85 0.005 250); /* darker grey */
+  --color-stark-border-strong: oklch(0.7 0.012 250); /* darkest grey — emphasized edges */
 
-  /* Stark surface */
-  --color-stark: #ffffff;
-  --color-stark-soft: oklch(0.985 0.003 240);
-  --color-stark-border: oklch(0.91 0.005 240);
-  --color-stark-border-soft: oklch(0.95 0.004 240);
+  /* Text — cool grey. `primary` is body text, `primary-hover` its hover state on
+     solid buttons, `muted` the single de-emphasised level. */
+  --color-primary: oklch(0.24 0.012 250); /* near-black grey */
+  --color-primary-hover: oklch(0.32 0.012 250); /* dark grey */
+  --color-muted: oklch(0.5 0.012 250); /* grey */
 
-  /* Text — three semantic levels (cool gray, no sepia). */
-  --color-primary: oklch(0.24 0.012 250);
-  --color-secondary: oklch(0.42 0.011 250);
-  --color-muted: oklch(0.6 0.012 250);
-  --color-primary-hover: oklch(0.32 0.012 250);
+  /* Accent — used for links, focus, and interactive highlights. */
+  --color-accent: oklch(0.45 0.14 252); /* blue */
+  --color-accent-soft: oklch(0.45 0.14 252 / 0.1); /* transparent blue */
 
-  /* Accent */
-  --color-accent: oklch(0.5 0.14 252);
-  --color-accent-soft: oklch(0.5 0.14 252 / 0.1);
-  --color-accent-text: oklch(0.42 0.14 252);
+  /* Warn — destructive actions. */
+  --color-warn: oklch(0.4 0.12 30); /* red */
+  --color-warn-bg: oklch(from var(--color-warn) l c h / 0.1);
 
-  /* Warn */
-  --color-warn: oklch(0.4 0.12 30);
-  --color-warn-soft: oklch(0.92 0.02 30);
+  /* Scrim — the dimmed backdrop behind modals (primary at low alpha). */
+  --color-scrim: oklch(from var(--color-primary) l c h / 0.3);
+
+  /* Elevation. `focus` is the 3px accent focus ring on inputs; `pop` lifts
+     floating popovers and drag overlays; `modal` is the deeper dialog shadow. */
+  --shadow-focus: 0 0 0 3px var(--color-accent-soft);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.16);
+  --shadow-modal: 0 24px 48px rgb(0 0 0 / 0.18);
+
+  /* Layout. The reading measure — the max line length of entry content.
+     A `--container-*` token, so it generates the `max-w-reading` utility. */
+  --container-reading: 48rem;
 
   /* Typography. Geist is the primary face; Lora is used for accent serif text. */
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "Lora", "Iowan Old Style", Georgia, serif;
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* Line height — a named scale on top of Tailwind's leading-* defaults (which
+     still cover body via leading-normal = 1.5). `flat` collapses a line box for
+     superscript markers; the rest run display → prose. */
+  --leading-flat: 0;
+  --leading-display: 1.1; /* hero display headings */
+  --leading-title: 1.2; /* entry title */
+  --leading-tag: 1.4; /* small uppercase badges */
+  --leading-prose: 1.55; /* lead paragraphs */
+
+  /* Letter spacing — on top of Tailwind's tracking-* defaults (0.05em is
+     tracking-wider). Negative tightens large display type; positive opens up
+     uppercase labels. */
+  --tracking-heading: -0.02em; /* large display headings */
+  --tracking-label: 0.08em; /* uppercase section labels */
+  --tracking-caps: 0.04em; /* uppercase field labels */
 }
 
 /* Base font size for the rem unit. 14px on desktop, 12px on mobile — every
@@ -63,6 +82,31 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: var(--color-paper);
+  background: var(--color-stark);
   color: var(--color-primary);
+}
+
+/* Form controls don't inherit font by default; make them match surrounding
+   text so inputs and buttons pick up the body face, size, and weight. In
+   @layer base so utilities still win — e.g. the text-4xl title textarea; an
+   unlayered rule would override the utility and force it back to body size. */
+@layer base {
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+/* Z-index layers — one ladder for app chrome that overlaps across components,
+   so overlays can't collide by guessing a number. (OrgView's card internals
+   keep their own local 0–10 stack; those are relative to the chart's own
+   stacking contexts, not these global layers.) */
+:root {
+  --z-toolbar: 30; /* editor floating selection/link toolbar (tucks under header) */
+  --z-header: 40; /* top bar */
+  --z-menu: 50; /* dropdowns, slash menu, focus controls — above the header */
+  --z-modal: 100; /* modal dialogs and their backdrops */
+  --z-popover: 1000; /* icon picker & popovers floating above modals */
 }

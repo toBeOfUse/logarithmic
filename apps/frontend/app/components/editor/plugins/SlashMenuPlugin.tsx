@@ -112,7 +112,7 @@ export function SlashMenuPlugin() {
       ) =>
         anchorElementRef.current
           ? createPortal(
-              <div className="absolute z-50 flex max-h-80 min-w-[200px] flex-col gap-px overflow-y-auto rounded-md border border-stark-border bg-stark p-1 shadow-lg">
+              <div className="absolute z-(--z-menu) flex max-h-80 min-w-[200px] flex-col gap-px overflow-y-auto rounded-md border border-stark-border bg-stark p-1 shadow-lg">
                 {options.length === 0 ? (
                   <div className="px-2.5 py-2 text-sm text-muted">No matches</div>
                 ) : (
@@ -132,7 +132,7 @@ export function SlashMenuPlugin() {
                       <i
                         className={cn(
                           option.iconClass,
-                          "w-[1.2em] text-center text-base text-secondary",
+                          "w-[1.2em] text-center text-base text-muted",
                         )}
                       />
                       <span>{option.label}</span>

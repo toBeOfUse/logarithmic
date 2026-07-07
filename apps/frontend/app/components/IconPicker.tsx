@@ -148,7 +148,7 @@ export function IconPicker({
                 rename textarea focused while dismissing — clicking away here
                 closes the picker without committing that edit. */}
             <div
-              className="fixed inset-0 z-[1000]"
+              className="fixed inset-0 z-(--z-popover)"
               onMouseDown={(e) => {
                 e.preventDefault();
                 setOpen(false);
@@ -156,7 +156,7 @@ export function IconPicker({
             />
             <div
               ref={pickerRef}
-              className="fixed z-[1001] grid grid-cols-8 gap-[2px] p-[6px] bg-stark border border-stark-border rounded-md shadow-[0_8px_24px_rgb(0_0_0/0.16)]"
+              className="fixed z-(--z-popover) grid grid-cols-8 gap-[2px] p-[6px] bg-stark border border-stark-border rounded-md shadow-pop"
               style={{ top: pos.top, left: pos.left }}
               role="menu"
               aria-label="Choose an icon"
@@ -177,8 +177,8 @@ export function IconPicker({
                     className={cn(
                       "inline-flex items-center justify-center w-[30px] h-[30px] p-0 border-0 text-[1.15rem] leading-none cursor-pointer rounded-sm transition-colors",
                       selected
-                        ? "bg-accent-soft text-accent-text ring-1 ring-inset ring-accent"
-                        : "bg-transparent text-primary hover:bg-paper-soft hover:text-accent",
+                        ? "bg-accent-soft text-accent ring-1 ring-inset ring-accent"
+                        : "bg-transparent text-primary hover:bg-stark-hover hover:text-accent",
                     )}
                     onClick={() => {
                       onSelect?.(opt.name, REMIX_FAMILY);

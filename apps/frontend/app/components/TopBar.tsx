@@ -17,7 +17,6 @@ export type KebabMenuItem = {
 };
 
 export function TopBar({
-  variant = "stark",
   logbookSegment,
   logbookName,
   parents = [],
@@ -25,7 +24,6 @@ export function TopBar({
   menuItems = [],
   actions = [],
 }: {
-  variant?: "stark" | "paper";
   /** Route segment for the current logbook (slug-id). */
   logbookSegment: string;
   logbookName: string;
@@ -37,15 +35,14 @@ export function TopBar({
    *  Use for the most reached-for actions on a route (e.g. "Focus"). */
   actions?: KebabMenuItem[];
 }) {
-  const isPaper = variant === "paper";
   return (
     <div
       className={cn(
-        // `relative z-40` establishes a stacking layer above the editor's
-        // floating toolbar (z-30) so a selection toolbar near the top slides
-        // behind the bar rather than over it.
-        "relative z-40 flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
-        isPaper ? "bg-paper border-paper-edge" : "bg-stark border-stark-border",
+        // `relative z-(--z-header)` establishes a stacking layer above the
+        // editor's floating toolbar (--z-toolbar) so a selection toolbar near
+        // the top slides behind the bar rather than over it.
+        "relative z-(--z-header) flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
+        "bg-stark border-stark-border",
       )}
     >
       <span className="inline-flex items-center gap-1.5 tracking-tight mr-auto whitespace-nowrap overflow-x-auto scrollbar-none">
@@ -58,7 +55,7 @@ export function TopBar({
           <i className="ri-home-line" aria-hidden="true" />
           Logarithmic
         </Link>
-        <span className="text-paper-edge font-normal">›</span>
+        <span className="text-stark-border font-normal">›</span>
         <Link
           to={`/${logbookSegment}`}
           className="inline-flex items-center gap-2 text-muted no-underline hover:text-primary px-0.5 -mx-0.5"
@@ -69,7 +66,7 @@ export function TopBar({
         {(parents.length > 0 || currentName) &&
           parents.map((p) => (
             <span key={p.id} style={{ display: "contents" }}>
-              <span className="text-paper-edge">›</span>
+              <span className="text-stark-border">›</span>
               {p.href ? (
                 <Link to={p.href} className="text-muted no-underline hover:text-primary">
                   {p.name}
@@ -82,7 +79,7 @@ export function TopBar({
 
         {currentName && (
           <>
-            <span className="text-paper-edge">›</span>
+            <span className="text-stark-border">›</span>
             <span className="whitespace-nowrap text-primary font-medium">{currentName}</span>
           </>
         )}
@@ -95,16 +92,10 @@ export function TopBar({
             type="button"
             title={action.title ?? action.label}
             className={cn(
-              "[font:inherit] text-sm font-medium border rounded-[6px] px-2 py-1 sm:px-3 sm:py-1.5 inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap",
-              // Match the bar's surface so the button blends in rather than
-              // floating as a contrasting box (the paper bar made bg-stark read
-              // as a white chip).
-              isPaper ? "bg-paper" : "bg-stark",
+              "text-sm font-medium border rounded-[6px] px-2 py-1 sm:px-3 sm:py-1.5 inline-flex items-center gap-[6px] cursor-pointer transition-colors no-underline whitespace-nowrap bg-stark",
               action.destructive
-                ? "border-warn text-warn hover:bg-warn-soft"
-                : isPaper
-                  ? "border-paper-edge text-primary hover:bg-paper-soft"
-                  : "border-stark-border text-primary hover:bg-stark-soft",
+                ? "border-warn text-warn hover:bg-warn-bg"
+                : "border-stark-border text-primary hover:bg-stark-hover",
             )}
             onClick={action.onSelect}
           >
@@ -145,7 +136,7 @@ function KebabMenu({ items }: { items: KebabMenuItem[] }) {
     <div ref={wrapperRef} className="relative">
       <button
         type="button"
-        className="size-10 text-xl sm:text-base border-0 bg-transparent text-muted rounded-[5px] inline-flex items-center justify-center enabled:cursor-pointer enabled:hover:bg-stark-soft enabled:hover:text-primary disabled:opacity-40 disabled:cursor-default"
+        className="size-10 text-xl sm:text-base border-0 bg-transparent text-muted rounded-[5px] inline-flex items-center justify-center enabled:cursor-pointer enabled:hover:bg-stark-hover enabled:hover:text-primary disabled:opacity-40 disabled:cursor-default"
         aria-label="Open menu"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -159,7 +150,7 @@ function KebabMenu({ items }: { items: KebabMenuItem[] }) {
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[180px] bg-stark border border-stark-border rounded-md shadow-lg p-1"
+          className="absolute right-0 top-[calc(100%+4px)] z-(--z-menu) min-w-[180px] bg-stark border border-stark-border rounded-md shadow-lg p-1"
         >
           {items.map((item) => (
             <button
@@ -167,10 +158,10 @@ function KebabMenu({ items }: { items: KebabMenuItem[] }) {
               type="button"
               role="menuitem"
               className={cn(
-                "w-full text-left bg-transparent border-0 [font:inherit] text-sm px-3 py-1.5 rounded-sm cursor-pointer inline-flex items-center gap-2",
+                "w-full text-left bg-transparent border-0 text-sm px-3 py-1.5 rounded-sm cursor-pointer inline-flex items-center gap-2",
                 item.destructive
-                  ? "text-warn hover:bg-warn-soft"
-                  : "text-primary hover:bg-stark-soft",
+                  ? "text-warn hover:bg-warn-bg"
+                  : "text-primary hover:bg-stark-hover",
               )}
               onClick={() => {
                 setOpen(false);

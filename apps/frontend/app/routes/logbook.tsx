@@ -152,11 +152,10 @@ export default function LogbookRoute() {
     return (
       <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
         <TopBar
-          variant="paper"
           logbookSegment={params.logbookId ?? ""}
           logbookName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 flex flex-col overflow-hidden bg-paper">
+        <div className="flex-1 flex flex-col overflow-hidden bg-stark">
           <div className="flex flex-col items-center justify-center h-full text-muted gap-3.5 py-[60px] px-10 text-center">
             <p className="text-base text-muted m-0">
               {isLoading ? "Loading logbook…" : "This logbook could not be found."}
@@ -234,7 +233,6 @@ export default function LogbookRoute() {
   return (
     <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
       <TopBar
-        variant="paper"
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
         actions={topBarActions}
@@ -324,7 +322,7 @@ function RenameLogbookModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-primary/30 flex items-center justify-center p-6"
+      className="fixed inset-0 z-(--z-modal) bg-scrim flex items-center justify-center p-6"
       onClick={() => !busy && onCancel()}
     >
       <form
@@ -341,13 +339,11 @@ function RenameLogbookModal({
         <h3 id="rename-logbook-title" className="m-0 mb-2 text-xl font-semibold text-primary">
           Rename logbook
         </h3>
-        <p className="m-0 mb-4 text-muted">
-          Give this logbook a new name. The URL slug will update automatically.
-        </p>
+        <p className="m-0 mb-4 text-muted">Give this logbook a new name.</p>
         <input
           autoFocus
           type="text"
-          className="w-full [font:inherit] text-base border border-paper-edge bg-paper text-primary rounded-[7px] px-3 py-2 outline-none placeholder:text-muted focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]"
+          className="w-full text-base border border-stark-border bg-stark text-primary rounded-[7px] px-3 py-2 outline-none placeholder:text-muted focus:border-accent focus:shadow-focus"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={busy}
@@ -357,7 +353,7 @@ function RenameLogbookModal({
           <button
             type="button"
             disabled={busy}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-[120ms] hover:bg-stark-soft disabled:opacity-60 disabled:cursor-not-allowed"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-stark-border bg-stark text-primary cursor-pointer transition-colors duration-120 hover:bg-stark-hover disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={onCancel}
           >
             Cancel
@@ -365,7 +361,7 @@ function RenameLogbookModal({
           <button
             type="submit"
             disabled={!canSubmit}
-            className="text-sm font-medium py-2 px-3.5 rounded-md border border-primary bg-primary text-paper cursor-pointer transition-colors duration-[120ms] hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
+            className="text-sm font-medium py-2 px-3.5 rounded-md border border-primary bg-primary text-stark cursor-pointer transition-colors duration-120 hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {busy ? "Saving…" : "Save"}
           </button>
