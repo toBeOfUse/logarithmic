@@ -87,10 +87,13 @@ export function SlashMenuPlugin() {
     (option: SlashOption, nodeToRemove: TextNode | null, closeMenu: () => void) => {
       // Remove the "/" trigger and run the option in the SAME update. Doing them
       // in separate updates left the caret out of the (now-empty) originating
-      // block, so block actions that inspect it — e.g. the divider, which
-      // replaces an empty paragraph rather than inserting after it — misfired
-      // and left a stray empty line behind. Dispatching a command from inside an
-      // update is supported and mirrors Lexical's own ComponentPicker.
+      // block, so the block-type options (heading/quote/list) that convert the
+      // current block via `$setBlocksType` acted on the wrong block. Dispatching
+      // a command from inside an update is supported and mirrors Lexical's own
+      // ComponentPicker. (The divider goes through HorizontalRuleExtension's
+      // standard insert, which splits the "/" line rather than replacing it, so
+      // a slash-inserted rule leaves a blank line above it — accepted as the
+      // cost of using the standard extension.)
       editor.update(() => {
         nodeToRemove?.remove();
         option.run(editor);

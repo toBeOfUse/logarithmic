@@ -10,8 +10,9 @@
  * (debounced autosave + explicit save) and `onDirtyChange`. The parent gets an
  * imperative `EditorHandle` for Ctrl/Cmd-S, type-to-focus, and Copy-as-Markdown.
  */
-import { forwardRef } from "react";
-import { LexicalComposer, type InitialConfigType } from "@lexical/react/LexicalComposer";
+import { forwardRef, useMemo, useRef } from "react";
+import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
+import { defineExtension, HorizontalRuleExtension } from "@lexical/extension";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -33,7 +34,6 @@ import { EditorControllerPlugin } from "./plugins/EditorControllerPlugin.tsx";
 import { FloatingToolbarPlugin } from "./plugins/FloatingToolbarPlugin.tsx";
 import { FootnoteCopyPlugin } from "./plugins/FootnoteCopyPlugin.tsx";
 import { FootnotePlugin } from "./plugins/FootnotePlugin.tsx";
-import { HorizontalRulePlugin } from "./plugins/HorizontalRulePlugin.tsx";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin.tsx";
 
 /**
@@ -61,28 +61,50 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
   { initialContent, onSave, onDirtyChange, className },
   ref,
 ) {
-  const initialConfig: InitialConfigType = {
-    namespace: "entry-content",
-    theme: editorTheme,
-    // The shared document schema, with the React-rendering footnote swapped in
-    // for the canonical headless one.
-    nodes: [...DOCUMENT_NODES, FootnoteNode],
-    onError: (error) => {
-      console.error(error);
-    },
-    // Load the stored document, or seed an empty paragraph so the caret and
-    // placeholder have somewhere to live.
-    editorState: initialContent
-      ? initialContent
-      : () => {
-          const root = $getRoot();
-          if (root.getFirstChild() === null) root.append($createParagraphNode());
+  // `initialContent` is read exactly once, at mount. The component is
+  // uncontrolled (initialize-once): the entry route remounts it per entry via
+  // `key={entry.id}`, and autosave feeds the just-saved JSON straight back in as
+  // a *new* `initialContent`. Rebuilding the extension on that would rebuild the
+  // whole editor — wiping undo history and resetting the toolbar/slash menu — so
+  // capture it in a ref and build the extension once (empty deps).
+  const initialContentRef = useRef(initialContent);
+  const editorExtension = useMemo(
+    () =>
+      defineExtension({
+        name: "[root]",
+        namespace: "entry-content",
+        theme: editorTheme,
+        // The shared document schema, with the React-rendering footnote swapped
+        // in for the canonical headless one. HorizontalRuleExtension re-registers
+        // HorizontalRuleNode (the same class — harmless) as part of the divider
+        // support wired in via `dependencies` below.
+        nodes: [...DOCUMENT_NODES, FootnoteNode],
+        onError: (error) => {
+          console.error(error);
         },
-  };
+        // Load the stored document, or seed an empty paragraph so the caret and
+        // placeholder have somewhere to live.
+        $initialEditorState: initialContentRef.current
+          ? initialContentRef.current
+          : () => {
+              const root = $getRoot();
+              if (root.getFirstChild() === null) root.append($createParagraphNode());
+            },
+        // The divider, in full: its node, the INSERT_HORIZONTAL_RULE_COMMAND the
+        // slash menu dispatches, click-to-select, and the `hrSelected` styling
+        // that makes a node-selected rule visible (so Backspace-to-delete reads
+        // like any other block). `---`/`***`/`___` is handled by the standard
+        // Markdown transformer (see markdown-shortcuts.ts).
+        dependencies: [HorizontalRuleExtension],
+      }),
+    [],
+  );
 
   return (
     <div className={cn("relative flex flex-1 flex-col", className)}>
-      <LexicalComposer initialConfig={initialConfig}>
+      {/* contentEditable={null} — the RichTextPlugin child renders its own
+          ContentEditable (below), so the composer must not add a default one. */}
+      <LexicalExtensionComposer extension={editorExtension} contentEditable={null}>
         <RichTextPlugin
           // The editable's *direct* parent must not be a flex container, or
           // Chrome mis-handles focus when clicking outside it (Lexical warns on
@@ -109,7 +131,6 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
         {/* Tab / Shift-Tab indents list items into sub-lists. */}
         <TabIndentationPlugin />
         <LinkPlugin />
-        <HorizontalRulePlugin />
         <MarkdownShortcutPlugin transformers={MARKDOWN_SHORTCUTS} />
         <AutoLinkOnPastePlugin />
         <FloatingToolbarPlugin />
@@ -117,7 +138,7 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
         <FootnotePlugin />
         <FootnoteCopyPlugin />
         <EditorControllerPlugin handleRef={ref} onSave={onSave} onDirtyChange={onDirtyChange} />
-      </LexicalComposer>
+      </LexicalExtensionComposer>
     </div>
   );
 });
