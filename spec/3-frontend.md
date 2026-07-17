@@ -1,8 +1,12 @@
 # Frontend
 
-The frontend will use React Router. It will operate in SPA mode. It will fetch and mutate data using React Query and a tRPC client, defaulting to optimistic updates. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should define CSS variables that provide the theme values (using the @theme directive) for the app (colors, borders, spacing) and use them wherever logical. It should have a clean, minimal, spacious aesthetic.
+The frontend will use React Router. It will operate in SPA mode. It will fetch and mutate data using React Query and a tRPC client, defaulting to optimistic updates. It will use Tailwind CSS v4 for styling. It should use Remix icons. It should use a consistent set of design tokens for things like colors, fonts, and typographical values; the design tokens are stored in a file called `globals.css`. It should have a clean, minimal, spacious aesthetic.
 
 ## Design System
+
+### Colors
+
+Using CSS variables, a palette should be defined, using OKLCH, that consists of several shades of several different colors. These values should then be used to define the tokens that are actually used in the app, like the primary theme color, the primary accent color, the primary and secondary text colors, and so on.
 
 ### Text
 

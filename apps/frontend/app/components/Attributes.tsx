@@ -7,7 +7,7 @@ import { cn } from "~/lib/cn";
 const linkText = "text-base text-primary whitespace-nowrap";
 
 const addBtn =
-  "inline-flex items-baseline gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary";
+  "inline-flex items-baseline gap-1 bg-transparent border-0 p-0 text-md text-muted whitespace-nowrap cursor-pointer hover:text-primary";
 
 type AttrType = "text" | "list";
 

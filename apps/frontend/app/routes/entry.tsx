@@ -609,7 +609,7 @@ function AddChildPill({ onClick, label }: { onClick: () => void; label: string }
   return (
     <button
       type="button"
-      className="gap-1 bg-transparent border-0 p-0 text-sm text-muted whitespace-nowrap cursor-pointer hover:text-primary"
+      className="gap-1 bg-transparent border-0 p-0 text-md text-muted whitespace-nowrap cursor-pointer hover:text-primary"
       onClick={onClick}
     >
       {label}

@@ -34,13 +34,17 @@
   --org-col-gap: 18px;
   --org-card-gap: 9px;
 
-  --org-card-pad-x: 12px;
-  --org-card-pad-y: 9px;
-  --org-card-min-h: 58px;
+  /* Card box geometry now comes from the shared --card-* tokens in globals.css
+     (@theme), so these chart cards and the splash logbook cards stay identical.
+     The internal --org-card-* names are kept as aliases so the rest of this
+     stylesheet is unchanged. */
+  --org-card-pad-x: var(--spacing-card-x);
+  --org-card-pad-y: var(--spacing-card-y);
+  --org-card-min-h: var(--spacing-card-min);
   /* The icon column at the left of the title row. The footer (meta / actions)
      is indented by this so it lines up under the title, not the icon. */
-  --org-card-icon-w: 1.4rem;
-  --org-card-icon-gap: 7px;
+  --org-card-icon-w: var(--spacing-card-icon);
+  --org-card-icon-gap: var(--spacing-card-icon-gap);
 
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
@@ -62,15 +66,16 @@
 
   /* Column 0 is body text. Columns > 0 are headings — same size, bold. Columns
      < 0 are asides — same size, muted color. (Per the card-design spec,
-     font size does NOT vary by column.) */
-  --org-title-size: 1rem;
-  --org-title-lh: 1.3;
-  --org-title-weight: 450;
-  --org-title-weight-bold: 650;
-  --org-meta-size: 0.78rem;
+     font size does NOT vary by column.) Title/meta type comes from the shared
+     --card-* tokens in globals.css. */
+  --org-title-size: var(--text-card-title);
+  --org-title-lh: var(--text-card-title--line-height);
+  --org-title-weight: var(--font-weight-card-title);
+  --org-title-weight-bold: var(--font-weight-card-title-strong);
+  --org-meta-size: var(--text-card-meta);
   /* Footer row height — shared by the meta line and the action buttons so the
      card doesn't change height on hover. */
-  --org-footer-row-h: 1.18rem;
+  --org-footer-row-h: var(--text-card-meta--line-height);
 
   --org-card-edge: var(--color-stark-border);
 }
@@ -933,8 +938,10 @@
 /* ── Input card (add / rename) ───────────────────────────────── */
 
 .cardEditing {
+  /* A single thin border in the accent color marks the editing state — the
+     color change from the resting light-grey edge is enough, so there's no
+     doubled inset ring. */
   border-color: var(--color-accent);
-  box-shadow: inset 0 0 0 1px var(--color-accent);
   background: var(--color-stark);
   cursor: text;
 }

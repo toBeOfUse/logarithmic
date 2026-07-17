@@ -2,28 +2,74 @@
 @import "remixicon/fonts/remixicon.css";
 @plugin "@tailwindcss/typography";
 
+/* this file hosts the design tokens that are used app-wide. plus a few general CSS reset things. */
+
 @theme {
+  /* ===== Palette ===== */
+  --theme-hue: 0;
+
+  --gray-50: oklch(0.97 0.001 var(--theme-hue)); /* lightest */
+  --gray-100: oklch(0.93 0.001 var(--theme-hue));
+  --gray-200: oklch(0.85 0.001 var(--theme-hue));
+  --gray-400: oklch(0.7 0.001 var(--theme-hue));
+  --gray-600: oklch(0.5 0.001 var(--theme-hue));
+  --gray-800: oklch(0.32 0.001 var(--theme-hue));
+  --gray-900: oklch(0.24 0.01 var(--theme-hue)); /* darkest */
+
+  --pure-gray-900: oklch(0.1 0 0);
+  --pure-gray-800: oklch(0.32 0 0);
+  --pure-gray-600: oklch(0.5 0 0);
+
+  --blue-500: oklch(0.45 0.14 252);
+
+  --red-500: oklch(0.4 0.12 30);
+
+  /* Magenta — the corigami logo's theme color. `500` is the base; `600` is the
+     deeper shade used for the logo's primary fill, `300` the softer, lighter
+     shade for its secondary fill. */
+  --magenta-500: oklch(0.651 0.2276 3.77); /* base */
+  --magenta-600: oklch(from var(--magenta-500) calc(l - 0.08) c h); /* deeper */
+  --magenta-700: oklch(from var(--magenta-500) calc(l - 0.12) c h); /* deeper */
+  --magenta-300: oklch(
+    from var(--magenta-500) calc(l + 0.18) calc(c * 0.45) h
+  ); /* softer, lighter */
+  --magenta-100: oklch(from var(--magenta-500) calc(l + 0.28) calc(c * 0.18) h); /* palest tint */
+
+  /* ===== Design tokens ===== */
+
   /* Surface. `stark` is the base; `stark-border` is the single light-grey used
      for every subtle edge — borders, dividers, separators, hover/selected fills,
      and code backgrounds. `stark-border-strong` is the darker edge for
      hover/focus emphasis, kept separate so `muted` stays reserved for text. */
   --color-stark: white; /* white */
-  --color-stark-hover: oklch(0.97 0.005 250); /* lighter grey */
-  --color-stark-border: oklch(0.85 0.005 250); /* darker grey */
-  --color-stark-border-strong: oklch(0.7 0.012 250); /* darkest grey — emphasized edges */
+  --color-stark-hover: var(--gray-50);
+  --color-stark-sunken: var(--gray-100);
+  --color-stark-border: var(--gray-200);
+  --color-stark-border-strong: var(--gray-400); /* emphasized edges */
 
-  /* Text — cool grey. `primary` is body text, `primary-hover` its hover state on
+  /* Text — warm grey. `primary` is body text, `primary-hover` its hover state on
      solid buttons, `muted` the single de-emphasised level. */
-  --color-primary: oklch(0.24 0.012 250); /* near-black grey */
-  --color-primary-hover: oklch(0.32 0.012 250); /* dark grey */
-  --color-muted: oklch(0.5 0.012 250); /* grey */
+  --color-primary: var(--pure-gray-900); /* near-black grey */
+  --color-primary-hover: var(--pure-gray-800); /* dark grey */
+  --color-muted: var(--pure-gray-600); /* grey */
 
   /* Accent — used for links, focus, and interactive highlights. */
-  --color-accent: oklch(0.45 0.14 252); /* blue */
-  --color-accent-soft: oklch(0.45 0.14 252 / 0.1); /* transparent blue */
+  --color-accent: var(--blue-500);
+  --color-accent-soft: oklch(from var(--color-accent) l c h / 0.1); /* transparent blue */
+
+  /* Main theme — the app's brand color, aliased to magenta. */
+  --color-main-theme: var(--magenta-500);
+
+  /* Brand mark — the corigami logo's three parts. `primary` fills most paths,
+     `secondary` a few, and `stroke` outlines them with a light edge. Derived
+     from magenta so the mark themes with main-theme; override any of these in a
+     scope (e.g. the wrapper's per-variant inline style) to recolor from CSS. */
+  --color-logo-primary: var(--magenta-500);
+  --color-logo-secondary: var(--magenta-100);
+  --color-logo-stroke: var(--magenta-100);
 
   /* Warn — destructive actions. */
-  --color-warn: oklch(0.4 0.12 30); /* red */
+  --color-warn: var(--red-500); /* red */
   --color-warn-bg: oklch(from var(--color-warn) l c h / 0.1);
 
   /* Scrim — the dimmed backdrop behind modals (primary at low alpha). */
@@ -58,6 +104,29 @@
   --tracking-heading: -0.02em; /* large display headings */
   --tracking-label: 0.08em; /* uppercase section labels */
   --tracking-caps: 0.04em; /* uppercase field labels */
+
+  /* ===== Card ===== */
+
+  /* The shared entry-card box — a sharp-cornered, bordered panel with a title
+     and a muted meta line — used by both the OrgView chart cards and the splash
+     logbook cards. Promoted here so the two reference one source and stay
+     identical; OrgView.module.css maps its internal --org-card-* names onto
+     these, and Card.tsx uses the generated utilities (px-card-x, min-h-card-min,
+     text-card-title, text-card-meta, …). */
+  --spacing-card-x: 12px; /* card horizontal padding */
+  --spacing-card-y: 9px; /* card vertical padding */
+  --spacing-card-min: 58px; /* minimum card height */
+  --spacing-card-icon: 1.4rem; /* leading icon slot width */
+  --spacing-card-icon-gap: 5px; /* icon-to-title gap */
+  /* Indent so a meta line aligns under the title, past a leading icon. */
+  --spacing-card-indent: calc(var(--spacing-card-icon) + var(--spacing-card-icon-gap));
+
+  --text-card-title: 1rem;
+  --text-card-title--line-height: 1.3;
+  --text-card-meta: 0.78rem;
+  --text-card-meta--line-height: 1.18rem;
+  --font-weight-card-title: 450; /* body-column card title */
+  --font-weight-card-title-strong: 650; /* heading-column card title */
 }
 
 /* Base font size for the rem unit. 14px on desktop, 12px on mobile — every

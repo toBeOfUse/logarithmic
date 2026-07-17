@@ -64,8 +64,11 @@ import type { ColumnSetting, EntryNode, MoveEntryInput } from "logarithmic-backe
 
 import { cn } from "~/lib/cn.ts";
 import { entryIconClass, isDefaultEntryIcon } from "~/lib/entry-icons.ts";
+import { formatCardDate } from "~/lib/format-card-date.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 
+import { AddingIndicator } from "./AddingIndicator.tsx";
+import { Card } from "./Card.tsx";
 import { IconPicker } from "./IconPicker.tsx";
 
 import styles from "./OrgView.module.css";
@@ -250,27 +253,6 @@ function dropToMoveInput(
     };
   }
   return null;
-}
-
-function ordinal(n: number): string {
-  const v = n % 100;
-  if (v >= 11 && v <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1:
-      return `${n}st`;
-    case 2:
-      return `${n}nd`;
-    case 3:
-      return `${n}rd`;
-    default:
-      return `${n}th`;
-  }
-}
-
-/** "Dec 12th, 2026" — the card-design "Date Updated". */
-function formatCardDate(d: Date): string {
-  const month = d.toLocaleDateString(undefined, { month: "short" });
-  return `${month} ${ordinal(d.getDate())}, ${d.getFullYear()}`;
 }
 
 /**
@@ -789,21 +771,14 @@ const LoadingCard = memo(function LoadingCard({
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, []);
   return (
-    <div ref={ref} className={cn(styles.card, "opacity-65")} aria-busy="true">
-      <div className={styles.cardBody}>
-        <div className={styles.cardHeader}>
-          <EntryIcon iconName={iconName} iconFamily={iconFamily} />
-          <span className={cn(styles.cardTitle, !name && styles.isUntitled)}>
-            {name || "Unnamed entry"}
-          </span>
-        </div>
-        <div className={styles.cardFooter}>
-          <span className={cn(styles.cardMeta, "inline-flex items-center gap-1")}>
-            <i className="ri-loader-4-line animate-spin" aria-hidden="true" />
-            Adding…
-          </span>
-        </div>
-      </div>
+    <div ref={ref}>
+      <Card
+        busy
+        icon={<EntryIcon iconName={iconName} iconFamily={iconFamily} />}
+        title={name || "Unnamed entry"}
+        untitled={!name}
+        meta={<AddingIndicator />}
+      />
     </div>
   );
 });

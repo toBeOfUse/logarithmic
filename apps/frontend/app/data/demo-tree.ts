@@ -181,7 +181,7 @@ const researchTree: Seed[] = [
 ];
 
 export const DEMO_LOGBOOKS: DemoLogbook[] = [
-  { id: "dc", name: "Demo · cookbook", tree: cookbookTree },
-  { id: "dr", name: "Demo · research notebook", tree: researchTree },
-  { id: "db", name: "Demo · blank logbook", tree: [] },
+  { id: "dc", name: "Cookbook", tree: cookbookTree },
+  { id: "dr", name: "Research Notebook", tree: researchTree },
+  { id: "db", name: "Blank Logbook", tree: [] },
 ];

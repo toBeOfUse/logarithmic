@@ -1,59 +1,59 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+
+import type { LogbookSummary } from "logarithmic-backend/api-types";
 
 import { AccessLinkModal } from "~/components/AccessLinkModal.tsx";
-import { AppMark } from "~/components/AppMark.tsx";
+import { AddingIndicator } from "~/components/AddingIndicator.tsx";
+import { Card } from "~/components/Card.tsx";
+import { SpiralLogo } from "~/components/SpiralLogo.tsx";
 import { useCreateLogbook, useLogbooks } from "~/data/hooks.ts";
 import { buildBookmarkUrl } from "~/data/tokens.ts";
+import { cn } from "~/lib/cn.ts";
+import { formatCardDate } from "~/lib/format-card-date.ts";
 import { routeSegment } from "~/lib/route-segment.ts";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
-function formatRelative(d: Date): string {
-  const ms = Date.now() - d.getTime();
-  const min = Math.round(ms / 60_000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const days = Math.round(hr / 24);
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
-}
-
-const btnPrimary =
-  "text-sm font-medium bg-primary border border-primary text-stark px-[11px] py-[6px] rounded-[6px] cursor-pointer inline-flex items-center gap-[6px] transition-colors hover:bg-primary-hover disabled:opacity-55 disabled:cursor-not-allowed";
-
 type PendingShare = { logbookName: string; url: string; nextPath: string };
+
+// The ⊕ mark shown after the title on the "create" cards.
+const addMark = <i className="ri-add-circle-line" aria-hidden="true" />;
 
 export default function Splash() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const { data: logbooks = [], isLoading } = useLogbooks({ demo: false });
+  const { data: logbooks = [] } = useLogbooks({ demo: false });
   const { data: demoLogbooks = [] } = useLogbooks({ demo: true });
   const createLogbook = useCreateLogbook();
+  // Whether the "Create New" / "Get Started" card is currently an input cell.
+  const [creating, setCreating] = useState(false);
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
 
   useDocumentTitle(null);
 
   const hasLogbooks = logbooks.length > 0;
-  const hasDemos = demoLogbooks.length > 0;
+  // Most-recently-edited first, per the wireframe annotation.
+  const sortedLogbooks = [...logbooks].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
 
-  function onCreate(e: React.SubmitEvent) {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
+  function submitCreate(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setCreating(false);
+      return;
+    }
     createLogbook.mutate(
       { name: trimmed },
       {
         onSuccess: ({ logbook, token }) => {
-          setName("");
-          const path = `/${routeSegment(logbook.slug, logbook.id)}`;
+          setCreating(false);
           setPendingShare({
             logbookName: logbook.name,
             url: buildBookmarkUrl(routeSegment(logbook.slug, logbook.id), token),
-            nextPath: path,
+            nextPath: `/${routeSegment(logbook.slug, logbook.id)}`,
           });
         },
+        onError: () => setCreating(false),
       },
     );
   }
@@ -66,107 +66,89 @@ export default function Splash() {
 
   return (
     <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
-      <div className={`flex-1 flex flex-col bg-stark relative overflow-auto`}>
-        <div className="max-w-[560px] w-full mx-auto px-12 pt-24 pb-16 relative z-10 flex-1 flex flex-col box-border">
-          <AppMark size="lg" />
-
-          {hasLogbooks ? (
-            <>
-              <h1 className="font-serif font-normal text-5xl leading-display tracking-heading m-0 mb-3 text-primary">
-                Welcome <em className="italic text-accent">back</em>.
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto box-border flex w-full max-w-4xl flex-col gap-8 px-6 py-12 sm:px-10 sm:py-16">
+          {/* Hero: the grayscale spiral mark beside the wordmark, the wordmark set
+              over three ruled lines like a title on a fresh logbook page. */}
+          <header className="flex items-center gap-4 sm:gap-6">
+            <SpiralLogo variant="hero" tone="mono" className="h-18 shrink-0 sm:h-24" />
+            <div className="relative flex min-w-0 flex-1 items-center">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 inset-y-1.5 sm:inset-y-3 flex flex-col justify-between"
+              >
+                <div className="border-t border-stark-border" />
+                <div className="border-t border-dashed border-stark-border" />
+                <div className="border-t border-stark-border" />
+              </div>
+              <h1 className="relative m-0 font-serif text-6xl font-semibold leading-none tracking-heading text-primary sm:text-8xl">
+                Logarithmic
               </h1>
-              <p className="text-lg leading-prose text-muted max-w-[460px] m-0 mb-9">
-                Pick a logbook to open, or start a new one.
+            </div>
+          </header>
+
+          {/* Value proposition, then the logbooks. */}
+          <section className="flex flex-col gap-8">
+            <div className="flex flex-col gap-3">
+              <p className="m-0 text-lg leading-prose text-primary sm:text-xl">
+                Logarithmic is a structured writing, planning, and note-taking app.
               </p>
-            </>
-          ) : (
-            <>
-              <h1 className="font-serif font-normal text-5xl leading-display tracking-heading m-0 mb-3 text-primary">
-                A logbook for things from your brain
-              </h1>
-            </>
-          )}
-
-          <form className="flex gap-2 mb-3" onSubmit={onCreate}>
-            <input
-              className="flex-1 text-base border border-stark-border bg-stark text-primary rounded-[7px] px-3 py-2.5 outline-none placeholder:text-muted focus:border-accent focus:shadow-focus"
-              placeholder={hasLogbooks ? "New logbook…" : "Name your first logbook…"}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={createLogbook.isPending}
+              <p className="m-0 text-sm italic leading-prose text-muted">
+                It's like if Notion was more organized, or Linear was less so.
+              </p>
+            </div>
+            <LogbookRow
+              hasLogbooks={hasLogbooks}
+              logbooks={sortedLogbooks}
+              creating={creating}
+              busy={createLogbook.isPending}
+              onStartCreate={() => setCreating(true)}
+              onSubmitCreate={submitCreate}
+              onCancelCreate={() => setCreating(false)}
             />
-            <button
-              type="submit"
-              className={btnPrimary}
-              disabled={createLogbook.isPending || name.trim().length === 0}
-            >
-              <i className="ri-add-line" aria-hidden="true" />
-              {hasLogbooks ? "Create" : "Create logbook"}
-            </button>
-          </form>
+          </section>
 
-          {hasLogbooks && (
-            <>
-              <div className="text-xs uppercase tracking-label text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-stark-hover">
-                Your logbooks · {logbooks.length}
+          {/* How it works: the explainer boxed on the left, the demos as cards
+              on the right. */}
+          <section className="grid grid-cols-1 items-start gap-8 sm:grid-cols-2">
+            <div className="flex flex-col gap-4 px-2">
+              <h2 className="m-0 text-xl font-semibold tracking-heading text-primary sm:text-2xl">
+                Snap Your Brain To Grid
+              </h2>
+              <div className="flex flex-col gap-4 text-base leading-prose text-primary">
+                <p className="m-0">
+                  This app is built on <strong className="font-semibold">logbooks</strong>, which
+                  contain entries in columns.
+                </p>
+                <p className="m-0">
+                  Entries can be whatever you want: they can store a name, they can have content,
+                  and they can have subentries.
+                </p>
+                <p className="m-0">
+                  Entries and subentries are automatically organized into columns based on their
+                  relationships.
+                </p>
               </div>
-              <div className="flex flex-col bg-stark border border-stark-border rounded-lg overflow-hidden mb-[22px] divide-y divide-stark-border">
-                {logbooks.map((lb) => (
-                  <Link
-                    key={lb.id}
-                    to={`/${routeSegment(lb.slug, lb.id)}`}
-                    className="flex items-center gap-3.5 px-3.5 py-3 cursor-pointer bg-stark no-underline text-[inherit] hover:bg-stark-hover"
-                  >
-                    <span className="size-[28px] rounded-[5px] bg-stark-hover border border-stark-border inline-flex items-center justify-center text-muted flex-shrink-0 text-base">
-                      <i className="ri-book-2-line" aria-hidden="true" />
-                    </span>
-                    <span className="text-base font-medium text-primary flex-1 min-w-0">
-                      {lb.name}
-                    </span>
-                    <span className="text-sm text-muted tabular-nums">
-                      {lb.entryCount} {lb.entryCount === 1 ? "entry" : "entries"} · edited{" "}
-                      {formatRelative(lb.updatedAt)}
-                    </span>
-                    <i className="ri-arrow-right-s-line text-muted" />
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
-
-          {hasDemos && (
-            <>
-              <div className="text-xs uppercase tracking-label text-muted flex items-center gap-2.5 mb-3 after:content-[''] after:flex-1 after:h-px after:bg-stark-hover">
-                {hasLogbooks || isLoading
-                  ? `Demo logbooks · ${demoLogbooks.length}`
-                  : "Or try it without an account"}
-              </div>
-              <div className="flex flex-col gap-2">
-                {demoLogbooks.map((lb) => (
-                  <Link
-                    key={lb.id}
-                    to={`/${routeSegment(lb.slug, lb.id)}`}
-                    className="flex items-center gap-2.5 px-[14px] py-3 border border-dashed border-stark-border rounded-lg no-underline text-[inherit] hover:bg-stark-hover"
-                  >
-                    <span className="text-xs font-medium bg-primary text-stark px-[6px] py-[2px] rounded-[3px] tracking-wider uppercase flex-none leading-tag">
-                      Demo
-                    </span>
-                    <span className="flex-1 text-base text-muted">{lb.name}</span>
-                    <span className="text-sm text-muted tabular-nums">
-                      {lb.entryCount} {lb.entryCount === 1 ? "entry" : "entries"}
-                    </span>
-                    <i className="ri-arrow-right-s-line text-muted" />
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
-
-          <div className="mt-auto pt-6 text-xs text-muted flex justify-between items-center">
-            <span>v0.1 · local-first · token-gated</span>
-          </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <h3 className="m-0 text-base font-semibold text-primary">See how it works:</h3>
+              {demoLogbooks.map((lb) => (
+                <Card
+                  key={lb.id}
+                  strong
+                  href={`/${routeSegment(lb.slug, lb.id)}`}
+                  title={lb.name || "Untitled logbook"}
+                  meta={`Demo · ${lb.entryCount} ${lb.entryCount === 1 ? "entry" : "entries"}`}
+                />
+              ))}
+              <p className="m-0 text-sm text-primary">
+                (Nothing you change in these demos will be saved.)
+              </p>
+            </div>
+          </section>
         </div>
       </div>
+
       {pendingShare && (
         <AccessLinkModal
           logbookName={pendingShare.logbookName}
@@ -174,6 +156,145 @@ export default function Splash() {
           onClose={dismissShare}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The logbooks: a row of cards (styled like the org-view entry cards) that wraps
+ * horizontally, most-recently edited first, ending in the "Create New" card.
+ * With no logbooks yet that card reads "Get Started" instead. Either card turns
+ * into an input cell when selected, just like naming an entry on the org view.
+ */
+function LogbookRow({
+  hasLogbooks,
+  logbooks,
+  creating,
+  busy,
+  onStartCreate,
+  onSubmitCreate,
+  onCancelCreate,
+}: {
+  hasLogbooks: boolean;
+  logbooks: LogbookSummary[];
+  creating: boolean;
+  busy: boolean;
+  onStartCreate: () => void;
+  onSubmitCreate: (name: string) => void;
+  onCancelCreate: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-8">
+      {logbooks.map((lb) => (
+        <Card
+          key={lb.id}
+          className="sm:col-span-4"
+          strong
+          href={`/${routeSegment(lb.slug, lb.id)}`}
+          title={lb.name || "Untitled logbook"}
+          untitled={!lb.name}
+          meta={`Updated ${formatCardDate(lb.updatedAt)} · ${lb.entryCount} ${
+            lb.entryCount === 1 ? "entry" : "entries"
+          }`}
+        />
+      ))}
+      {creating ? (
+        <CreateLogbookCell
+          className="sm:col-span-4"
+          busy={busy}
+          onSubmit={onSubmitCreate}
+          onCancel={onCancelCreate}
+        />
+      ) : (
+        <Card
+          className="sm:col-span-4"
+          strong
+          trailingIcon={addMark}
+          title={hasLogbooks ? "Create New" : "Get Started"}
+          meta={hasLogbooks ? "Add a new logbook" : "Create your first logbook"}
+          onClick={onStartCreate}
+          ariaLabel={
+            hasLogbooks ? "Create a new logbook" : "Get started by creating your first logbook"
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "Create New" / "Get Started" card turned into an inline name input —
+ * mirroring how naming an entry works on the org view: Enter or blur commits,
+ * Escape cancels, a blank value is a no-op. Submission is single-fire so the
+ * blur that fires when the input disables mid-create doesn't double-submit.
+ */
+function CreateLogbookCell({
+  busy,
+  onSubmit,
+  onCancel,
+  className,
+}: {
+  busy: boolean;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+  className?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const settledRef = useRef(false);
+  const [submittedName, setSubmittedName] = useState<string | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = (value: string) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    setSubmittedName(value.trim());
+    onSubmit(value);
+  };
+
+  // While the create round-trips, show the same "Adding…" placeholder the org
+  // view uses for a new entry — the input becomes the logbook-to-be.
+  if (busy) {
+    return (
+      <Card
+        busy
+        strong
+        className={className}
+        title={submittedName || "New logbook"}
+        untitled={!submittedName}
+        meta={<AddingIndicator />}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "box-border flex min-h-card-min w-full items-start rounded-none border border-primary bg-stark px-card-x py-card-y",
+        className,
+      )}
+    >
+      <input
+        ref={inputRef}
+        defaultValue=""
+        placeholder="New logbook…"
+        disabled={busy}
+        className="m-0 w-full border-0 bg-transparent p-0 text-card-title font-card-title-strong text-primary outline-none placeholder:font-normal placeholder:text-muted disabled:opacity-60"
+        onBlur={(e) => submit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit(e.currentTarget.value);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            if (settledRef.current) return;
+            settledRef.current = true;
+            onCancel();
+          }
+        }}
+      />
     </div>
   );
 }
