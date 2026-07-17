@@ -82,6 +82,11 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
   // The selection rect captured when the toolbar first appears; frozen in link
   // mode so focusing the URL input (which blurs the editor) doesn't move it.
   const rectRef = useRef<DOMRect | null>(null);
+  // True while a pointer button is held down, i.e. a drag-select is in progress.
+  // The toolbar stays hidden until release so it appears only once the selection
+  // is settled (like Notion). Keyboard selection has no pointer down, so it's
+  // unaffected.
+  const pointerDownRef = useRef(false);
 
   const readSelectionState = useCallback((): InlineState | null => {
     const selection = $getSelection();
@@ -129,6 +134,9 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
   const syncFromSelection = useCallback(() => {
     // Don't disturb the popover while the user is in the link form.
     if (mode === "link") return;
+    // Hold off while the user is still dragging out a selection; the pointer-up
+    // handler re-runs this once the selection is settled.
+    if (pointerDownRef.current) return;
     const next = editor.getEditorState().read(readSelectionState);
     const rect = captureRect();
     const hasRangeText =
@@ -157,6 +165,35 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
       ),
     );
   }, [editor, syncFromSelection]);
+
+  // Reveal the toolbar only once the pointer is released, never mid-drag
+  // (Notion-style). A pointer-down anywhere outside the popover begins a drag
+  // and hides the toolbar; releasing (or cancelling) re-syncs so it reappears if
+  // a range remains. `syncRef` keeps the latest reader without re-binding the
+  // document listeners on every render.
+  const syncRef = useRef(syncFromSelection);
+  syncRef.current = syncFromSelection;
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      // Clicks on the toolbar itself must not hide it or start a "drag".
+      if (popupRef.current?.contains(e.target as Node)) return;
+      pointerDownRef.current = true;
+      setMode((m) => (m === "link" ? m : "hidden"));
+    };
+    const endDrag = () => {
+      if (!pointerDownRef.current) return;
+      pointerDownRef.current = false;
+      syncRef.current();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerup", endDrag, true);
+    document.addEventListener("pointercancel", endDrag, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", endDrag, true);
+      document.removeEventListener("pointercancel", endDrag, true);
+    };
+  }, []);
 
   // Position the popover at the captured rect, flipping below when there's no
   // room above and clamping into the viewport.
