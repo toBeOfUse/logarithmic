@@ -1,20 +1,19 @@
 /**
- * Vanilla tRPC client used by `hooks.ts` for any logbook that isn't a demo.
- * We deliberately keep the React-Query wiring in the hooks themselves rather
- * than using `@trpc/tanstack-react-query` — the per-hook control over query
- * keys and invalidation rules predates the API, and we don't want to rewrite
- * that surface while moving the data source.
+ * Vanilla tRPC client used by `hooks.ts` for any logbook that isn't a demo. We
+ * deliberately keep the React-Query wiring in the hooks themselves rather than
+ * using `@trpc/tanstack-react-query` — the per-hook control over query keys and
+ * invalidation rules predates the API, and we don't want to rewrite that
+ * surface while moving the data source.
  *
  * `superjson` matches the transformer on the server, so Date objects (and
  * `Uint8Array` returned by `logbook.export`) survive the JSON round trip and
  * the existing date-formatting code keeps working.
  *
- * `splitLink` routes binary inputs (the `logbook.import` upload, accepted as
- * a `File`/`Blob`/`Uint8Array`) through a non-batched `httpLink` configured
+ * `splitLink` routes binary inputs through a non-batched `httpLink` configured
  * for binary bodies. JSON-only calls also go through a non-batched `httpLink`
- * (rather than `httpBatchLink`) because each call must carry an
- * `Authorization` header derived from its own input's `logbookId` — batching
- * would force a single header for the whole batch.
+ * (rather than `httpBatchLink`) because each call must carry an `Authorization`
+ * header derived from its own input's `logbookId` — batching would force a
+ * single header for the whole batch.
  *
  * The URL is same-origin: in dev, Vite proxies `/trpc` to the backend (see
  * `vite.config.ts`); in prod, the SPA and API are expected to share an origin

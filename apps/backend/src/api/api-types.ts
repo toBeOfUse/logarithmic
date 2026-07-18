@@ -48,10 +48,10 @@ export type LogbookDetail = PickPresent<
 };
 
 /**
- * Response from `logbook.create` and `logbook.import`. The server mints a
- * fresh token on each call and returns it exactly once — the plaintext token
- * is never persisted, only its bcrypt hash. The frontend is responsible for
- * stashing it in localStorage and surfacing the bookmarkable link.
+ * Response from `logbook.create`. The server mints a fresh token on each call
+ * and returns it exactly once — the plaintext token is never persisted, only
+ * its bcrypt hash. The frontend is responsible for stashing it in localStorage
+ * and surfacing the bookmarkable link.
  */
 export type CreatedLogbook = {
   logbook: LogbookDetail;

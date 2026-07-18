@@ -1,15 +1,15 @@
 /**
  * tRPC initialization. The context is built per request: it forks the
- * EntityManager (so each request gets its own identity map) and lazily
- * resolves the logbook authorized by the incoming `Authorization: Bearer …`
- * header. There are no users or sessions — access is purely per-logbook,
- * keyed off the token (see `./tokens.ts`).
+ * EntityManager (so each request gets its own identity map) and lazily resolves
+ * the logbook authorized by the incoming `Authorization: Bearer …` header.
+ * There are no users or sessions — access is purely per-logbook, keyed off the
+ * token (see `./tokens.ts`).
  *
  * Procedures that operate on a specific logbook use `logbookProcedure`, which
- * validates both that a token was supplied and that the token's logbook
- * matches the `logbookId` in the input. Procedures that hand out new tokens
- * (logbook.create, logbook.import) are open via `publicProcedure`, as is the
- * splash-screen `logbook.listByTokens`, which takes tokens in its input.
+ * validates both that a token was supplied and that the token's logbook matches
+ * the `logbookId` in the input. Procedures that hand out new tokens
+ * (logbook.create) are open via `publicProcedure`, as is the splash-screen
+ * `logbook.listByTokens`, which takes tokens in its input.
  */
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { CreateFastifyContextOptions } from "@trpc/server/adapters/fastify";
