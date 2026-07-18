@@ -1407,22 +1407,6 @@ export function OrgView({
     return s;
   }, [columnConfig]);
 
-  // The chart is centered only when the heading columns (>0, of which there are
-  // `maxCol`) and the aside columns (<0, of which there are `-minCol`) balance.
-  // When one side has more columns, that side's outer margin collapses to 0 so
-  // the chart hugs that edge instead of drifting off-center: more headings →
-  // pin left, more asides → pin right. Set as CSS vars consumed by
-  // .colStripInner / .canvas; the unset side keeps its `auto` default.
-  const alignVars: CSSProperties = useMemo(
-    () =>
-      maxCol > -minCol
-        ? ({ "--org-align-left": "0" } as CSSProperties)
-        : maxCol < -minCol
-          ? ({ "--org-align-right": "0" } as CSSProperties)
-          : {},
-    [maxCol, minCol],
-  );
-
   // Drive the height of each sticky box imperatively. A sticky box has to both
   // span its subtree (stretch down past its descendants) and be shorter than its
   // cell (so it has room to travel and pin) — a plain sticky element can't do
@@ -1633,7 +1617,7 @@ export function OrgView({
   const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-paper" style={alignVars}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-paper">
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}

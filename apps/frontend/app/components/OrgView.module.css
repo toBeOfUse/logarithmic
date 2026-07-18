@@ -95,12 +95,12 @@
 }
 
 /* Wraps the sticky header strip and the canvas in one shrink-to-content block,
-   so the strip (a flex row of every column) establishes the full chart width and
-   the canvas inherits it — keeping the two aligned without a computed width.
-   Centered, or pinned to the heavier side, via the align vars set in OrgView. */
+   so the strip (a flex row of every column) establishes the full chart width
+   and the canvas inherits it — keeping the two aligned without a computed
+   width. Also, it's horizontally centered. */
 .inner {
   width: max-content;
-  margin: 0 var(--org-align-right, auto) 0 var(--org-align-left, auto);
+  margin: 0 auto;
 }
 
 /* ── Column-header strip ─────────────────────────────────────── */
