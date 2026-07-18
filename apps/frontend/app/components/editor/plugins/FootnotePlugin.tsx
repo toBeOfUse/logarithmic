@@ -195,7 +195,7 @@ function FootnotesSection({
         if (!nested) return null;
         return (
           <div
-            className="mb-2 flex gap-2.5 text-sm text-secondary"
+            className="mb-2 flex gap-2.5 text-sm text-secondary items-start"
             id={`footnote-${key}`}
             key={key}
           >
