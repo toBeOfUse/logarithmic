@@ -10,13 +10,13 @@ Font sizes should use rem (and have a base size of 1rem.) 1rem should be defined
 
 ## User Interface
 
-The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook, import a previously exported logbook, or open a logbook that you've previously created. There are two main routes in the logbook view: the organizational route and the content route. The Organizational route is open first, and you can click into it to open an entry's content route.
+The first version of Logarithmic will be accessible via a simple web app. This app has a splash screen that lets you create a logbook, open a logbook that you've previously created, or open a demo logbook. There are two main routes in the logbook view: the organizational route and the content route. The Organizational route is open first, and you can click into it to open an entry's content route.
 
 ### Top Bar
 
 Both views have a standard "top bar" that displays the breadcrumbs for the currently open view (which is just the name of the logbook in the organizational view case) and a kebab menu. The breadcrumb trail is led by a link back to the initial splash screen.
 
-When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, enter the column-editing mode (see "Editing Columns" below), or, if it's a not a demo logbook, export it as a ZIP file. When you're on that entry's content page, it allows you to delete an entry or copy it as Markdown (see below.)
+When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, delete the logbook (with confirmation), or enter the column-editing mode (see "Editing Columns" below). When you're on that entry's content page, it allows you to delete an entry or copy it as Markdown (see below.)
 
 ### Organizational Interface
 
@@ -110,9 +110,11 @@ These two sections will collapse down if they don't have content to show. Like t
 
 For editing entries' rich text, we are using the [Lexical](https://lexical.dev/) editor.
 
+Note that custom node types must be defined in the `content` package so that the backend can inspect and process their serialized JSON data. The frontend is responsible for extending these basic types and adding view layer functionality (like the `decorate` method in a `DecoratorNode` subclass that specifies how a custom node is rendered.)
+
 To keep the interface simple, formatting options are presented to the user only when they highlight text or type the "/" character. Both of these actions cause a floating menu to appear.
 
-The available "common" formatting options are: H2, H3, bulleted list, numbered list, and blockquote. These should show up in both of the floating menus described below.
+The available "common" formatting options are: H2, H3, bulleted list, numbered list, and blockquote. These should show up in both of the floating menus described below. (Note that H1 is not a possible option, since the entry title is the highest-level heading.) (Is that annoying?)
 
 The available inline formatting options are: the common formatting options, bold, italic, underline, strike-through, and links. All of these options should be presented as buttons in a simple floating horizontal toolbar when the user highlights text, with standard rich text editor functionality. There also should be a "clear formatting" button in it.
 
@@ -122,7 +124,7 @@ A very simple form will need to take the place of the floating menu when the "li
 
 <!-- TODO: add a "move to subentry" tool to the floating selection menu, but not yet. Another possible future tool is the ability to add comments. -->
 
-The available block formatting options are: the common formatting options, and the horizontal rule. Selecting any of these options will switch the current block (which may or may not be empty) to that type. (Note that H1 is not a possible option, since the entry title is the highest-level heading.) Typing "/" after a newline or a space will cause a simple vertical menu to appear that offers these options. Similarly to inline code formatting, code blocks can be created only by typing in a code fence (three backticks.) <!-- TODO: add image insertion, but not yet. -->
+The available block formatting options are: the common formatting options, the horizontal rule, and image uploads. Typing "/" after a newline or a space will cause a simple vertical menu to appear that offers these options. Selecting a common formatting option will switch the current block (which may or may not be empty) to that type. Selecting a non-common (block-only) formatting option will add a new block of that type. Choosing to upload an image should open the browser's standard file selection dialog with only image file formats (JPEG, PNG, GIF, WEBP) allowed. Similarly to inline code formatting, code blocks can be created only by typing in a code fence (three backticks.)
 
 An extra option in the vertical slash menu is the ability to add a footnote. Footnotes consist of an inline superscript number that is linked to a rich text body that is displayed at the bottom of the document. Within footnotes, the inline-only formatting options should be available. (The slash menu, the "common" formatting options, and the block elements should not be.)
 
@@ -132,6 +134,16 @@ The content should auto-save periodically. It should also save when you press Ct
 
 Technical note: When the content is copied as Markdown via the kebab menu, it should be converted using the `@lexical/markdown` package. Custom elements like footnotes should be handled and output in a Markdown-typical way.
 
+##### Images
+
+Images can be added via upload using the slash menu (as mentioned in the block formatting options list). They can also be pasted into the editor. When a new image (meaning one that's not being cut or copied from an existing entry) is pasted in, it needs to be uploaded to the backend and, when this completes, it should be embedded into the document. While an image is uploading, a placeholder should be displayed that previews the image with low opacity. This placeholder should be non-serializable — it must be impossible for it to end up in a saved document's JSON. If the upload fails, the placeholder should switch to displaying a relevant error message until the user deletes it (or the content is refreshed). An upload should be aborted if the user navigates away from the editor while it's in progress, and there should be no attempt to add the image into the content in that case.
+
+Images are always standalone block elements. They can be dragged to move them up or down within the document. When images are selected, an alt text form should appear. This should be similar in appearance and functionality to the URL form used for links, except it should not be focused by default when it appears. Alt text should be stored in the document's content along with the reference to the image on the server.
+
+Implementing this will require creating a custom `ImageNode` for Lexical, broadly similar to the example [here](https://github.com/facebook/lexical/blob/main/packages/lexical-playground/src/nodes/ImageNode.tsx). This node should store the image's ID, original filename, alt text (which defaults to be an empty string), and intrinsic width and height. The ID and filename should be sufficient to construct the URL that serves the image. When the image is copied as HTML or Markdown, it should be present in the content as a standard image with the alt text and an absolute URL; the current origin of the page should be used as the origin of this absolute URL. Copying and pasting an `ImageNode` from one entry to the same or a different entry should work like copying and pasting any other content.
+
+The `ImageNode` will need a flag that indicates that it's a placeholder while its image file is being uploaded. As indicated above, while the node is in this state, it should not be serialized or persisted (meaning methods like `exportJSON` and `exportDOM` will need a branch to handle this case, and the value that `exportJSON` returns in particular should be a sentinel value that is filtered out before any JSON is ever sent to the backend.) The operation that unsets this flag when the upload completes should be merged into the previous history stack entry so that an undo cannot restore the placeholder state. The `ImageNode` should have failsafe content it can display if it ever ends up in an unuseful state (for example, if a placeholder `ImageNode` is added, "undo" removes it before its upload completes, and "redo" restores it with its upload no longer in progress.)
+
 ## Demo Logbook
 
-The frontend should have zero or more "demo logbooks" that are accessible from the splash screen. This will consist of a series of entries that are not persisted and are not loaded from the API that serve to demonstrate the app's functionality. To facilitate this, data-fetching should be encapsulated in hooks (like `useEntry` and `useLogbookOverview`) that receive the ID of the current logbook, and if that ID matches a demo logbook, the demo data should be returned instead of an API call being made. Mutations should similarly update the demo data that is currently being used.
+The frontend should have zero or more "demo logbooks" that are accessible from the splash screen. This will consist of a series of entries that are not persisted and are not loaded from the API that serve to demonstrate the app's functionality. To facilitate this, data-fetching should be encapsulated in hooks (like `useEntry` and `useLogbookOverview`) that receive the ID of the current logbook, and if that ID matches a demo logbook, the demo data should be returned instead of an API call being made. Mutations should similarly update the demo data that is currently being used. (Uploading an image to a demo logbooks should add a data URI for the image to its content; `ImageNode` should be extended with a type that appears only on the frontend to handle this case.)

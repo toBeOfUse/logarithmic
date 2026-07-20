@@ -8,10 +8,10 @@
  *
  * Positioning is viewport-fixed at the selection's bounding rect and recomputed
  * on scroll/resize, so it tracks whether the window or an inner scroll
- * container moves.
+ * container moves. Both the shell and that positioning live in
+ * `FloatingPopover`, shared with the image alt-text form and failure toast.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $findMatchingParent, $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
@@ -40,6 +40,13 @@ import {
 } from "lexical";
 
 import { cn } from "~/lib/cn.ts";
+import {
+  FloatingPopover,
+  POPOVER_INPUT,
+  TOOL_BTN,
+  TOOL_SEP,
+  useDismissOnOutsidePointerDown,
+} from "../FloatingPopover.tsx";
 
 type BlockType = "paragraph" | "h2" | "h3" | "quote" | "bullet" | "number";
 
@@ -64,14 +71,6 @@ const EMPTY_STATE: InlineState = {
 };
 
 const INLINE_CLEARABLE: TextFormatType[] = ["bold", "italic", "underline", "strikethrough", "code"];
-
-// z-30 keeps the toolbar/link form below the TopBar (z-40) so it tucks behind
-// the bar when a selection near the top of the editor is toolbar-ed.
-const POPOVER =
-  "absolute z-30 flex items-center gap-0.5 rounded-md border border-stark-border bg-stark p-1 shadow-lg";
-const TOOL_BTN =
-  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-secondary transition-colors hover:bg-paper-soft hover:text-primary";
-const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-border-soft";
 
 export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boolean } = {}) {
   const [editor] = useLexicalComposerContext();
@@ -195,58 +194,9 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
     };
   }, []);
 
-  // Position the popover at the captured rect, flipping below when there's no
-  // room above and clamping into the viewport.
-  const position = useCallback(() => {
-    const el = popupRef.current;
-    const rect = rectRef.current;
-    if (!el || !rect) return;
-    const elRect = el.getBoundingClientRect();
-    let top = rect.top - elRect.height - 8;
-    if (top < 8) top = rect.bottom + 8;
-    let left = rect.left + rect.width / 2 - elRect.width / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - elRect.width - 8));
-    el.style.position = "fixed";
-    el.style.top = `${top}px`;
-    el.style.left = `${left}px`;
-  }, []);
-
-  useLayoutEffect(() => {
-    if (mode === "hidden") return;
-    position();
-  }, [mode, state, position]);
-
-  useEffect(() => {
-    if (mode === "hidden") return;
-    // In toolbar mode, re-read the live selection rect on scroll/resize; in link
-    // mode the rect is frozen, so just keep the element pinned to it.
-    const onScrollOrResize = () => {
-      if (mode === "toolbar") {
-        const rect = captureRect();
-        if (rect) rectRef.current = rect;
-      }
-      position();
-    };
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [mode, position, captureRect]);
-
   // Dismiss the link form when the user clicks anywhere outside it (e.g. back
   // into the editor), so it doesn't linger after they've moved on.
-  useEffect(() => {
-    if (mode !== "link") return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setMode("hidden");
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [mode]);
+  useDismissOnOutsidePointerDown(mode === "link", () => setMode("hidden"), popupRef);
 
   // ── Actions ────────────────────────────────────────────────────────────
 
@@ -321,11 +271,19 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
 
   if (mode === "hidden") return null;
 
+  // In toolbar mode the anchor tracks the live selection; in link mode it stays
+  // frozen, because focusing the URL input blurs the editor and collapses the
+  // selection the toolbar was anchored to.
   const body =
     mode === "link" ? (
-      <div className={cn(POPOVER, "gap-1.5 p-1.5")} ref={popupRef} role="dialog">
+      <FloatingPopover
+        rect={rectRef.current}
+        containerRef={popupRef}
+        className="gap-1.5 p-1.5"
+        role="dialog"
+      >
         <input
-          className="w-[220px] rounded-sm border border-stark-border bg-stark-soft px-2 py-1 text-sm text-primary outline-none focus:border-accent"
+          className={cn(POPOVER_INPUT, "w-[220px]")}
           autoFocus
           value={linkDraft}
           placeholder="https://example.com"
@@ -346,11 +304,12 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
         <button type="button" className={TOOL_BTN} title="Remove link" onClick={removeLink}>
           <i className="ri-link-unlink" />
         </button>
-      </div>
+      </FloatingPopover>
     ) : (
-      <div
-        className={POPOVER}
-        ref={popupRef}
+      <FloatingPopover
+        rect={rectRef.current}
+        track={captureRect}
+        containerRef={popupRef}
         // Keep the editor's selection intact when clicking a button.
         onMouseDown={(e) => e.preventDefault()}
       >
@@ -416,10 +375,10 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
         <ToolButton icon="ri-link" title="Link" active={state.isLink} onClick={openLinkForm} />
         <span className={TOOL_SEP} />
         <ToolButton icon="ri-format-clear" title="Clear formatting" onClick={clearFormatting} />
-      </div>
+      </FloatingPopover>
     );
 
-  return createPortal(body, document.body);
+  return body;
 }
 
 function ToolButton({

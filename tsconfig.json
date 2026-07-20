@@ -5,5 +5,10 @@
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
     "esModuleInterop": true
-  }
+  },
+  // Root-level loose files only (e.g. vite.config.ts). Each workspace under
+  // apps/*, packages/*, tools/* owns its own sources via its own tsconfig, so
+  // the editor must resolve those files to the package config (with the right
+  // `lib`/`types`) instead of this catch-all program.
+  "exclude": ["apps", "packages", "tools", "node_modules", "dist"]
 }

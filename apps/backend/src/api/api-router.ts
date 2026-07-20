@@ -1,19 +1,21 @@
 /**
- * Top-level tRPC router. Procedures live in `logbook-api.ts`,
- * `entry-api.ts`, and `export-import.ts`; ownership-enforcing procedure
- * variants are defined alongside the procedures that need them.
+ * Top-level tRPC router. Procedures live in `logbook-api.ts`, `entry-api.ts`,
+ * and `image-api.ts`; ownership-enforcing procedure variants are defined
+ * alongside the procedures that need them.
  *
- * `export-import.ts` lives in its own router because it carries non-JSON I/O
- * (a binary ZIP payload), so it stays separate from the JSON-only logbook
- * procedures and gets merged in here under the same `logbook` namespace.
+ * `image.upload` carries multipart form data rather than JSON, so it runs its
+ * own inline auth gate (it can't take the JSON `logbookProcedure` input) — see
+ * `image-api.ts`.
  */
 import { mergeRouters, router } from "../trpc.ts";
 import { entryRouter } from "./entry-api.ts";
+import { imageRouter } from "./image-api.ts";
 import { logbookRouter } from "./logbook-api.ts";
 
 export const appRouter = router({
   logbook: mergeRouters(logbookRouter),
   entry: entryRouter,
+  image: imageRouter,
 });
 
 export type AppRouter = typeof appRouter;
