@@ -7,8 +7,11 @@ import styles from "./editor.module.css";
  * headings, lists, quotes, hr) are styled by `@tailwindcss/typography` (`prose`)
  * plus the content tweaks in `editor.module.css`, so they need no classes here.
  * Inline text formats use Tailwind utilities; inline/block code use the module.
+ * The one exception is `hrSelected`: `HorizontalRuleExtension` reads it to style
+ * a divider while it's node-selected (there's no prose equivalent for that).
  */
 export const editorTheme: EditorThemeClasses = {
+  hrSelected: styles.hrSelected,
   text: {
     bold: "font-bold",
     italic: "italic",

@@ -7,6 +7,7 @@
  */
 import type { IColumnSetting, ILogbook } from "../entities/Logbook.ts";
 import type { IEntry, Metadata } from "../entities/Entry.ts";
+import type { IImage } from "../entities/Image.ts";
 
 export type { Metadata, MetadataValue } from "../entities/Entry.ts";
 
@@ -48,10 +49,10 @@ export type LogbookDetail = PickPresent<
 };
 
 /**
- * Response from `logbook.create` and `logbook.import`. The server mints a
- * fresh token on each call and returns it exactly once — the plaintext token
- * is never persisted, only its bcrypt hash. The frontend is responsible for
- * stashing it in localStorage and surfacing the bookmarkable link.
+ * Response from `logbook.create`. The server mints a fresh token on each call
+ * and returns it exactly once — the plaintext token is never persisted, only
+ * its bcrypt hash. The frontend is responsible for stashing it in localStorage
+ * and surfacing the bookmarkable link.
  */
 export type CreatedLogbook = {
   logbook: LogbookDetail;
@@ -217,4 +218,19 @@ export type MoveEntryInput = {
 export type DeleteEntryInput = {
   logbookId: ILogbook["id"];
   id: IEntry["id"];
+};
+
+// ── Images ───────────────────────────────────────────────────────────────
+
+/**
+ * The newly-created image row returned by `image.upload`. The frontend stores
+ * `id` + `urlSafeName` in the content node (they rebuild the serving URL) and
+ * uses `width`/`height` as the image's intrinsic dimensions. `entryId` is the
+ * entry the image was uploaded into.
+ */
+export type ImageDetail = PickPresent<
+  IImage,
+  "id" | "mimeType" | "width" | "height" | "originalFilename" | "urlSafeName" | "createdAt"
+> & {
+  entryId: IEntry["id"] | null;
 };

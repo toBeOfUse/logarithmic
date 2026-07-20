@@ -8,15 +8,42 @@
  * save. `editorState.toJSON()` omits selection, so caret/selection moves
  * serialize identically and never trigger a save. A pending save is flushed
  * synchronously on unmount so in-app navigation never drops edits.
+ *
+ * `serialize` strips any in-flight image-upload placeholder before persisting: a
+ * placeholder `ImageNode` (pending or failed) serializes to a sentinel that's
+ * filtered out of the tree (see `isPlaceholderImageJSON`). So a save that fires
+ * mid-upload still persists the surrounding edits, but never a pending/broken
+ * image reference — and once the upload settles, the real node serializes and
+ * saves normally.
  */
 import { useCallback, useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot, $getSelection, $isRangeSelection } from "lexical";
+import { $getRoot, $getSelection, $isRangeSelection, type EditorState } from "lexical";
+import { isPlaceholderImageJSON } from "logarithmic-content/nodes/image-node";
 
 import { contentToMarkdown } from "../markdown-transformers.ts";
 import type { EditorHandle } from "../RichTextEditor.tsx";
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
+
+type JsonNode = { type?: unknown; placeholder?: unknown; children?: JsonNode[] };
+
+/** Remove image-upload placeholder nodes (pending or failed) from a serialized
+ *  tree, in place, at any depth. Images are top-level blocks, but we recurse so
+ *  the guarantee holds regardless of where a placeholder sits. */
+function stripPlaceholderImages(node: JsonNode): void {
+  if (!Array.isArray(node.children)) return;
+  node.children = node.children.filter((child) => !isPlaceholderImageJSON(child));
+  for (const child of node.children) stripPlaceholderImages(child);
+}
+
+/** Serialize a state to the JSON we persist, with any in-flight image-upload
+ *  placeholder stripped so it never reaches storage. */
+function serialize(state: EditorState): string {
+  const json = state.toJSON() as { root: JsonNode };
+  stripPlaceholderImages(json.root);
+  return JSON.stringify(json);
+}
 
 export function EditorControllerPlugin({
   handleRef,
@@ -52,7 +79,7 @@ export function EditorControllerPlugin({
       clearTimeout(timer.current);
       timer.current = null;
     }
-    const json = JSON.stringify(editor.getEditorState().toJSON());
+    const json = serialize(editor.getEditorState());
     if (json !== lastSaved.current) {
       lastSaved.current = json;
       onSaveRef.current(json);
@@ -63,10 +90,12 @@ export function EditorControllerPlugin({
   useEffect(() => {
     // Baseline: whatever loaded in is considered "saved" so a freshly-opened
     // entry isn't immediately marked dirty or re-persisted.
-    lastSaved.current = JSON.stringify(editor.getEditorState().toJSON());
+    lastSaved.current = serialize(editor.getEditorState());
 
     const unregister = editor.registerUpdateListener(({ editorState }) => {
-      const json = JSON.stringify(editorState.toJSON());
+      const json = serialize(editorState);
+      // Inserting/removing a pending placeholder alone strips to the same JSON,
+      // so it neither marks the document dirty nor triggers a save on its own.
       if (json === lastSaved.current) {
         setDirty(false);
         return;

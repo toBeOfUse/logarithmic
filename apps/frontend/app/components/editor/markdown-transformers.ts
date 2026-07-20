@@ -10,14 +10,17 @@
 import {
   $convertToMarkdownString,
   TRANSFORMERS,
+  type ElementTransformer,
   type TextMatchTransformer,
   type Transformer,
 } from "@lexical/markdown";
 import type { LexicalEditor } from "lexical";
 
 import { $collectFootnotes, $isFootnoteNode } from "logarithmic-content/nodes/footnote-node";
+import { $isAnyImageNode } from "logarithmic-content/nodes/image-node";
 
 import { FootnoteNode } from "./nodes/FootnoteNode.tsx";
+import { absoluteImageSrc, DataUriImageNode, ImageNode } from "./nodes/ImageNode.tsx";
 
 /** Exports a footnote reference as `[^n]` using the precomputed ordinal map. */
 function footnoteTransformer(order: Map<string, number>): TextMatchTransformer {
@@ -34,11 +37,34 @@ function footnoteTransformer(order: Map<string, number>): TextMatchTransformer {
   };
 }
 
+/** Exports an image block as a standard Markdown image `![alt](absolute-url)`.
+ *  Export-only (copy-out); the never-matching regExp skips import. The URL is
+ *  built by the same helper `exportDOM` uses, so copy-as-HTML and
+ *  copy-as-Markdown can't drift. A placeholder (pending/failed) has no real URL,
+ *  so it's skipped — the same as its `exportDOM`. */
+const imageTransformer: ElementTransformer = {
+  dependencies: [ImageNode, DataUriImageNode],
+  export: (node) => {
+    if (!$isAnyImageNode(node)) return null;
+    if (node instanceof ImageNode && node.isPlaceholder()) return null;
+    return `![${node.getAltText()}](${absoluteImageSrc(node)})`;
+  },
+  // import is skipped just because importing Markdown just isn't a thing in
+  // this app currently, so it isn't worth implementing this
+  regExp: /$^/,
+  replace: () => {},
+  type: "element",
+};
+
 /** Convert the editor's document to a Markdown string, footnotes and all. */
 export function contentToMarkdown(editor: LexicalEditor): string {
   const notes = editor.getEditorState().read(() => $collectFootnotes());
   const order = new Map(notes.map((n, i) => [n.getKey(), i + 1] as const));
-  const transformers: Transformer[] = [footnoteTransformer(order), ...TRANSFORMERS];
+  const transformers: Transformer[] = [
+    footnoteTransformer(order),
+    imageTransformer,
+    ...TRANSFORMERS,
+  ];
 
   let md = editor.getEditorState().read(() => $convertToMarkdownString(transformers));
 

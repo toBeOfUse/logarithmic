@@ -1,10 +1,11 @@
 /**
  * The "/" slash menu (spec/3-frontend.md → "Text Editor"). Typing "/" after a
  * newline or a space opens a vertical menu of block options: the common ones
- * (H2, H3, bulleted/numbered list, blockquote) plus the horizontal rule and the
- * footnote. Selecting one switches the current block to that type (or inserts,
- * for hr/footnote). Code blocks are intentionally absent — they're created only
- * by typing a code fence.
+ * (H2, H3, bulleted/numbered list, blockquote) plus the horizontal rule, an
+ * image upload, and the footnote. Selecting a common option switches the current
+ * block to that type; the block-only options insert (hr/footnote) or open the
+ * file picker (image). Code blocks are intentionally absent — they're created
+ * only by typing a code fence.
  */
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -28,6 +29,7 @@ import {
 
 import { cn } from "~/lib/cn.ts";
 import { INSERT_FOOTNOTE_COMMAND } from "./FootnotePlugin.tsx";
+import { OPEN_IMAGE_PICKER_COMMAND } from "./ImagePlugin.tsx";
 
 class SlashOption extends MenuOption {
   label: string;
@@ -73,6 +75,9 @@ export function SlashMenuPlugin() {
       new SlashOption("Footnote", "ri-superscript", (e) =>
         e.dispatchCommand(INSERT_FOOTNOTE_COMMAND, undefined),
       ),
+      new SlashOption("Image", "ri-image-line", (e) =>
+        e.dispatchCommand(OPEN_IMAGE_PICKER_COMMAND, undefined),
+      ),
     ],
     [],
   );
@@ -87,10 +92,13 @@ export function SlashMenuPlugin() {
     (option: SlashOption, nodeToRemove: TextNode | null, closeMenu: () => void) => {
       // Remove the "/" trigger and run the option in the SAME update. Doing them
       // in separate updates left the caret out of the (now-empty) originating
-      // block, so block actions that inspect it — e.g. the divider, which
-      // replaces an empty paragraph rather than inserting after it — misfired
-      // and left a stray empty line behind. Dispatching a command from inside an
-      // update is supported and mirrors Lexical's own ComponentPicker.
+      // block, so the block-type options (heading/quote/list) that convert the
+      // current block via `$setBlocksType` acted on the wrong block. Dispatching
+      // a command from inside an update is supported and mirrors Lexical's own
+      // ComponentPicker. (The divider goes through HorizontalRuleExtension's
+      // standard insert, which splits the "/" line rather than replacing it, so
+      // a slash-inserted rule leaves a blank line above it — accepted as the
+      // cost of using the standard extension.)
       editor.update(() => {
         nodeToRemove?.remove();
         option.run(editor);

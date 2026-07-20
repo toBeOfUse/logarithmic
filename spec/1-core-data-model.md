@@ -42,4 +42,4 @@ A logbook can also store presentation settings for the columns in its organizati
 
 ## Exports
 
-Exports and imports are planned future feature. An export will produce a ZIP file that contains the logbook's content in HTML files, organized in a folder structure that matches the logbook's tree structure. <!-- TODO: implement at a later time. --> <!-- TODO: do we want an import feature as well? -->
+Exports and imports are planned future feature. An export will produce a ZIP file that contains the logbook's content in HTML and JSON files, accompanied by any uploaded images, organized in a folder structure that matches the logbook's tree structure. <!-- TODO: implement at a later time. --> <!-- TODO: do we want an import feature as well? -->

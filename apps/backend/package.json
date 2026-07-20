@@ -19,12 +19,15 @@
     "@trpc/server": "catalog:",
     "bcryptjs": "^3.0.2",
     "fastify": "catalog:",
+    "image-meta": "catalog:",
+    "ipaddr.js": "catalog:",
     "logarithmic-content": "workspace:*",
     "nanoid": "catalog:",
     "superjson": "catalog:",
     "uuid": "^11.0.3",
     "yaml": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "zod-form-data": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -194,7 +194,11 @@ function FootnotesSection({
         const nested = editors.current.get(key);
         if (!nested) return null;
         return (
-          <div className="mb-2 flex gap-2.5 text-sm text-muted" id={`footnote-${key}`} key={key}>
+          <div
+            className="mb-2 flex gap-2.5 text-sm text-muted items-start"
+            id={`footnote-${key}`}
+            key={key}
+          >
             <button
               type="button"
               className="shrink-0 cursor-pointer border-0 bg-transparent p-0 font-semibold text-accent hover:underline"

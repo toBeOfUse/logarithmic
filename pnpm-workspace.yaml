@@ -38,6 +38,8 @@ catalog:
   clsx: ^2.1.1
   cookie: ^1.1.1
   fastify: ^5.8.5
+  image-meta: ^0.2.2
+  ipaddr.js: ^2.4.0
   jszip: ^3.10.1
   lexical: ^0.45.0
   nanoid: ^5.0.7
@@ -46,11 +48,16 @@ catalog:
   superjson: ^2.2.2
   "tailwind-merge": ^3.3.0
   typescript: ^5
-  vite: npm:@voidzero-dev/vite-plus-core@latest
-  vite-plus: latest
-  vitest: npm:@voidzero-dev/vite-plus-test@latest
+  # Pinned to one coherent set: the 0.2.x line dropped the bundled vite-plus-test
+  # runner (switched to upstream vitest), and vite-plus-test is only published up
+  # to 0.1.24. Floating `latest` let workspaces drift onto a 0.2.x core with no
+  # matching runner, breaking `vp test`. Keep all three locked together.
+  vite: npm:@voidzero-dev/vite-plus-core@0.1.24
+  vite-plus: 0.1.24
+  vitest: npm:@voidzero-dev/vite-plus-test@0.1.24
   yaml: ^2.8.3
   zod: ^4.3.6
+  zod-form-data: ^3.0.2
 
 catalogMode: prefer
 # Don't install package releases until they're at least 2 weeks old (in minutes).

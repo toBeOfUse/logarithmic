@@ -50,9 +50,23 @@
   margin-top: 0.9em;
   margin-bottom: 0.8em;
 }
+.content h2:first-child,
+.content h3:first-child {
+  margin-top: 0;
+}
 .content hr {
   margin-top: 1.5em;
   margin-bottom: 1.5em;
+}
+
+/* Selected state for a horizontal rule, applied to the <hr> by
+   HorizontalRuleExtension (theme `hrSelected`) whenever the divider is
+   node-selected — clicked, or reached with Backspace before deleting it. The
+   <hr> is a thin line, so an offset outline reads as a selection box. */
+.hrSelected {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 5px;
+  border-radius: 1px;
 }
 
 /* Inline code (`text.code` theme class). */

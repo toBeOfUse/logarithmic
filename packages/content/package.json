@@ -8,7 +8,8 @@
     "./document": "./src/document.ts",
     "./markdown": "./src/markdown.ts",
     "./schema": "./src/schema.ts",
-    "./nodes/footnote-node": "./src/nodes/footnote-node.ts"
+    "./nodes/footnote-node": "./src/nodes/footnote-node.ts",
+    "./nodes/image-node": "./src/nodes/image-node.ts"
   },
   "dependencies": {
     "@lexical/code": "catalog:",

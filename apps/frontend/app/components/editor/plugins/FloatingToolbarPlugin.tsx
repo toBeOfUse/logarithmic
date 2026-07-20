@@ -8,10 +8,10 @@
  *
  * Positioning is viewport-fixed at the selection's bounding rect and recomputed
  * on scroll/resize, so it tracks whether the window or an inner scroll
- * container moves.
+ * container moves. Both the shell and that positioning live in
+ * `FloatingPopover`, shared with the image alt-text form and failure toast.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $findMatchingParent, $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
@@ -40,6 +40,13 @@ import {
 } from "lexical";
 
 import { cn } from "~/lib/cn.ts";
+import {
+  FloatingPopover,
+  POPOVER_INPUT,
+  TOOL_BTN,
+  TOOL_SEP,
+  useDismissOnOutsidePointerDown,
+} from "../FloatingPopover.tsx";
 
 type BlockType = "paragraph" | "h2" | "h3" | "quote" | "bullet" | "number";
 
@@ -65,14 +72,6 @@ const EMPTY_STATE: InlineState = {
 
 const INLINE_CLEARABLE: TextFormatType[] = ["bold", "italic", "underline", "strikethrough", "code"];
 
-// --z-toolbar keeps the toolbar/link form below the TopBar (--z-header) so it
-// tucks behind the bar when a selection near the top of the editor is toolbar-ed.
-const POPOVER =
-  "absolute z-(--z-toolbar) flex items-center gap-0.5 rounded-md border border-stark-border bg-stark p-1 shadow-lg";
-const TOOL_BTN =
-  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-muted transition-colors hover:bg-stark-hover hover:text-primary";
-const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-hover";
-
 export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boolean } = {}) {
   const [editor] = useLexicalComposerContext();
   const popupRef = useRef<HTMLDivElement>(null);
@@ -82,6 +81,11 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
   // The selection rect captured when the toolbar first appears; frozen in link
   // mode so focusing the URL input (which blurs the editor) doesn't move it.
   const rectRef = useRef<DOMRect | null>(null);
+  // True while a pointer button is held down, i.e. a drag-select is in progress.
+  // The toolbar stays hidden until release so it appears only once the selection
+  // is settled (like Notion). Keyboard selection has no pointer down, so it's
+  // unaffected.
+  const pointerDownRef = useRef(false);
 
   const readSelectionState = useCallback((): InlineState | null => {
     const selection = $getSelection();
@@ -129,6 +133,9 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
   const syncFromSelection = useCallback(() => {
     // Don't disturb the popover while the user is in the link form.
     if (mode === "link") return;
+    // Hold off while the user is still dragging out a selection; the pointer-up
+    // handler re-runs this once the selection is settled.
+    if (pointerDownRef.current) return;
     const next = editor.getEditorState().read(readSelectionState);
     const rect = captureRect();
     const hasRangeText =
@@ -158,58 +165,38 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
     );
   }, [editor, syncFromSelection]);
 
-  // Position the popover at the captured rect, flipping below when there's no
-  // room above and clamping into the viewport.
-  const position = useCallback(() => {
-    const el = popupRef.current;
-    const rect = rectRef.current;
-    if (!el || !rect) return;
-    const elRect = el.getBoundingClientRect();
-    let top = rect.top - elRect.height - 8;
-    if (top < 8) top = rect.bottom + 8;
-    let left = rect.left + rect.width / 2 - elRect.width / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - elRect.width - 8));
-    el.style.position = "fixed";
-    el.style.top = `${top}px`;
-    el.style.left = `${left}px`;
-  }, []);
-
-  useLayoutEffect(() => {
-    if (mode === "hidden") return;
-    position();
-  }, [mode, state, position]);
-
+  // Reveal the toolbar only once the pointer is released, never mid-drag
+  // (Notion-style). A pointer-down anywhere outside the popover begins a drag
+  // and hides the toolbar; releasing (or cancelling) re-syncs so it reappears if
+  // a range remains. `syncRef` keeps the latest reader without re-binding the
+  // document listeners on every render.
+  const syncRef = useRef(syncFromSelection);
+  syncRef.current = syncFromSelection;
   useEffect(() => {
-    if (mode === "hidden") return;
-    // In toolbar mode, re-read the live selection rect on scroll/resize; in link
-    // mode the rect is frozen, so just keep the element pinned to it.
-    const onScrollOrResize = () => {
-      if (mode === "toolbar") {
-        const rect = captureRect();
-        if (rect) rectRef.current = rect;
-      }
-      position();
+    const onPointerDown = (e: PointerEvent) => {
+      // Clicks on the toolbar itself must not hide it or start a "drag".
+      if (popupRef.current?.contains(e.target as Node)) return;
+      pointerDownRef.current = true;
+      setMode((m) => (m === "link" ? m : "hidden"));
     };
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    const endDrag = () => {
+      if (!pointerDownRef.current) return;
+      pointerDownRef.current = false;
+      syncRef.current();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerup", endDrag, true);
+    document.addEventListener("pointercancel", endDrag, true);
     return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", endDrag, true);
+      document.removeEventListener("pointercancel", endDrag, true);
     };
-  }, [mode, position, captureRect]);
+  }, []);
 
   // Dismiss the link form when the user clicks anywhere outside it (e.g. back
   // into the editor), so it doesn't linger after they've moved on.
-  useEffect(() => {
-    if (mode !== "link") return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setMode("hidden");
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [mode]);
+  useDismissOnOutsidePointerDown(mode === "link", () => setMode("hidden"), popupRef);
 
   // ── Actions ────────────────────────────────────────────────────────────
 
@@ -284,11 +271,19 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
 
   if (mode === "hidden") return null;
 
+  // In toolbar mode the anchor tracks the live selection; in link mode it stays
+  // frozen, because focusing the URL input blurs the editor and collapses the
+  // selection the toolbar was anchored to.
   const body =
     mode === "link" ? (
-      <div className={cn(POPOVER, "gap-1.5 p-1.5")} ref={popupRef} role="dialog">
+      <FloatingPopover
+        rect={rectRef.current}
+        containerRef={popupRef}
+        className="gap-1.5 p-1.5"
+        role="dialog"
+      >
         <input
-          className="w-[220px] rounded-sm border border-stark-border bg-stark-hover px-2 py-1 text-sm text-primary outline-none focus:border-accent"
+          className={cn(POPOVER_INPUT, "w-[220px]")}
           autoFocus
           value={linkDraft}
           placeholder="https://example.com"
@@ -309,11 +304,12 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
         <button type="button" className={TOOL_BTN} title="Remove link" onClick={removeLink}>
           <i className="ri-link-unlink" />
         </button>
-      </div>
+      </FloatingPopover>
     ) : (
-      <div
-        className={POPOVER}
-        ref={popupRef}
+      <FloatingPopover
+        rect={rectRef.current}
+        track={captureRect}
+        containerRef={popupRef}
         // Keep the editor's selection intact when clicking a button.
         onMouseDown={(e) => e.preventDefault()}
       >
@@ -379,10 +375,10 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
         <ToolButton icon="ri-link" title="Link" active={state.isLink} onClick={openLinkForm} />
         <span className={TOOL_SEP} />
         <ToolButton icon="ri-format-clear" title="Clear formatting" onClick={clearFormatting} />
-      </div>
+      </FloatingPopover>
     );
 
-  return createPortal(body, document.body);
+  return body;
 }
 
 function ToolButton({

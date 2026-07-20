@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import type { Metadata } from "logarithmic-backend/api-types";
@@ -7,6 +7,11 @@ import { Attributes } from "~/components/Attributes.tsx";
 
 import { IconPicker } from "~/components/IconPicker.tsx";
 import { RichTextEditor, type EditorHandle } from "~/components/editor/RichTextEditor.tsx";
+import {
+  uploadImage as uploadImageData,
+  uploadPastedImage as uploadPastedImageData,
+  type ImageUploadResult,
+} from "~/data/image-upload.ts";
 import { TopBar, type KebabMenuItem } from "~/components/TopBar.tsx";
 import { cn } from "~/lib/cn.ts";
 import {
@@ -68,6 +73,30 @@ export default function EntryRoute() {
   const setEntryIcon = useSetEntryIcon({ demo });
   const deleteEntry = useDeleteEntry({ demo });
   const navigate = useNavigate();
+
+  // Bind image uploads to this entry. The editor calls this for a picked/pasted
+  // image; demo logbooks embed a data URI, real ones POST to the backend.
+  const onUploadImage = useCallback(
+    (file: File, signal: AbortSignal): Promise<ImageUploadResult> => {
+      if (!logbookId || entryId === null) {
+        return Promise.reject(new Error("Missing entry context"));
+      }
+      return uploadImageData(file, { logbookId, entryId, demo, signal });
+    },
+    [logbookId, entryId, demo],
+  );
+
+  // Resolve an `<img>` pasted from elsewhere. A cross-origin URL is fetched and
+  // stored server-side (via image.uploadFromUrl), which needs this entry context.
+  const onUploadPastedImage = useCallback(
+    (src: string, signal: AbortSignal): Promise<ImageUploadResult> => {
+      if (!logbookId || entryId === null) {
+        return Promise.reject(new Error("Missing entry context"));
+      }
+      return uploadPastedImageData(src, { logbookId, entryId, demo, signal });
+    },
+    [logbookId, entryId, demo],
+  );
 
   const editorRef = useRef<EditorHandle>(null);
   const [maximized, setMaximized] = useState(false);
@@ -477,6 +506,8 @@ export default function EntryRoute() {
               initialContent={entry.contentJson}
               onSave={onSaveContent}
               onDirtyChange={setEditorDirty}
+              uploadImage={onUploadImage}
+              uploadPastedImage={onUploadPastedImage}
               className="flex-1 flex flex-col"
             />
           </div>

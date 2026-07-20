@@ -14,6 +14,7 @@ import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import type { Klass, LexicalEditor, LexicalNode } from "lexical";
 
 import { FootnoteNode } from "./nodes/footnote-node.ts";
+import { DataUriImageNode, ImageNode } from "./nodes/image-node.ts";
 
 /** Standard document nodes, shared verbatim by both display layers. */
 export const DOCUMENT_NODES: ReadonlyArray<Klass<LexicalNode>> = [
@@ -28,8 +29,17 @@ export const DOCUMENT_NODES: ReadonlyArray<Klass<LexicalNode>> = [
   HorizontalRuleNode,
 ];
 
-/** The full schema including the canonical (headless) footnote node. */
-export const CONTENT_NODES: ReadonlyArray<Klass<LexicalNode>> = [...DOCUMENT_NODES, FootnoteNode];
+/**
+ * The full schema including the canonical (headless) footnote and image nodes.
+ * The frontend registers React-rendering subclasses of these three in their
+ * place; everything else it takes from `DOCUMENT_NODES` verbatim.
+ */
+export const CONTENT_NODES: ReadonlyArray<Klass<LexicalNode>> = [
+  ...DOCUMENT_NODES,
+  FootnoteNode,
+  ImageNode,
+  DataUriImageNode,
+];
 
 /**
  * A headless editor configured with the full document schema — used to parse,

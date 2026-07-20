@@ -1676,9 +1676,8 @@ export function OrgView({
 
             {!(isEmpty && !pendingInput && !creatingRoot) && (
               <div className={styles.canvas}>
-                {forest.map((root, i) => (
+                {forest.map((root) => (
                   <Fragment key={root.id}>
-                    {i > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
                     <div className={styles.tree}>
                       <LeadingSpacers fromCol={maxCol} toCol={root.col} wideCols={wideCols} />
                       <Subtree
@@ -1707,7 +1706,6 @@ export function OrgView({
                 ))}
                 {addingRoot && (
                   <Fragment>
-                    {forest.length > 0 && <div className={styles.treeDivider} aria-hidden="true" />}
                     <div className={styles.tree}>
                       <LeadingSpacers fromCol={maxCol} toCol={addingRoot.col} wideCols={wideCols} />
                       <div className={styles.subtree}>
