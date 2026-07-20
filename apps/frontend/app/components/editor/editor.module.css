@@ -50,6 +50,10 @@
   margin-top: 0.9em;
   margin-bottom: 0.8em;
 }
+.content h2:first-child,
+.content h3:first-child {
+  margin-top: 0;
+}
 .content hr {
   margin-top: 1.5em;
   margin-bottom: 1.5em;
