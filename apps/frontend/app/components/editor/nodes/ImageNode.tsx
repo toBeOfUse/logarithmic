@@ -607,7 +607,7 @@ function PlaceholderImage({
           className="block max-h-[70vh] max-w-full opacity-40"
         />
       ) : (
-        <div className="h-40 w-64 bg-paper-soft" />
+        <div className="h-40 w-64 bg-stark-sunken" />
       )}
       <span className="absolute inset-0 flex items-center justify-center">
         <i className="ri-loader-4-line animate-spin text-2xl text-primary/70" aria-hidden />

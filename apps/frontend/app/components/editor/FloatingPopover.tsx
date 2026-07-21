@@ -32,8 +32,8 @@ const OFFSET = 8;
 /** these are standard styles for things that are commonly placed inside this component
  * as children: */
 export const TOOL_BTN =
-  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-secondary transition-colors hover:bg-paper-soft hover:text-primary";
-export const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-border-soft";
+  "inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-base text-secondary transition-colors hover:bg-stark-hover hover:text-primary";
+export const TOOL_SEP = "mx-1 my-0.5 w-px self-stretch bg-stark-border";
 /** A single-line text input styled for use inside a popover (the link URL form
  *  and the image alt-text form). */
 export const POPOVER_INPUT =
