@@ -1,0 +1,28 @@
+# Never copy host-built dependencies or outputs into the image — node_modules in
+# particular holds native modules (better-sqlite3) compiled for the host OS,
+# which would clobber the Linux build done inside the image.
+node_modules
+**/node_modules
+**/build
+**/dist
+dist-ssr
+**/.react-router
+**/.vite
+
+.git
+.gitignore
+.gitattributes
+
+# Local tooling / editor / agent noise — irrelevant to the build.
+.vscode
+.claude
+.playwright
+.playwright-cli
+spec
+output
+*.log
+
+# The Docker artifacts themselves don't need to be inside the build context copy.
+Dockerfile
+docker-compose.yaml
+.dockerignore

@@ -1,0 +1,73 @@
+# Deployment for the writer app.
+#
+#   web     — nginx serving the built SPA and proxying /api/ to the backend.
+#             The public entrypoint, published on host port 3333.
+#   backend — the Fastify API, reachable only on the internal compose network.
+#   backup  — hourly, rotating snapshots of the SQLite DB + uploaded images. (WIP)
+#
+# Persistent state (the SQLite file and image files) lives in the `data` volume;
+# snapshots live in the `backups` volume.
+
+services:
+  backend:
+    build:
+      context: .
+      target: backend
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DB_PATH: /data/logarithmic.db
+      IMAGES_PATH: /data/images
+    volumes:
+      - data:/data
+    healthcheck:
+      # Node 22 ships a global fetch; hit the app's /health route.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "3333:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # backup:
+  #   image: alpine:3.20
+  #   depends_on:
+  #     - backend
+  #   environment:
+  #     DB_PATH: /data/logarithmic.db
+  #     IMAGES_PATH: /data/images
+  #     BACKUP_DIR: /backups
+  #     KEEP: "12"
+  #     INTERVAL_SECONDS: "3600"
+  #   volumes:
+  #     # Read-only: the backup never writes to live data. (If the DB is ever
+  #     # switched to WAL journal mode, drop `:ro` — an online backup of a WAL
+  #     # database needs to touch the -shm/-wal sidecar files next to it.)
+  #     - data:/data:ro
+  #     - backups:/backups
+  #     - ./deploy/backup.sh:/backup.sh:ro
+  #   # Stock alpine has no sqlite3; install it, then run the loop as PID-forwarded.
+  #   command: ["sh", "-c", "apk add --no-cache sqlite >/dev/null && exec sh /backup.sh"]
+  #   restart: unless-stopped
+
+volumes:
+  data:
+  # backups:
