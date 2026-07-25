@@ -21,7 +21,7 @@ services:
     volumes:
       - data:/data
     healthcheck:
-      # Node 22 ships a global fetch; hit the app's /health route.
+      # Node 24 ships a global fetch; hit the app's /health route.
       test:
         [
           "CMD",
