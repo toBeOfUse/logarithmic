@@ -19,7 +19,7 @@ services:
       DB_PATH: /data/logarithmic.db
       IMAGES_PATH: /data/images
     volumes:
-      - data:/data
+      - ./data:/data
     healthcheck:
       # Node 24 ships a global fetch; hit the app's /health route.
       test:
@@ -61,7 +61,7 @@ services:
   #     # Read-only: the backup never writes to live data. (If the DB is ever
   #     # switched to WAL journal mode, drop `:ro` — an online backup of a WAL
   #     # database needs to touch the -shm/-wal sidecar files next to it.)
-  #     - data:/data:ro
+  #     - ./data:/data:ro
   #     - backups:/backups
   #     - ./deploy/backup.sh:/backup.sh:ro
   #   # Stock alpine has no sqlite3; install it, then run the loop as PID-forwarded.
