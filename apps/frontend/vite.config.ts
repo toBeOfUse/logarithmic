@@ -6,14 +6,11 @@ import { resolve } from "node:path";
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter()],
   resolve: { tsconfigPaths: true },
-  root: __dirname,
-  // this is apparently necessary for vite to find index.html when the cwd is
-  // not apps/frontend (i.e. when the cwd is the project root instead)
-  build: {
-    rollupOptions: {
-      input: resolve(__dirname, "index.html"),
-    },
-  },
+  // `root` (not a manual rollup `input`) is what lets Vite find the app when
+  // the cwd is the project root instead of apps/frontend. The reactRouter()
+  // plugin owns the build inputs in framework mode; overriding them with
+  // index.html — which has no module <script> — produces an empty entry chunk.
+  root: resolve(__dirname),
   server: {
     proxy: {
       // Proxy the whole API surface (tRPC procedures + `/api/images/...`) to the
