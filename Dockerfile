@@ -7,9 +7,9 @@
 # docker-compose builds both targets from this file.
 
 # ---------------------------------------------------------------------------
-# base — Node 22 (matches package.json `engines`) with corepack-managed pnpm.
+# base — Node 24 with corepack-managed pnpm.
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS base
+FROM node:24 AS base
 ENV PNPM_HOME=/pnpm \
     PATH="/pnpm:$PATH" \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
