@@ -29,7 +29,12 @@ catalog:
   "@playwright/cli": ^0.1.8
   "@sindresorhus/slugify": ^2.2.1
   "@tailwindcss/typography": ^0.5.16
-  "@tanstack/react-query": ^5.99.0
+  # Held below 5.101: that minor wraps `setQueryData`'s updater in the built-in
+  # `NoInfer<…>`, which collapses to `undefined` for our explicitly-typed calls
+  # (`setQueryData<LogbookOverview | null>(…)`) and produces 15 bogus errors in
+  # app/data/hooks.ts. Upstream regression, still open — TanStack/query#9937 and
+  # #11018. Revisit when those land; nothing in our code is actually wrong.
+  "@tanstack/react-query": ~5.100.5
   "@trpc/client": ^11.16.0
   "@trpc/server": ^11.16.0
   "@trpc/tanstack-react-query": ^11.16.0
@@ -43,18 +48,15 @@ catalog:
   jszip: ^3.10.1
   lexical: ^0.45.0
   nanoid: ^5.0.7
+  oxfmt: ^0.60.0
+  oxlint: ^1.75.0
   playwright-cli: ^0.262.0
   remixicon: ^4.9.1
   superjson: ^2.2.2
   "tailwind-merge": ^3.3.0
   typescript: ^5
-  # Pinned to one coherent set: the 0.2.x line dropped the bundled vite-plus-test
-  # runner (switched to upstream vitest), and vite-plus-test is only published up
-  # to 0.1.24. Floating `latest` let workspaces drift onto a 0.2.x core with no
-  # matching runner, breaking `vp test`. Keep all three locked together.
-  vite: npm:@voidzero-dev/vite-plus-core@0.1.24
-  vite-plus: 0.1.24
-  vitest: npm:@voidzero-dev/vite-plus-test@0.1.24
+  vite: ^8.1.5
+  vitest: ^4.1.10
   yaml: ^2.8.3
   zod: ^4.3.6
   zod-form-data: ^3.0.2
@@ -63,12 +65,11 @@ catalogMode: prefer
 # Don't install package releases until they're at least 2 weeks old (in minutes).
 minimumReleaseAge: 20160
 overrides:
+  # There must be exactly one physical copy of Vite in the tree. Vite identifies
+  # its dev environments with `instanceof` (`isRunnableDevEnvironment`), so a
+  # second copy silently breaks any plugin that resolves `vite` separately from
+  # the one running the server: React Router's dev middleware sees a non-runnable
+  # SSR environment, calls `next()`, and every request 404s with "Cannot GET /".
+  # Both `vite` and `vitest` declare Vite as a peer, so pin them to the catalog.
   vite: "catalog:"
   vitest: "catalog:"
-peerDependencyRules:
-  allowAny:
-    - vite
-    - vitest
-  allowedVersions:
-    vite: "*"
-    vitest: "*"

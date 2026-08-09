@@ -1,29 +1,55 @@
-# Vite+ Monorepo Starter
+# Logarithmic
 
-A starter for creating a Vite+ monorepo.
+A pnpm monorepo: a React Router SPA frontend, a Fastify + MikroORM backend, and a
+shared content package.
+
+Requires **Node 24** (`engines: >=24.18.0`) and pnpm 10.
 
 ## Development
 
-- Check everything is ready:
+- Install dependencies:
 
 ```bash
-vp run ready
+pnpm install
 ```
+
+- Run both dev servers (frontend on :5173, backend on :3001):
+
+```bash
+pnpm run dev
+```
+
+- Format, lint, and type-check (read-only; this is what CI runs):
+
+```bash
+pnpm run check
+```
+
+- Auto-fix formatting and the lint rules that have safe fixes:
+
+```bash
+pnpm run fix
+```
+
+Individual steps are available too: `fmt` / `fmt:check` (oxfmt), `lint` /
+`lint:fix` (oxlint), and `typecheck` (per-workspace `tsc --noEmit`). Both linters
+read a single root config — `.oxfmtrc.json` and `.oxlintrc.json` — and cover the
+whole repo, so there is nothing to run per package.
 
 - Run the tests:
 
 ```bash
-vp run -r test
+pnpm run test
 ```
 
-- Build the monorepo:
+- Build:
 
 ```bash
-vp run -r build
+pnpm run build
 ```
 
-- Run the development server:
+- Check everything is ready (all of the above):
 
 ```bash
-vp run dev
+pnpm run ready
 ```

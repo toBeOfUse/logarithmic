@@ -4,14 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run -F logarithmic-backend -F logarithmic-frontend --parallel dev"
+    "fmt": "oxfmt .",
+    "fmt:check": "oxfmt --check .",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "typecheck": "pnpm -r run typecheck",
+    "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck",
+    "fix": "pnpm run fmt && pnpm run lint:fix",
+    "test": "pnpm -r run test",
+    "build": "pnpm -r run build",
+    "ready": "pnpm run check && pnpm run test && pnpm run build",
+    "dev": "pnpm --filter logarithmic-backend --filter logarithmic-frontend --parallel run dev"
   },
   "dependencies": {
     "@playwright/cli": "catalog:"
   },
   "devDependencies": {
-    "vite-plus": "catalog:"
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=24.18.0"

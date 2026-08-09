@@ -5,7 +5,7 @@
  * headlessly — the same code path the backend and the editor's save both use.
  */
 import { $getRoot, type LexicalNode } from "lexical";
-import { expect, test } from "vite-plus/test";
+import { expect, test } from "vitest";
 
 import { createContentEditor } from "../schema.ts";
 import {

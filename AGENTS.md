@@ -20,5 +20,6 @@ skills:
   load: "node_modules/@trpc/client/skills/client-setup/SKILL.md"
 
 - task: "Input and output validation with Zod on tRPC procedures"
-load: "node_modules/@trpc/server/skills/validators/SKILL.md"
+  load: "node_modules/@trpc/server/skills/validators/SKILL.md"
+
 <!-- intent-skills:end -->

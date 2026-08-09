@@ -1,16 +1,11 @@
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite-plus";
-import { resolve } from "node:path";
+import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter()],
+  // Resolves the `~/*` alias from tsconfig.json. Native to Vite 8 — no plugin.
   resolve: { tsconfigPaths: true },
-  // `root` (not a manual rollup `input`) is what lets Vite find the app when
-  // the cwd is the project root instead of apps/frontend. The reactRouter()
-  // plugin owns the build inputs in framework mode; overriding them with
-  // index.html — which has no module <script> — produces an empty entry chunk.
-  root: resolve(__dirname),
   server: {
     proxy: {
       // Proxy the whole API surface (tRPC procedures + `/api/images/...`) to the

@@ -94,6 +94,9 @@ export function FloatingPopover({
     left = Math.max(OFFSET, Math.min(left, window.innerWidth - elRect.width - OFFSET));
     el.style.top = `${top}px`;
     el.style.left = `${left}px`;
+    // Empty deps on purpose: everything read above is a ref. (exhaustive-deps
+    // flags `elRef` — it can't see through `containerRef ?? ownRef` to prove
+    // it's a ref, so it assumes a reactive value.)
   }, []);
 
   // No dep array: the popover's own size changes with its contents (the toolbar's

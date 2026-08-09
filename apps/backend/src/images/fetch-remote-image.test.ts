@@ -10,7 +10,7 @@
  * passes that flag, and it is asserted to require `NODE_ENV=test`.
  */
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, test } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import { fetchRemoteImage, RemoteImageError } from "./fetch-remote-image.ts";

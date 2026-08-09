@@ -36,4 +36,4 @@ Custom nodes are split accordingly: the canonical node (serialization, nested co
 
 - Documents are Lexical's real `SerializedEditorState` (stored as a JSON string) — there are no bespoke shape types; the data layer speaks the editor's own serialization.
 - Inspection/serialization goes through a headless editor so it reuses Lexical's own traversal (e.g. `getTextContent`) and, in future, `@lexical/html` for export — rather than hand-walking JSON.
-- Run checks and tests from the repo root (`vp check`, `vp test packages/content`); this package has no Vite config of its own.
+- Run checks from the repo root (`pnpm run check`); run this package's tests with `pnpm --filter logarithmic-content run test`. It has no Vite config of its own.

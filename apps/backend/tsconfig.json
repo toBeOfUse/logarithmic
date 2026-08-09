@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
+    // `logarithmic-content` exports its `.ts` sources, so its files are checked
+    // as part of this program. Its Lexical nodes declare `createDOM(): HTMLElement`
+    // — signatures the headless/backend path never calls but that still need DOM
+    // types to check. Same reason packages/content/tsconfig.json includes DOM.
+    "lib": ["ES2022", "DOM"],
     "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,

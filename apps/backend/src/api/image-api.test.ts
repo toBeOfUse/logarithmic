@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, test } from "vitest";
 import {
   createTRPCClient,
   httpLink,
@@ -92,7 +92,9 @@ function imageFormData(opts: {
   const fd = new FormData();
   const bytes = opts.bytes ?? PNG_1x1;
   const filename = opts.filename ?? "photo.png";
-  fd.set("image", new File([bytes], filename, { type: opts.mime ?? "image/png" }));
+  // Copy into a plain Uint8Array: a Node `Buffer` can be backed by a
+  // `SharedArrayBuffer`, which the DOM `BlobPart` type rejects.
+  fd.set("image", new File([new Uint8Array(bytes)], filename, { type: opts.mime ?? "image/png" }));
   fd.set("logbookId", opts.logbookId);
   fd.set("entryId", String(opts.entryId));
   fd.set("originalFilename", filename);
@@ -218,7 +220,7 @@ beforeAll(async () => {
   upstream.get("/page.html", async (_req, reply) => reply.type("text/html").send("<p>hi</p>"));
   await upstream.listen({ port: 0, host: "127.0.0.1" });
   upstreamUrl = `http://127.0.0.1:${(upstream.server.address() as AddressInfo).port}`;
-});
+}, 30_000);
 
 afterAll(async () => {
   await app?.close();

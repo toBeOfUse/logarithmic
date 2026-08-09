@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test } from "vitest";
 
 import { emptyContent, plainTextContent } from "./document.ts";
 import { countWords } from "./word-count.ts";
