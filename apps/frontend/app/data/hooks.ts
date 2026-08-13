@@ -504,8 +504,18 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
       demo
         ? Promise.resolve(store.renameEntry({ id: input.id, name: input.name }))
         : trpc.entry.rename.mutate(input),
-    onMutate: async (vars) => {
-      await qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
+    // Synchronous, unlike its neighbours. The title field hands control back to
+    // the cache the moment it commits, so the new name has to be there before
+    // React renders that same event: an `await` — even on an already-resolved
+    // promise — defers the patch past the flush, and the re-render it
+    // eventually triggers is scheduled as non-urgent work, which is long enough
+    // to paint the OLD name. Dropping it is safe because `cancelQueries` does
+    // its work synchronously (it rejects each in-flight fetch's retryer and
+    // applies the `revert: true` rollback before returning, so a cancelled
+    // fetch can no longer overwrite the patch below); the promise it hands back
+    // only reports when those dead fetches settle.
+    onMutate: (vars) => {
+      void qc.cancelQueries({ queryKey: keys.entry(demo, vars.id) });
       const prevEntry = qc.getQueryData<EntryDetail | null>(keys.entry(demo, vars.id));
       const slug = slugify(vars.name);
       const updatedAt = new Date();
@@ -524,7 +534,7 @@ export function useRenameEntry({ demo = false }: { demo?: boolean } = {}) {
       // skip this update and leave the card showing the old name until a
       // refetch.
       const overviewKey = keys.logbookOverview(demo, vars.logbookId);
-      await qc.cancelQueries({ queryKey: overviewKey });
+      void qc.cancelQueries({ queryKey: overviewKey });
       const prev = qc.getQueryData<LogbookOverview | null>(overviewKey);
       prevOverviewByLogbookId.set(vars.logbookId, prev);
       if (prev) {

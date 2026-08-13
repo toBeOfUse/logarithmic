@@ -72,6 +72,14 @@ const appShell =
 
 const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
+/**
+ * The title the user is typing, tagged with the entry it belongs to. One route
+ * component serves every entry (`:logbookId/:entryId`), so this state survives
+ * entry-to-entry navigation: an untagged draft would paint over the next
+ * entry's name, and a flush could rename the wrong entry.
+ */
+type TitleDraft = { entryId: number; logbookId: string; value: string };
+
 export default function EntryRoute() {
   const params = useParams();
   const logbookSegment = params.logbookId ?? "";
@@ -123,7 +131,7 @@ export default function EntryRoute() {
   const editorRef = useRef<EditorHandle>(null);
   const [maximized, setMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState<TitleDraft | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [savingFloor, setSavingFloor] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -174,9 +182,45 @@ export default function EntryRoute() {
     window.scrollTo(0, 0);
   }, [entryId]);
 
+  // A draft only applies to the entry it was typed into. One left over from a
+  // previous entry is ignored on sight; the flush effect below commits it.
+  const activeDraft = titleDraft?.entryId === entryId ? titleDraft.value : null;
+
   // Title draft counts as unsaved if it differs from the persisted name.
-  const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;
+  const titleDirty = activeDraft != null && entry != null && activeDraft !== entry.name;
   const dirty = titleDirty || editorDirty || mutationPending;
+
+  /**
+   * Persist the pending rename. Everything it needs comes off the draft itself
+   * rather than off `entry`, so it stays correct when called from the flush
+   * below — by then `entry` may already be the entry the user navigated TO.
+   * An empty or unchanged title is not a rename and commits nothing.
+   */
+  const commitTitle = () => {
+    if (!titleDraft) return;
+    const trimmed = titleDraft.value.trim();
+    if (!trimmed) return;
+    if (titleDraft.entryId === entry?.id && trimmed === entry.name) return;
+    renameEntry.mutate({ id: titleDraft.entryId, name: trimmed, logbookId: titleDraft.logbookId });
+  };
+
+  // Latest `commitTitle` in a ref so the flush below sees the current draft
+  // without re-running (and so flushing) on every keystroke.
+  const commitTitleRef = useRef(commitTitle);
+  commitTitleRef.current = commitTitle;
+
+  // Commit an in-progress rename when the entry changes or the route unmounts.
+  // The textarea's own blur handler misses both: removing a focused element
+  // from the DOM fires no blur/focusout, so hitting Back while the title is
+  // still focused would otherwise drop the rename entirely — `beforeunload`
+  // below only covers leaving the app, not in-app navigation. Same contract as
+  // the editor's unmount flush in EditorControllerPlugin.
+  useEffect(() => {
+    setTitleDraft(null);
+    return () => {
+      commitTitleRef.current();
+    };
+  }, [entryId]);
 
   // Mirror the browser's fullscreen state so the toggle button shows the right
   // icon — including when the user drops fullscreen with Escape, which doesn't
@@ -258,17 +302,18 @@ export default function EntryRoute() {
   const logbook = overview.logbook;
   const ancestors = entry.ancestors;
 
-  const titleValue = titleDraft ?? entry.name;
+  const titleValue = activeDraft ?? entry.name;
   const isUntitled = !titleValue;
 
+  const onTitleChange = (value: string) => setTitleDraft({ entryId: entry.id, logbookId, value });
+
   const onTitleBlur = () => {
-    // An empty/whitespace-only title is never committed: discarding the draft
-    // reverts the field to the persisted name. Otherwise commit the trimmed
-    // value if it actually changed.
-    const trimmed = titleDraft?.trim();
-    if (trimmed && trimmed !== entry.name) {
-      renameEntry.mutate({ id: entry.id, name: trimmed, logbookId });
-    }
+    // Dropping the draft hands the field back to the cache, which `commitTitle`
+    // has already patched with the new name (`useRenameEntry` does it
+    // synchronously) — so this shows the rename, not the value it replaced. It
+    // also reverts an emptied title and drops a stray trailing space, neither
+    // of which commits anything.
+    commitTitle();
     setTitleDraft(null);
   };
 
@@ -442,7 +487,7 @@ export default function EntryRoute() {
             <TitleEditor
               value={titleValue}
               isUntitled={isUntitled}
-              onChange={setTitleDraft}
+              onChange={onTitleChange}
               onBlur={onTitleBlur}
             />
           </div>
@@ -458,7 +503,7 @@ export default function EntryRoute() {
             <TitleEditor
               value={titleValue}
               isUntitled={isUntitled}
-              onChange={setTitleDraft}
+              onChange={onTitleChange}
               onBlur={onTitleBlur}
             />
           </div>
