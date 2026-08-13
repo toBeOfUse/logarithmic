@@ -38,6 +38,7 @@ import { FootnoteCopyPlugin } from "./plugins/FootnoteCopyPlugin.tsx";
 import { FootnotePlugin } from "./plugins/FootnotePlugin.tsx";
 import { ImageDndController, ImageDndProvider } from "./plugins/ImageDndProvider.tsx";
 import { ImagePlugin } from "./plugins/ImagePlugin.tsx";
+import { MultiParagraphBlockQuotePlugin } from "./plugins/MultiParagraphBlockQuotePlugin.tsx";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin.tsx";
 
 /**
@@ -152,6 +153,9 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
           <TabIndentationPlugin />
           <LinkPlugin />
           <MarkdownShortcutPlugin transformers={MARKDOWN_SHORTCUTS} />
+          {/* Enter inside a quote stays in the quote, so a block quote can hold
+              more than one paragraph. */}
+          <MultiParagraphBlockQuotePlugin />
           <AutoLinkOnPastePlugin />
           <FloatingToolbarPlugin />
           <SlashMenuPlugin />

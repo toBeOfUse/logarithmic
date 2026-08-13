@@ -22,6 +22,10 @@
   --tw-prose-pre-bg: var(--color-stark-hover);
   --tw-prose-th-borders: var(--color-stark-border);
   --tw-prose-td-borders: var(--color-stark-border);
+  /* The gap between consecutive paragraphs of running text. A multi-paragraph
+     block quote reproduces it with padding rather than margin (see below), so
+     the two have to move together. */
+  --content-paragraph-gap: 1rem;
   line-height: 1.6;
 }
 
@@ -33,8 +37,22 @@
   display: none;
 }
 
+/* A block quote is a *run* of consecutive quote blocks (Lexical's QuoteNode
+   holds one paragraph's worth of content — see
+   plugins/MultiParagraphBlockQuotePlugin.tsx), so the run has to read as one
+   quote: drop the margin between neighbours, leaving the quote bars to meet in
+   an unbroken line, and re-spend that space as padding inside the following
+   block — padding, because a margin would break the bar again. */
+.content blockquote:has(+ blockquote) {
+  margin-bottom: 0;
+}
+.content blockquote + blockquote {
+  margin-top: 0;
+  padding-top: var(--content-paragraph-gap);
+}
+
 .content p:not(:first-child) {
-  margin-top: 1rem;
+  margin-top: var(--content-paragraph-gap);
 }
 .content p {
   margin-bottom: 0;

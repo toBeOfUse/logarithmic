@@ -17,7 +17,6 @@ import { $findMatchingParent, $getNearestNodeOfType, mergeRegister } from "@lexi
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import {
-  $isListNode,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
   ListNode,
@@ -32,10 +31,13 @@ import {
 import {
   $createParagraphNode,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
   COMMAND_PRIORITY_LOW,
   FORMAT_TEXT_COMMAND,
   SELECTION_CHANGE_COMMAND,
+  type LexicalNode,
+  type RangeSelection,
   type TextFormatType,
 } from "lexical";
 
@@ -72,6 +74,36 @@ const EMPTY_STATE: InlineState = {
 
 const INLINE_CLEARABLE: TextFormatType[] = ["bold", "italic", "underline", "strikethrough", "code"];
 
+/** The block a selected node sits in, or `null` for the things that aren't text
+ *  blocks at all (a divider or an image at the top level). */
+function $blockTypeOf(node: LexicalNode): BlockType | null {
+  const list = $getNearestNodeOfType(node, ListNode);
+  if (list !== null) return list.getListType() === "number" ? "number" : "bullet";
+  const element = node.getTopLevelElement();
+  if (!$isElementNode(element)) return null;
+  if ($isHeadingNode(element)) {
+    const tag = element.getTag();
+    return tag === "h2" ? "h2" : tag === "h3" ? "h3" : "paragraph";
+  }
+  return $isQuoteNode(element) ? "quote" : "paragraph";
+}
+
+/** The block type of the selection as a whole — a type only when *every* block
+ *  in it already has that type, otherwise "paragraph". That's what makes a
+ *  button light up, and a lit button is the one that reverts to paragraphs, so
+ *  reading only the anchor meant a mixed selection (or a backwards one, whose
+ *  anchor is its *last* block) toggled off the type the user meant to apply. */
+function $selectionBlockType(selection: RangeSelection): BlockType {
+  let common: BlockType | null = null;
+  for (const node of selection.getNodes()) {
+    const type = $blockTypeOf(node);
+    if (type === null) continue;
+    if (common === null) common = type;
+    else if (common !== type) return "paragraph";
+  }
+  return common ?? "paragraph";
+}
+
 export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boolean } = {}) {
   const [editor] = useLexicalComposerContext();
   const popupRef = useRef<HTMLDivElement>(null);
@@ -91,24 +123,6 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) return null;
     const anchorNode = selection.anchor.getNode();
-    const element =
-      anchorNode.getKey() === "root" ? anchorNode : (anchorNode.getTopLevelElement() ?? anchorNode);
-
-    let block: BlockType = "paragraph";
-    if ($isListNode(element)) {
-      block = element.getListType() === "number" ? "number" : "bullet";
-    } else {
-      const listParent = $getNearestNodeOfType(anchorNode, ListNode);
-      if (listParent) {
-        block = listParent.getListType() === "number" ? "number" : "bullet";
-      } else if ($isHeadingNode(element)) {
-        const tag = element.getTag();
-        block = tag === "h2" ? "h2" : tag === "h3" ? "h3" : "paragraph";
-      } else if ($isQuoteNode(element)) {
-        block = "quote";
-      }
-    }
-
     const linkNode = $findMatchingParent(anchorNode, (n) => $isLinkNode(n));
     return {
       bold: selection.hasFormat("bold"),
@@ -117,7 +131,7 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
       strikethrough: selection.hasFormat("strikethrough"),
       isLink: $isLinkNode(linkNode) ? true : false,
       linkUrl: $isLinkNode(linkNode) ? linkNode.getURL() : "",
-      block,
+      block: $selectionBlockType(selection),
     };
   }, []);
 
