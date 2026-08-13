@@ -1,12 +1,4 @@
-import {
-  isRouteErrorResponse,
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-  useRouteError,
-} from "react-router";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, useRouteError } from "react-router";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -18,6 +10,15 @@ import "./globals.css";
 // freshly-saved token. Runs once at module load; further calls are no-ops.
 if (typeof window !== "undefined") {
   bootstrapTokenFromHash();
+  // Own scroll restoration outright. The org chart is the one route where the
+  // DOCUMENT scrolls (so a mobile browser will dismiss its address bar for it),
+  // and it scrolls on BOTH axes; it keeps its own per-history-entry offsets and
+  // reapplies them on mount. React Router's <ScrollRestoration> is deliberately
+  // absent for the same reason — it restores with `scrollTo(0, y)`, which would
+  // reset the chart's horizontal position on every back-navigation. Turning the
+  // browser's own restoration off keeps it from racing us as well; every other
+  // route scrolls inside a box, which nothing restores automatically anyway.
+  if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 }
 
 export const links = () => [
@@ -34,14 +35,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* `minimum-scale=1` is load-bearing, not a zoom preference. The org
+            chart is wider than a phone, and when a document overflows
+            horizontally mobile browsers widen the LAYOUT viewport (up to
+            1/minimum-scale) so the whole page can be pinched down to fit. That
+            widening scales BOTH axes: `innerHeight`, `100vh`, `position: fixed`,
+            and the sticky scrollport all grow past the visible area, and the
+            page stops scrolling vertically at all. Pinning the minimum scale
+            keeps the layout viewport equal to the visual viewport, so the
+            document is what scrolls (which is what lets mobile browsers dismiss
+            the address bar) and the chart's sticky geometry stays true. Zooming
+            IN is still allowed. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
         <title>Logarithmic</title>
         <Meta />
         <Links />
       </head>
       <body>
         {children}
-        <ScrollRestoration />
         <Scripts />
       </body>
     </html>

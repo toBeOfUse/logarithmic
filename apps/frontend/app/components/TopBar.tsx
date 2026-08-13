@@ -23,6 +23,7 @@ export function TopBar({
   currentName,
   menuItems = [],
   actions = [],
+  floating = false,
 }: {
   /** Route segment for the current logbook (slug-id). */
   logbookSegment: string;
@@ -34,14 +35,22 @@ export function TopBar({
   /** Items shown as buttons beside the kebab, so they're a single click away.
    *  Use for the most reached-for actions on a route (e.g. "Focus"). */
   actions?: KebabMenuItem[];
+  /**
+   * Pin the bar over the page instead of sitting in the layout flow. For routes
+   * where the DOCUMENT scrolls rather than a box inside it — the org chart —
+   * since only a scrolling document lets a mobile browser dismiss its address
+   * bar. The route reserves the bar's space with `pt-top-bar`.
+   */
+  floating?: boolean;
 }) {
   return (
     <div
       className={cn(
-        // `relative z-(--z-header)` establishes a stacking layer above the
-        // editor's floating toolbar (--z-toolbar) so a selection toolbar near
-        // the top slides behind the bar rather than over it.
-        "relative z-(--z-header) flex items-center h-11 px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
+        // `relative`/`fixed` + `z-(--z-header)` establishes a stacking layer
+        // above the editor's floating toolbar (--z-toolbar) so a selection
+        // toolbar near the top slides behind the bar rather than over it.
+        floating ? "fixed inset-x-0 top-0" : "relative",
+        "z-(--z-header) flex items-center h-top-bar px-3.5 border-b shrink-0 gap-3 text-md sm:text-sm",
         "bg-stark border-stark-border",
       )}
     >

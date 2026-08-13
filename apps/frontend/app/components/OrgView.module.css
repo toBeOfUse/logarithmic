@@ -13,17 +13,6 @@
    with no per-column offsets computed in JS. The strip and canvas share one
    shrink-to-content .inner wrapper so both take the same overall width. */
 
-/* The line sticky cards pin to: the header strip's label row plus the sticky gap
-   below it. Defined once (as --org-pin-top in :root) and consumed by both the
-   CSS `top:` of sticky elements and the JS that drives their height, so the two
-   can't drift. Registered so its computed value resolves to px for
-   getComputedStyle in JS (an unregistered calc var would read back as a string). */
-@property --org-pin-top {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
-}
-
 :root {
   /* Wide columns (column 0 by default) use --org-card-width-0; the rest use the
      narrower --org-card-width. Which columns are wide is configurable; each cell,
@@ -49,9 +38,16 @@
   --org-strip-h: 50px;
   /* The visible gap between the viewport edge and a stuck card, top & bottom. */
   --org-sticky-gap: 14px;
-  /* The line sticky cards pin to (header strip + gap). Single source for both the
-     CSS `top:` of sticky elements and the JS sticky-height driver. */
-  --org-pin-top: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  /* The strip's opaque paper: its label row plus the sticky gap below it, so a
+     card scrolling up vanishes exactly where the stuck cards' top edge sits. */
+  --org-strip-box-h: calc(var(--org-strip-h) + var(--org-sticky-gap));
+  /* The line sticky cards pin to, measured from the top of the viewport: past
+     the floating top bar, then past the strip's paper. Deliberately NOT
+     registered with @property — Chrome and Firefox disagree on how a registered
+     <length> resolves the rem in --spacing-top-bar. Nothing reads it from JS
+     (the sticky-height driver measures the strip's own rect instead), so the
+     plain, lazily-substituted var is both correct and portable. */
+  --org-pin-top: calc(var(--spacing-top-bar) + var(--org-strip-box-h));
   /* The dashed pseudo-card drop zone shown to the right of a childless entry
      during a drag normally fills its would-be child column. The exception is an
      entry in the lowest visible column, whose child column falls past the right
@@ -91,12 +87,44 @@
 
 /* ── Scroll viewport ─────────────────────────────────────────── */
 
-/* Horizontal gutter on the scroll container itself (not the centered inner
-   blocks) so the gap survives when the chart is wider than the viewport and
-   scrolls: the left gutter shows at scroll start, the right at scroll end, and
-   the sticky header and canvas stay inset together. */
+/* The chart does NOT scroll in a box of its own — the document scrolls, on both
+   axes, because that's the only scroller a mobile browser will dismiss its
+   address bar for.
+
+   Horizontal gutter on this wrapper (not the centered inner blocks) so the gap
+   survives when the chart is wider than the viewport: the left gutter shows at
+   scroll start, the right at scroll end, and the sticky header and canvas stay
+   inset together. Being a plain block, its padding would be swallowed by
+   overflowing content, so it takes its content's width (`max-content`) and the
+   document's scrollable area picks the gutter up; `min-width: 100%` keeps it
+   full-bleed when the chart is narrower than the viewport, so `.inner` still has
+   room to centre. */
 .scroll {
+  width: max-content;
+  min-width: 100%;
   padding-inline: var(--org-page-pad-x);
+}
+
+/* A zero-width sentinel spanning the DYNAMIC viewport, measured by the
+   sticky-height driver to find where the visible page actually ends.
+
+   It can't just ask `documentElement.clientHeight`: on mobile the initial
+   containing block is sized to the SMALL viewport and deliberately does not grow
+   when the address bar retracts (growing it would reflow the page mid-scroll),
+   so a stuck card's bottom would hold one address-bar-height above the real
+   floor. `dvh` is the unit defined to track that retraction, and it only exists
+   in CSS — hence a probe to read it from, rather than a length parsed out of a
+   custom property. The `100%` first line is the pre-dvh fallback (a fixed box's
+   percentage height resolves against that same initial containing block). */
+.viewportProbe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  height: 100dvh;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* Wraps the sticky header strip and the canvas in one shrink-to-content block,
@@ -113,17 +141,21 @@
 /* The strip's paper extends past the label row by the sticky gap, down to the
    line sticky cards pin to, so scrolling cards disappear exactly at the sticky
    cards' top edge instead of peeking into the gap above them. The labels stay
-   in the top --org-strip-h (see .colHead); the extra height is empty paper. */
+   in the top --org-strip-h (see .colHead); the extra height is empty paper.
+
+   It sticks to the document (the scroller), tucked directly under the floating
+   top bar — which is opaque and sits above it (--z-header > this z-index), so
+   the two together form one unbroken lid over the scrolling cards. */
 .colStrip {
   position: sticky;
-  top: 0;
+  top: var(--spacing-top-bar);
   z-index: 10;
   /* Fills .inner (the full chart width), so cards scrolling up vanish behind its
      opaque paper across every column rather than peeking past its right edge. */
   width: 100%;
   /* Extends down to the pin line, so cards scrolling up vanish exactly where the
      sticky cards stop. */
-  height: var(--org-pin-top);
+  height: var(--org-strip-box-h);
   background: var(--color-stark);
 }
 
@@ -339,6 +371,17 @@
   transition:
     background-color var(--org-transition),
     border-color var(--org-transition);
+}
+
+/* Whatever the chart scrolls into view — a new input cell, a just-created card
+   — has to clear the sticky lid, which now overlays the scrolling document (the
+   floating top bar plus the column strip) instead of sitting above a scroll box
+   of its own. `scroll-margin-top` is what tells `scrollIntoView` that. */
+.card,
+.cardStack,
+.cardInput,
+.foldedCard {
+  scroll-margin-top: calc(var(--org-pin-top) + var(--org-card-gap));
 }
 
 /* The card's content lives here. It's never height-constrained, so its

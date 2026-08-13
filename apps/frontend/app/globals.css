@@ -85,6 +85,12 @@
      A `--container-*` token, so it generates the `max-w-reading` utility. */
   --container-reading: 48rem;
 
+  /* The top bar's height. A `--spacing-*` token so it generates both the bar's
+     own `h-top-bar` and the `pt-top-bar` that reserves its space on routes where
+     the bar floats over a scrolling document (see TopBar's `floating` prop) —
+     the two can't drift apart. */
+  --spacing-top-bar: 2.75rem;
+
   /* Typography. Vazirmatn is the primary face, for now; Lora is used for accent serif text. */
   --font-sans: "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "Lora", "Iowan Old Style", Georgia, serif;

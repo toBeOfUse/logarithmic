@@ -24,6 +24,15 @@ import { parseRouteSegment, routeSegment } from "~/lib/route-segment.ts";
 import { entryDeleteRequest, useConfirmDelete } from "~/lib/use-confirm-delete.tsx";
 import { useDocumentTitle } from "~/lib/use-document-title.ts";
 
+/**
+ * The org chart scrolls the DOCUMENT, not a box inside it — that's the only
+ * scroller a mobile browser will dismiss its address bar for. So the page grows
+ * past the viewport (`min-h-full`, no `overflow-hidden`) and the top bar floats
+ * over it, with `pt-top-bar` holding its space open in the flow.
+ */
+const pageClass =
+  "font-sans text-primary text-base leading-normal min-h-full w-full flex flex-col bg-stark pt-top-bar";
+
 export default function LogbookRoute() {
   const params = useParams();
   const logbookId = parseRouteSegment(params.logbookId ?? "");
@@ -150,13 +159,14 @@ export default function LogbookRoute() {
 
   if (isLoading || !data) {
     return (
-      <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
+      <div className={pageClass}>
         <TopBar
+          floating
           logbookSegment={params.logbookId ?? ""}
           logbookName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 flex flex-col overflow-hidden bg-stark">
-          <div className="flex flex-col items-center justify-center h-full text-muted gap-3.5 py-[60px] px-10 text-center">
+        <div className="flex-1 flex flex-col bg-stark">
+          <div className="flex flex-col items-center justify-center flex-1 text-muted gap-3.5 py-[60px] px-10 text-center">
             <p className="text-base text-muted m-0">
               {isLoading ? "Loading logbook…" : "This logbook could not be found."}
             </p>
@@ -231,8 +241,9 @@ export default function LogbookRoute() {
   }
 
   return (
-    <div className="font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden">
+    <div className={pageClass}>
       <TopBar
+        floating
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
         actions={topBarActions}

@@ -50,7 +50,6 @@ import {
   Fragment,
   memo,
   type MouseEvent as ReactMouseEvent,
-  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -1107,19 +1106,19 @@ const Subtree = memo(SubtreeImpl);
  * Keep droppable rects aligned with the chart as it auto-scrolls during a drag.
  *
  * dnd-kit measures each droppable once at drag start, then keeps its position
- * "current" by offsetting that cached rect by the scroll container's scroll
- * delta — which is correct only for content that scrolls with the container. A
- * sticky card's drop halves stay pinned on screen while the container
- * auto-scrolls, so that offset pushes their droppable rects away from the real
- * card by exactly the scrolled distance, leaving the drop zones above or below
- * where the card actually is.
+ * "current" by offsetting that cached rect by the scroller's scroll delta —
+ * which is correct only for content that scrolls with the document. A sticky
+ * card's drop halves stay pinned on screen while the page auto-scrolls, so that
+ * offset pushes their droppable rects away from the real card by exactly the
+ * scrolled distance, leaving the drop zones above or below where the card
+ * actually is.
  *
  * Re-measuring all droppables on each scroll frame (only while a drag is active)
  * re-reads their true on-screen rects, resetting that scroll delta to zero so
  * the sticky drop zones track their cards. Must live inside `DndContext` so it
  * can reach `measureDroppableContainers`.
  */
-function RemeasureOnScroll({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
+function RemeasureOnScroll() {
   const dnd = useDndContext();
   const dragging = dnd.active !== null;
   // The context object changes identity on every drag-over update; hold the
@@ -1128,14 +1127,13 @@ function RemeasureOnScroll({ scrollRef }: { scrollRef: RefObject<HTMLDivElement 
   const dndRef = useRef(dnd);
   dndRef.current = dnd;
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !dragging) return;
+    if (!dragging) return;
     // Empty id list re-measures every droppable. Called as a method (not a
     // destructured reference) to keep its `this` binding.
     const onScroll = () => dndRef.current.measureDroppableContainers([]);
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [dragging, scrollRef]);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [dragging]);
   return null;
 }
 
@@ -1394,7 +1392,16 @@ export function OrgView({
   // touched, which is the whole point of the split), for a renaming InputCard
   // it's the editing box itself. The box's `extent` (its parent: the stack /
   // cell) already stretches to the subtree height, so its rect is the span.
-  const scrollRef = useRef<HTMLDivElement>(null);
+  //
+  // The chart itself is NOT a scroller — the document is (see `.scroll`) — so
+  // this ref is only a query root for the sticky boxes and the column heads.
+  const chartRef = useRef<HTMLDivElement>(null);
+  // The strip's outer (sticky) box. Its bottom edge IS the line sticky cards pin
+  // to, so the height driver measures it rather than parsing --org-pin-top.
+  const stripBoxRef = useRef<HTMLDivElement>(null);
+  // A 100dvh sentinel whose bottom edge is the floor sticky cards hold above —
+  // the one reading that follows a mobile address bar sliding away.
+  const vpProbeRef = useRef<HTMLDivElement>(null);
   // The column-header strip, so entering edit mode can focus its first name input.
   const stripRef = useRef<HTMLDivElement>(null);
 
@@ -1423,51 +1430,59 @@ export function OrgView({
 
   // Restore the scroll position the user left this history entry's chart at
   // (e.g. after clicking into an entry and coming back), and keep it current as
-  // they scroll. Runs before the sticky-measurement effect below so that pass
-  // sees the restored offset. The forest is already present when OrgView mounts
-  // (the route gates on load), so the content is laid out and the offset applies.
+  // they scroll. The document is the scroller, and it outlives this component's
+  // mount, so a fresh history entry has to be reset to the top explicitly rather
+  // than getting a clean scroller for free. Runs before the sticky-measurement
+  // effect below so that pass sees the restored offset. The forest is already
+  // present when OrgView mounts (the route gates on load), so the content is
+  // laid out and the offset applies.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
+    const el = chartRef.current;
     if (!el) return;
     const saved = orgScrollByLocation.get(locationKey);
     if (saved) {
-      el.scrollTop = saved.top;
-      el.scrollLeft = saved.left;
-    } else if (window.matchMedia?.("(max-width: 640px)")?.matches) {
+      window.scrollTo(saved.left, saved.top);
+    } else {
       // First visit on a narrow screen (the breakpoint mirrors the stylesheet's
       // `@media (max-width: 640px)`): the chart is wider than the viewport and
       // would otherwise open on the leftmost, highest-numbered heading column.
       // Start scrolled so the body column (0) — the spine most logbooks read
-      // from — is centered instead. Measured from rects (not offsetLeft) so it's
-      // independent of which ancestor is the offset parent; the browser clamps
-      // the result if column 0 sits too near an edge to fully center.
-      const head = el.querySelector<HTMLElement>('[data-col="0"]');
+      // from — is centered instead. Measured from rects so it's independent of
+      // which ancestor is the offset parent; the browser clamps the result if
+      // column 0 sits too near an edge to fully center.
+      let left = 0;
+      const head = window.matchMedia?.("(max-width: 640px)")?.matches
+        ? el.querySelector<HTMLElement>('[data-col="0"]')
+        : null;
       if (head) {
         const headRect = head.getBoundingClientRect();
-        const center =
-          headRect.left - el.getBoundingClientRect().left + el.scrollLeft + headRect.width / 2;
-        el.scrollLeft = center - el.clientWidth / 2;
+        const center = headRect.left + window.scrollX + headRect.width / 2;
+        left = center - document.documentElement.clientWidth / 2;
       }
+      window.scrollTo(left, 0);
     }
     const onScroll = () => {
-      orgScrollByLocation.set(locationKey, { top: el.scrollTop, left: el.scrollLeft });
+      orgScrollByLocation.set(locationKey, { top: window.scrollY, left: window.scrollX });
     };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, [locationKey]);
 
   useLayoutEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-    // Pin line (where sticky cards stop under the header) and the matching bottom
-    // gap, read from the CSS tokens so the geometry lives only in the stylesheet:
-    // --org-pin-top already folds in the strip height + gap (and is registered via
-    // @property, so getComputedStyle resolves it to px rather than a calc string),
-    // and --org-sticky-gap is the bottom inset. Fallbacks cover non-browser
-    // environments like jsdom, where custom properties read back empty.
-    const rootStyle = getComputedStyle(document.documentElement);
-    const pinTop = parseFloat(rootStyle.getPropertyValue("--org-pin-top")) || 64;
-    const gap = parseFloat(rootStyle.getPropertyValue("--org-sticky-gap")) || 14;
+    const chartEl = chartRef.current;
+    const stripEl = stripBoxRef.current;
+    const probeEl = vpProbeRef.current;
+    if (!chartEl || !stripEl || !probeEl) return;
+    // The bottom inset, read from the CSS token so the geometry lives only in the
+    // stylesheet. (The matching TOP inset — the pin line — is measured off the
+    // strip instead of read from --org-pin-top: that token now folds in a rem,
+    // and browsers disagree on what a registered <length> custom property
+    // resolves a rem against. The strip's own bottom edge IS the pin line, in
+    // every browser.) The fallback covers non-browser environments like jsdom,
+    // where custom properties read back empty.
+    const gap =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--org-sticky-gap")) ||
+      14;
 
     // Snapshot the sticky boxes once. The set only changes when the forest /
     // pending input / fold state does, which re-runs this effect — so there's no
@@ -1488,7 +1503,7 @@ export function OrgView({
       last: number;
     };
     const targets: Target[] = [];
-    for (const box of scrollEl.querySelectorAll<HTMLElement>("[data-sticky-box]")) {
+    for (const box of chartEl.querySelectorAll<HTMLElement>("[data-sticky-box]")) {
       const extent = box.parentElement;
       const floor = extent?.querySelector<HTMLElement>("[data-sticky-floor]");
       if (!extent || !floor) continue;
@@ -1506,12 +1521,19 @@ export function OrgView({
       // child column's height doesn't feed back into the extent (the column is
       // the taller, stretching sibling). A box left STALE-tall would feed back,
       // which is what the pre-measure reset below guards against.
-      const vpBottom = scrollEl.clientHeight - gap;
-      const originTop = scrollEl.getBoundingClientRect().top;
+      // Everything is measured in viewport coordinates now that the document is
+      // the scroller, so `getBoundingClientRect()` needs no origin correction.
+      // Both ends of the clamp are read off real elements rather than computed
+      // from CSS tokens: the strip's bottom is the pin line, and the 100dvh
+      // probe's bottom is the visible floor — which grows as a mobile address
+      // bar retracts, where the initial containing block (and so `100%`,
+      // `clientHeight`, and `position: sticky`'s own scrollport) does not.
+      const vpBottom = probeEl.getBoundingClientRect().bottom - gap;
+      const pinTop = stripEl.getBoundingClientRect().bottom;
       for (const t of targets) {
         const r = t.extent.getBoundingClientRect();
-        const top = Math.max(r.top - originTop, pinTop);
-        const bottom = Math.min(r.bottom - originTop, vpBottom);
+        const top = Math.max(r.top, pinTop);
+        const bottom = Math.min(r.bottom, vpBottom);
         // Never shrink below the content; once the box would, it keeps its
         // content height and `position: sticky` scrolls it up off the top (its
         // bottom held to the extent) so nothing is clipped.
@@ -1543,11 +1565,22 @@ export function OrgView({
     // write phase still flushes the real heights over these zeros.
     for (const t of targets) t.box.style.setProperty("--org-sticky-h", "0px");
     apply();
-    scrollEl.addEventListener("scroll", schedule, { passive: true });
+    // Scroll and resize both come off the window, the document being the
+    // scroller; the observer additionally catches the chart growing or shrinking
+    // under a steady viewport (card text reflowing, a subtree changing height).
+    // A retracting mobile address bar rides along on `scroll` while the finger
+    // is moving, but it can also finish its slide after the scroll has stopped,
+    // and that changes no ICB and so fires no window `resize` — the visual
+    // viewport's own resize is the event that catches it.
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
     const ro = new ResizeObserver(schedule);
-    ro.observe(scrollEl);
+    ro.observe(chartEl);
     return () => {
-      scrollEl.removeEventListener("scroll", schedule);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
       ro.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
@@ -1592,7 +1625,8 @@ export function OrgView({
   const creatingRoot = pendingCreate?.parentId === null ? pendingCreate : null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-stark">
+    <div className="flex-1 flex flex-col bg-stark">
+      <div ref={vpProbeRef} className={styles.viewportProbe} aria-hidden="true" />
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
@@ -1600,10 +1634,10 @@ export function OrgView({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <RemeasureOnScroll scrollRef={scrollRef} />
-        <div ref={scrollRef} className={cn(styles.scroll, "flex flex-col overflow-auto bg-stark")}>
+        <RemeasureOnScroll />
+        <div ref={chartRef} className={cn(styles.scroll, "flex flex-1 flex-col bg-stark")}>
           <div className={styles.inner}>
-            <div className={styles.colStrip}>
+            <div ref={stripBoxRef} className={styles.colStrip}>
               <div ref={stripRef} className={styles.colStripInner}>
                 {cols.map((c) => {
                   const cfg = columnConfig.get(c);
