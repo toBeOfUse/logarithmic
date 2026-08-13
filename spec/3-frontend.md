@@ -22,6 +22,8 @@ Both views have a standard "top bar" that displays the breadcrumbs for the curre
 
 When you're in the organizational interface, the kebab menu allows you to rename a logbook via a dialog, delete the logbook (with confirmation), or enter the column-editing mode (see "Editing Columns" below). When you're on that entry's content page, it allows you to delete an entry or copy it as Markdown (see below.)
 
+The top bar should have a fixed position over the page content, while the whole document scrolls (which is necessary for the address bar to be dismissed on pages on mobile.)
+
 ### Organizational Interface
 
 The organizational view shows a spreadsheet/chart of all of the entries. Each entry is represented by a simple card in a column. The column numbers are displayed in a row at the top of the page that sticks to the top of the viewport. Only the necessary columns for the cards on screen are shown. Cards' children are present in the column to their right. Cards visually extend downwards to occupy the space taken up by their descendants. There is a horizontal line and a small gap between trees in the forest. (Note that the card designs are slightly simplified in some of these wireframes.)

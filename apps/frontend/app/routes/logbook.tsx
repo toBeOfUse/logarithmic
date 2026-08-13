@@ -161,7 +161,6 @@ export default function LogbookRoute() {
     return (
       <div className={pageClass}>
         <TopBar
-          floating
           logbookSegment={params.logbookId ?? ""}
           logbookName={isLoading ? "Loading…" : "Not found"}
         />
@@ -243,7 +242,6 @@ export default function LogbookRoute() {
   return (
     <div className={pageClass}>
       <TopBar
-        floating
         logbookSegment={routeSegment(logbook.slug, logbook.id)}
         logbookName={logbook.name}
         actions={topBarActions}

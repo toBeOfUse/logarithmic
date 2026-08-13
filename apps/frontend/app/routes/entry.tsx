@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import type { Metadata } from "logarithmic-backend/api-types";
@@ -51,8 +51,24 @@ function formatRelative(d: Date): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+/**
+ * The page shell. Like the logbook route, the DOCUMENT scrolls rather than a box
+ * inside it — that's the only scroller a mobile browser will dismiss its address
+ * bar for — so the top bar floats over the page and `pt-top-bar` holds its space
+ * open in the flow.
+ *
+ * `min-h-lvh`, not `min-h-full`: the page has to be as tall as the viewport with
+ * the address bar GONE. `100%` resolves against the initial containing block,
+ * which is pinned to the small viewport and deliberately does not grow when the
+ * bar retracts — so an empty editor stretched to the bottom would stop one
+ * bar-height short of it, leaving a dead strip that looks like page but doesn't
+ * take a click. `lvh` is that same height with the bar already retracted, and
+ * unlike `dvh` it's a constant: while the bar is showing the page stays
+ * scrollable by exactly the bar's height (which is what lets the user dismiss
+ * it) instead of shrinking to fit the moment it's gone and springing it back.
+ */
 const appShell =
-  "font-sans text-primary text-base leading-normal h-full w-full flex flex-col bg-stark overflow-hidden";
+  "font-sans text-primary text-base leading-normal min-h-lvh w-full flex flex-col bg-stark";
 
 const pagePadding = "px-4 pt-8 pb-8 sm:px-14 sm:pt-10";
 
@@ -143,6 +159,15 @@ export default function EntryRoute() {
 
   useDocumentTitle(entry ? entry.name || "Untitled entry" : null);
 
+  // The document is the scroller (see `appShell`) and it outlives this route's
+  // mount, so following a subsection link from halfway down one entry would drop
+  // the reader halfway down the next one. A fresh entry has to be scrolled to the
+  // top explicitly — nothing else does it, since root deliberately renders no
+  // <ScrollRestoration> and turns the browser's own restoration off.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [entryId]);
+
   // Title draft counts as unsaved if it differs from the persisted name.
   const titleDirty = titleDraft != null && entry != null && titleDraft !== entry.name;
   const dirty = titleDirty || editorDirty || mutationPending;
@@ -211,16 +236,14 @@ export default function EntryRoute() {
 
   if (isLoading || !entry || !overview) {
     return (
-      <div className={appShell}>
+      <div className={cn(appShell, "pt-top-bar")} data-stable-gutter>
         <TopBar
           logbookSegment={logbookSegment}
           logbookName={overview?.logbook.name ?? (isLoading ? "Loading…" : "Logbook")}
           currentName={isLoading ? "Loading…" : "Not found"}
         />
-        <div className="flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark">
-          <div className={cn("max-w-reading mx-auto", pagePadding)}>
-            <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
-          </div>
+        <div className={cn("max-w-reading w-full mx-auto", pagePadding)}>
+          <p className="text-muted">{isLoading ? "Loading entry…" : "Entry not found."}</p>
         </div>
       </div>
     );
@@ -372,7 +395,13 @@ export default function EntryRoute() {
   // never lost) when focus mode toggles — only the surrounding chrome changes,
   // and the editor stays at a stable position in the tree.
   return (
-    <div className={appShell}>
+    <div
+      className={cn(appShell, !maximized && "pt-top-bar")}
+      data-stable-gutter
+      // Focus mode slims the viewport scrollbar (see globals.css) — the scroller
+      // is the root element, so the page can only flag itself and let CSS reach up.
+      data-focus-mode={maximized || undefined}
+    >
       {maximized ? (
         focusControls
       ) : (
@@ -398,129 +427,125 @@ export default function EntryRoute() {
         />
       )}
       {!maximized && deleteDialog}
-      <div
-        className={cn(
-          "flex-1 overflow-y-auto scrollbar-gutter-stable bg-stark",
-          maximized && "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-2",
+      {/* `w-full` so the column fills the shell up to the reading measure: the
+          shell is a flex container, where auto side margins on an auto-width
+          item shrink it to its content instead of centring it. */}
+      <div className={cn("mx-auto w-full flex flex-1 flex-col max-w-reading", pagePadding)}>
+        {maximized ? (
+          <div className="my-4">
+            <TitleEditor
+              value={titleValue}
+              isUntitled={isUntitled}
+              onChange={setTitleDraft}
+              onBlur={onTitleBlur}
+            />
+          </div>
+        ) : (
+          <div className="flex items-start gap-3">
+            <IconPicker
+              iconName={entry.iconName}
+              iconFamily={entry.iconFamily}
+              onSelect={onSelectIcon}
+              buttonClassName="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-stark-hover hover:text-accent"
+              defaultIconClassName="opacity-50"
+            />
+            <TitleEditor
+              value={titleValue}
+              isUntitled={isUntitled}
+              onChange={setTitleDraft}
+              onBlur={onTitleBlur}
+            />
+          </div>
         )}
-      >
-        <div className={cn("mx-auto min-h-full flex flex-col max-w-reading", pagePadding)}>
-          {maximized ? (
-            <div className="my-4">
-              <TitleEditor
-                value={titleValue}
-                isUntitled={isUntitled}
-                onChange={setTitleDraft}
-                onBlur={onTitleBlur}
-              />
-            </div>
-          ) : (
-            <div className="flex items-start gap-3">
-              <IconPicker
-                iconName={entry.iconName}
-                iconFamily={entry.iconFamily}
-                onSelect={onSelectIcon}
-                buttonClassName="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-md border-0 bg-transparent text-primary text-3xl leading-none cursor-pointer transition-colors hover:bg-stark-hover hover:text-accent"
-                defaultIconClassName="opacity-50"
-              />
-              <TitleEditor
-                value={titleValue}
-                isUntitled={isUntitled}
-                onChange={setTitleDraft}
-                onBlur={onTitleBlur}
-              />
-            </div>
-          )}
 
-          {!maximized &&
-            (() => {
-              const hasChildren = entry.children.length > 0;
-              const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
-              const creatingChild = pendingChildName != null;
-              const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
-              if (!showHeadings) {
-                return (
-                  <div className="text-base leading-relaxed my-5">
-                    <AddChildPill onClick={addChild} label="Add subentry..." />
-                    <ChildSep />
-                    <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
-                  </div>
-                );
-              }
+        {!maximized &&
+          (() => {
+            const hasChildren = entry.children.length > 0;
+            const hasAttrs = entry.metadata != null && Object.keys(entry.metadata).length > 0;
+            const creatingChild = pendingChildName != null;
+            const showHeadings = hasChildren || hasAttrs || pendingChild || creatingChild;
+            if (!showHeadings) {
               return (
-                <div className="space-y-7 my-7">
-                  <section>
-                    {hasAttrs && <SectionHeading>Metadata</SectionHeading>}
-                    <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
-                  </section>
-                  <section>
-                    {(hasChildren || pendingChild || creatingChild) && (
-                      <SectionHeading>Subsections</SectionHeading>
-                    )}
-                    {/* Children list as bullets. The pending input and loading
+                <div className="text-base leading-relaxed my-5">
+                  <AddChildPill onClick={addChild} label="Add subentry..." />
+                  <ChildSep />
+                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} bare />
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-7 my-7">
+                <section>
+                  {hasAttrs && <SectionHeading>Metadata</SectionHeading>}
+                  <Attributes metadata={entry.metadata} onChange={onMetadataChange} />
+                </section>
+                <section>
+                  {(hasChildren || pendingChild || creatingChild) && (
+                    <SectionHeading>Subsections</SectionHeading>
+                  )}
+                  {/* Children list as bullets. The pending input and loading
                       placeholder slot in as bullets too (a new child taking
                       shape), while the trailing "Add" control sits as a
                       marker-less item — same add semantics as before: typing
                       swaps the Add control for the input, submitting shows the
                       loading placeholder until the real child link replaces it. */}
-                    <ul className="list-disc pl-4 space-y-2 marker:text-stark-border text-base text-primary">
-                      {entry.children.map((c) => (
-                        <li key={c.id}>
-                          <ChildItem
-                            href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
-                            id={c.id}
-                            name={c.name}
-                          />
-                        </li>
-                      ))}
-                      {pendingChildName != null && (
-                        <li>
-                          <PendingChildItem name={pendingChildName} />
-                        </li>
-                      )}
-                      {pendingChild ? (
-                        <li>
-                          <PendingChildInput
-                            onSubmit={onSubmitPendingChild}
-                            onCancel={() => setPendingChild(false)}
-                          />
-                        </li>
-                      ) : (
-                        <li className="list-none">
-                          <AddChildPill
-                            onClick={addChild}
-                            label={hasChildren ? "Add..." : "Add subentry..."}
-                          />
-                        </li>
-                      )}
-                    </ul>
-                  </section>
-                </div>
-              );
-            })()}
+                  <ul className="list-disc pl-4 space-y-2 marker:text-stark-border text-base text-primary">
+                    {entry.children.map((c) => (
+                      <li key={c.id}>
+                        <ChildItem
+                          href={`/${routeSegment(logbook.slug, logbook.id)}/${routeSegment(c.slug, c.id)}`}
+                          id={c.id}
+                          name={c.name}
+                        />
+                      </li>
+                    ))}
+                    {pendingChildName != null && (
+                      <li>
+                        <PendingChildItem name={pendingChildName} />
+                      </li>
+                    )}
+                    {pendingChild ? (
+                      <li>
+                        <PendingChildInput
+                          onSubmit={onSubmitPendingChild}
+                          onCancel={() => setPendingChild(false)}
+                        />
+                      </li>
+                    ) : (
+                      <li className="list-none">
+                        <AddChildPill
+                          onClick={addChild}
+                          label={hasChildren ? "Add..." : "Add subentry..."}
+                        />
+                      </li>
+                    )}
+                  </ul>
+                </section>
+              </div>
+            );
+          })()}
 
-          <div className="flex-1 flex flex-col">
-            <RichTextEditor
-              key={entry.id}
-              ref={editorRef}
-              initialContent={entry.contentJson}
-              onSave={onSaveContent}
-              onDirtyChange={setEditorDirty}
-              uploadImage={onUploadImage}
-              uploadPastedImage={onUploadPastedImage}
-              className="flex-1 flex flex-col"
-            />
-          </div>
-
-          {!maximized && (
-            <Footer
-              createdAt={entry.createdAt}
-              savedAt={savedAt}
-              saving={saving}
-              wordCount={entry.wordCount}
-            />
-          )}
+        <div className="flex-1 flex flex-col">
+          <RichTextEditor
+            key={entry.id}
+            ref={editorRef}
+            initialContent={entry.contentJson}
+            onSave={onSaveContent}
+            onDirtyChange={setEditorDirty}
+            uploadImage={onUploadImage}
+            uploadPastedImage={onUploadPastedImage}
+            className="flex-1 flex flex-col"
+          />
         </div>
+
+        {!maximized && (
+          <Footer
+            createdAt={entry.createdAt}
+            savedAt={savedAt}
+            saving={saving}
+            wordCount={entry.wordCount}
+          />
+        )}
       </div>
     </div>
   );
@@ -553,7 +578,10 @@ function ChildItem({ href, id, name }: { href: string; id: number; name: string 
       // navigates away, so there's no downside to showing it on plain focus.
       className={cn(
         childLink,
-        "ml-1 rounded-sm focus:outline-none focus:ring-2 focus:ring-accent",
+        // The top bar floats over the scrolling document, so the `scrollIntoView`
+        // that follows this link's programmatic focus has to be told to stop
+        // short of it — otherwise a newly-created child scrolls in underneath.
+        "ml-1 scroll-mt-top-bar rounded-sm focus:outline-none focus:ring-2 focus:ring-accent",
         isUntitled && "text-muted italic",
       )}
     >
@@ -608,7 +636,9 @@ function PendingChildInput({
       placeholder="New subentry"
       className={cn(
         childLink,
-        "bg-transparent border-0 outline-none p-0 m-0 placeholder:text-muted field-sizing-content min-w-[10ch]",
+        // `scroll-mt-top-bar` for the same reason as ChildItem's: this input
+        // scrolls itself into view on mount, past the floating top bar.
+        "bg-transparent border-0 outline-none p-0 m-0 scroll-mt-top-bar placeholder:text-muted field-sizing-content min-w-[10ch]",
       )}
       onBlur={(e) => {
         if (settledRef.current) return;

@@ -10,14 +10,14 @@ import "./globals.css";
 // freshly-saved token. Runs once at module load; further calls are no-ops.
 if (typeof window !== "undefined") {
   bootstrapTokenFromHash();
-  // Own scroll restoration outright. The org chart is the one route where the
-  // DOCUMENT scrolls (so a mobile browser will dismiss its address bar for it),
-  // and it scrolls on BOTH axes; it keeps its own per-history-entry offsets and
-  // reapplies them on mount. React Router's <ScrollRestoration> is deliberately
-  // absent for the same reason — it restores with `scrollTo(0, y)`, which would
-  // reset the chart's horizontal position on every back-navigation. Turning the
-  // browser's own restoration off keeps it from racing us as well; every other
-  // route scrolls inside a box, which nothing restores automatically anyway.
+  // Own scroll restoration outright. The org chart and the entry page both
+  // scroll the DOCUMENT (so a mobile browser will dismiss its address bar for
+  // them), and the chart scrolls on BOTH axes; it keeps its own per-history-entry
+  // offsets and reapplies them on mount, while the entry page just returns to the
+  // top. React Router's <ScrollRestoration> is deliberately absent for the same
+  // reason — it restores with `scrollTo(0, y)`, which would reset the chart's
+  // horizontal position on every back-navigation. Turning the browser's own
+  // restoration off keeps it from racing those two as well.
   if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
 }
 

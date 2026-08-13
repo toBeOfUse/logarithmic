@@ -86,9 +86,8 @@
   --container-reading: 48rem;
 
   /* The top bar's height. A `--spacing-*` token so it generates both the bar's
-     own `h-top-bar` and the `pt-top-bar` that reserves its space on routes where
-     the bar floats over a scrolling document (see TopBar's `floating` prop) —
-     the two can't drift apart. */
+     own `h-top-bar` and the `pt-top-bar` with which routes hold its space open —
+     the bar is pinned over the page (see TopBar), so the two can't drift apart. */
   --spacing-top-bar: 2.75rem;
 
   /* Typography. Vazirmatn is the primary face, for now; Lora is used for accent serif text. */
@@ -159,6 +158,23 @@ body {
   font-family: var(--font-sans);
   background: var(--color-stark);
   color: var(--color-primary);
+}
+
+/* Both of these style the VIEWPORT scrollbar, which belongs to the root element
+   — so a route that scrolls the document (rather than a box inside it) can only
+   flag itself and let these rules reach up. A route that scrolls a box of its
+   own styles that box directly and sets neither marker. */
+
+/* Reserve the scrollbar's gutter whether or not it's showing, so a centered
+   reading column doesn't shift sideways the moment an entry grows past one
+   screen. */
+html:has([data-stable-gutter]) {
+  scrollbar-gutter: stable;
+}
+
+/* Focus mode slims the scrollbar, the same way it strips the rest of the chrome. */
+html:has([data-focus-mode]) {
+  scrollbar-width: thin;
 }
 
 /* Form controls don't inherit font by default; make them match surrounding
