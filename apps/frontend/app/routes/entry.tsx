@@ -79,8 +79,14 @@ export default function EntryRoute() {
   const entryId = parseEntryId(params.entryId ?? "");
   const demo = isDemoLogbook(logbookId);
 
-  const { data: entry, isLoading } = useEntry(entryId, logbookId, { demo });
-  const { data: overview } = useLogbookOverview(logbookId, { demo });
+  const { data: entry, isLoading: entryLoading } = useEntry(entryId, logbookId, { demo });
+  const { data: overview, isLoading: overviewLoading } = useLogbookOverview(logbookId, { demo });
+
+  // The page needs BOTH queries, so it's only "not found" once neither is still
+  // in flight. Tracking just the entry's loading state made a refresh flash
+  // "Entry not found" for the window where the entry had resolved but the
+  // overview hadn't — a false negative for an entry that plainly exists.
+  const isLoading = entryLoading || overviewLoading;
 
   const updateContent = useUpdateEntryContent({ demo });
   const updateMetadata = useUpdateEntryMetadata({ demo });
