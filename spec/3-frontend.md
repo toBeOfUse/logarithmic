@@ -122,7 +122,7 @@ To keep the interface simple, formatting options are presented to the user only 
 
 The available "common" formatting options are: H2, H3, bulleted list, numbered list, and blockquote. These should show up in both of the floating menus described below. (Note that H1 is not a possible option, since the entry title is the highest-level heading.) (Is that annoying?)
 
-The available inline formatting options are: the common formatting options, bold, italic, underline, strike-through, and links. All of these options should be presented as buttons in a simple floating horizontal toolbar when the user highlights text, with standard rich text editor functionality. There also should be a "clear formatting" button in it.
+The available inline formatting options are: the common formatting options, bold, italic, underline, strike-through, and links. All of these options should be presented as buttons in a simple floating horizontal toolbar when the user highlights text, with standard rich text editor functionality. There also should be a "clear formatting" button in it, which, when clicked, should remove all inline formatting within the selection, and remove block formatting if all the content in a formatted block is covered by the selection.
 
 Inline code formatting is also supported, but only when the user enters Markdown-style backtick (\`) characters, under the assumption that programmers will know to use backticks, no one else will want to format their text like code, and I don't want this app to look like a programmer's tool.
 

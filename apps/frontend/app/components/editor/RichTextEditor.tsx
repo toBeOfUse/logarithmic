@@ -32,6 +32,7 @@ import { editorTheme } from "./theme.ts";
 import { FootnoteNode } from "./nodes/FootnoteNode.tsx";
 import { DataUriImageNode, ImageNode } from "./nodes/ImageNode.tsx";
 import { AutoLinkOnPastePlugin } from "./plugins/AutoLinkOnPastePlugin.tsx";
+import { ClearFormattingPlugin } from "./plugins/ClearFormattingPlugin.tsx";
 import { EditorControllerPlugin } from "./plugins/EditorControllerPlugin.tsx";
 import { FloatingToolbarPlugin } from "./plugins/FloatingToolbarPlugin.tsx";
 import { FootnoteCopyPlugin } from "./plugins/FootnoteCopyPlugin.tsx";
@@ -157,6 +158,7 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
               more than one paragraph. */}
           <MultiParagraphBlockQuotePlugin />
           <AutoLinkOnPastePlugin />
+          <ClearFormattingPlugin />
           <FloatingToolbarPlugin />
           <SlashMenuPlugin />
           <FootnotePlugin />

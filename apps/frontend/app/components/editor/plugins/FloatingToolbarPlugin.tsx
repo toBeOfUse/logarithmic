@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $findMatchingParent, $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
-import { $patchStyleText, $setBlocksType } from "@lexical/selection";
+import { $setBlocksType } from "@lexical/selection";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import {
   INSERT_ORDERED_LIST_COMMAND,
@@ -49,6 +49,7 @@ import {
   TOOL_SEP,
   useDismissOnOutsidePointerDown,
 } from "../FloatingPopover.tsx";
+import { CLEAR_FORMATTING_COMMAND } from "./ClearFormattingPlugin.tsx";
 
 type BlockType = "paragraph" | "h2" | "h3" | "quote" | "bullet" | "number";
 
@@ -71,8 +72,6 @@ const EMPTY_STATE: InlineState = {
   linkUrl: "",
   block: "paragraph",
 };
-
-const INLINE_CLEARABLE: TextFormatType[] = ["bold", "italic", "underline", "strikethrough", "code"];
 
 /** The block a selected node sits in, or `null` for the things that aren't text
  *  blocks at all (a divider or an image at the top level). */
@@ -266,21 +265,7 @@ export function FloatingToolbarPlugin({ inlineOnly = false }: { inlineOnly?: boo
   };
 
   const clearFormatting = () => {
-    const active = editor.getEditorState().read(() => {
-      const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return [] as TextFormatType[];
-      return INLINE_CLEARABLE.filter((f) => selection.hasFormat(f));
-    });
-    for (const f of active) editor.dispatchCommand(FORMAT_TEXT_COMMAND, f);
-    // Remove links only across the highlighted range (Lexical splits partial
-    // links), matching the spec.
-    editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
-    editor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        $patchStyleText(selection, { color: null, "background-color": null, "font-size": null });
-      }
-    });
+    editor.dispatchCommand(CLEAR_FORMATTING_COMMAND, undefined);
   };
 
   if (mode === "hidden") return null;

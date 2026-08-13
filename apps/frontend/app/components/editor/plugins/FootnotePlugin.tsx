@@ -40,6 +40,7 @@ import { cn } from "~/lib/cn.ts";
 import styles from "../editor.module.css";
 import { $createFootnoteNode } from "../nodes/FootnoteNode.tsx";
 import { AutoLinkOnPastePlugin } from "./AutoLinkOnPastePlugin.tsx";
+import { ClearFormattingPlugin } from "./ClearFormattingPlugin.tsx";
 import { FloatingToolbarPlugin } from "./FloatingToolbarPlugin.tsx";
 
 export const INSERT_FOOTNOTE_COMMAND: LexicalCommand<void> = createCommand("INSERT_FOOTNOTE");
@@ -253,6 +254,9 @@ function FootnoteBody({
       {/* Only inline formatting is offered inside footnotes (spec) — including
           pasting a URL over selected text to link it. */}
       <AutoLinkOnPastePlugin />
+      {/* The toolbar's clear-formatting button dispatches a command, so its
+          handler has to be mounted on this nested editor too. */}
+      <ClearFormattingPlugin />
       <FloatingToolbarPlugin inlineOnly />
       <FootnoteBodySync parentEditor={parentEditor} nodeKey={nodeKey} />
       {autoFocus && <FootnoteAutoFocus onFocused={onAutoFocused} />}
