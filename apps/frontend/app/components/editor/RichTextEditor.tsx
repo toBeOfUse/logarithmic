@@ -41,6 +41,7 @@ import { ImageDndController, ImageDndProvider } from "./plugins/ImageDndProvider
 import { ImagePlugin } from "./plugins/ImagePlugin.tsx";
 import { MultiParagraphBlockQuotePlugin } from "./plugins/MultiParagraphBlockQuotePlugin.tsx";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin.tsx";
+import { TrailingParagraphPlugin } from "./plugins/TrailingParagraphPlugin.tsx";
 
 /**
  * Imperative actions the page can trigger on the editor. Deliberately narrow —
@@ -164,6 +165,8 @@ export const RichTextEditor = forwardRef<EditorHandle, Props>(function RichTextE
           <FootnotePlugin />
           <FootnoteCopyPlugin />
           <ImagePlugin uploadImage={uploadImage} uploadPastedImage={uploadPastedImage} />
+          {/* Must stay ahead of EditorControllerPlugin — see the plugin. */}
+          <TrailingParagraphPlugin />
           <EditorControllerPlugin handleRef={ref} onSave={onSave} onDirtyChange={onDirtyChange} />
         </LexicalExtensionComposer>
       </ImageDndProvider>

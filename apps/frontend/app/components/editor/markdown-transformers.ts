@@ -66,7 +66,13 @@ export function contentToMarkdown(editor: LexicalEditor): string {
     ...TRANSFORMERS,
   ];
 
-  let md = editor.getEditorState().read(() => $convertToMarkdownString(transformers));
+  // Trimmed because the document always ends in a blank paragraph (see
+  // TrailingParagraphPlugin), which would otherwise export as a trailing blank
+  // line — and push the footnote definitions an extra line down.
+  let md = editor
+    .getEditorState()
+    .read(() => $convertToMarkdownString(transformers))
+    .trimEnd();
 
   if (notes.length > 0) {
     const defs = notes
