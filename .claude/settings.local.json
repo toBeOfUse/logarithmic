@@ -7,9 +7,6 @@
       "WebFetch(domain:remult.dev)",
       "Bash(npx tsc:*)",
       "WebFetch(domain:svelte.dev)",
-      "Bash(bun *)",
-      "Bash(vp *)",
-      "Bash(bunx svelte-kit:*)",
       "WebFetch(domain:vite.dev)",
       "WebFetch(domain:mikro-orm.io)",
       "WebFetch(domain:www.better-auth.com)",
@@ -26,9 +23,6 @@
       "Bash(curl -I http://localhost:3001/health)",
       "WebFetch(domain:marked.js.org)",
       "Bash(curl -s -m 3 http://localhost:3001/health)",
-      "PowerShell(vp fmt *)",
-      "PowerShell(vp check *)",
-      "PowerShell(vp test *)",
       "PowerShell(npx playwright-cli *)",
       "WebFetch(domain:lexical.dev)"
     ]
